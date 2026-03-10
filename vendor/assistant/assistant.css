@@ -392,8 +392,12 @@
   letter-spacing: normal !important;
 }
 /* ==== sticky-layer 구조 ==== */
-#sticky-layer { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; z-index: 1500 !important; pointer-events: none !important; overflow: visible !important; background: transparent !important; }
-#sticky-layer .imsmassi-sticky-note-wrapper { position: absolute !important; pointer-events: auto !important; width: var(--sticky-width, 220px) !important; height: var(--sticky-height, 150px) !important; min-width: 150px !important; min-height: 150px !important; z-index: 10 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; }
+#sticky-layer { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; z-index: 1500 !important; pointer-events: none !important; overflow: visible !important; background: transparent !important; transition: opacity 0.18s ease !important; }
+/* 이동 중 페이드아웃 클래스 */
+#sticky-layer.imsmassi-relocating { opacity: 0 !important; pointer-events: none !important; }
+#sticky-layer .imsmassi-sticky-note-wrapper { position: absolute !important; pointer-events: auto !important; width: var(--sticky-width, 220px) !important; height: var(--sticky-height, 150px) !important; min-width: 150px !important; min-height: 150px !important; z-index: 10 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; transition: opacity 0.15s ease, transform 0.15s ease !important; }
+/* 포스트잇 등장 애니메이션 */
+#sticky-layer .imsmassi-sticky-note-wrapper.imsmassi-entering { opacity: 0 !important; transform: scale(0.96) !important; }
 #sticky-layer .imsmassi-sticky-note-wrapper.imsmassi-is-collapsed { height: 22px !important; min-height: unset !important; }
 #sticky-layer .imsmassi-sticky-note { position: relative !important; pointer-events: auto !important; display: flex !important; flex-direction: column !important; width: 100% !important; height: 100% !important; min-width: 150px !important; min-height: 150px !important; background: var(--area-sub2, #FFF9C4) !important; border: 1px solid var(--area-sub1, #E6D98A) !important; border-left: 4px solid var(--area-primary, #F1C40F) !important; box-shadow: 0 6px 14px rgba(0,0,0,0.15) !important; border-radius: 8px !important; padding: 0 !important; resize: both !important; overflow: hidden !important; z-index: 1 !important; margin: 0 !important; color: #3D3D3D !important; font-size: 12px !important; line-height: 1.4 !important; }
 #sticky-layer .imsmassi-sticky-note.imsmassi-is-collapsed { resize: none !important; min-height: unset !important; height: 22px !important; }

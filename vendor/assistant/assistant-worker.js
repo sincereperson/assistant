@@ -391,50 +391,113 @@ const state = {
 // ========================================
 const ports = new Set();
 
-/** 모든 연결된 클라이언트에게 메시지 브로드캐스트 */
+/**
+ * 탭(포트)별 독립 컨텍스트 Map
+ * 여러 탭이 열려 있을 때 selectedArea/selectedMenu/시간 통계가 서로 충돌하지 않도록
+ * 각 포트마다 독립적인 컨텍스트를 유지합니다.
+ */
+const clientContextMap = new Map();
+
+/** 새 포트에 대한 초기 클라이언트 컨텍스트 생성 */
+function initClientContext(port) {
+  clientContextMap.set(port, {
+    selectedArea:       state.selectedArea,
+    selectedMenu:       state.selectedMenu,
+    lastMenuChangeTime: Date.now(),
+    menuTimeStats:      {},   // 현재 세션 누적 (DB 기준값은 state.menuTimeStats)
+    timeBuckets:        { daily: {}, weekly: {}, monthly: {} },
+    isActive:           true,  // 탭 포커스 여부 — false인 탭은 시간 누적 안 함
+  });
+}
+
+/** 포트의 클라이언트 컨텍스트 반환 (없으면 초기화) */
+function getClientContext(port) {
+  if (!clientContextMap.has(port)) initClientContext(port);
+  return clientContextMap.get(port);
+}
+
+/** stats 객체 두 개를 덧셈 병합 */
+function mergeStats(base, delta) {
+  if (!delta) return base || {};
+  const merged = { ...(base || {}) };
+  Object.entries(delta).forEach(([areaId, ms]) => {
+    merged[areaId] = (merged[areaId] || 0) + ms;
+  });
+  return merged;
+}
+
+/** timeBuckets 객체 두 개를 덧셈 병합 */
+function mergeTimeBuckets(base, delta) {
+  if (!delta) return base || { daily: {}, weekly: {}, monthly: {} };
+  const merged = {
+    daily:   { ...(base?.daily   || {}) },
+    weekly:  { ...(base?.weekly  || {}) },
+    monthly: { ...(base?.monthly || {}) },
+  };
+  ['daily', 'weekly', 'monthly'].forEach(period => {
+    const src = delta[period] || {};
+    Object.entries(src).forEach(([key, areaData]) => {
+      if (!merged[period][key]) merged[period][key] = {};
+      Object.entries(areaData).forEach(([areaId, ms]) => {
+        merged[period][key][areaId] = (merged[period][key][areaId] || 0) + ms;
+      });
+    });
+  });
+  return merged;
+}
+
+/** 모든 연결된 클라이언트에게 메시지 브로드캐스트 (타입/페이로드 직접 지정) */
 function broadcast(type, payload) {
   ports.forEach(port => {
     try { port.postMessage({ type, payload }); }
-    catch (e) { ports.delete(port); }
+    catch (e) { ports.delete(port); clientContextMap.delete(port); }
   });
 }
 
 /** 특정 포트에만 메시지 전송 */
 function sendTo(port, type, payload) {
   try { port.postMessage({ type, payload }); }
-  catch (e) { ports.delete(port); }
+  catch (e) { ports.delete(port); clientContextMap.delete(port); }
 }
 
 /**
  * 전송 가능한 상태 스냅샷 반환 (postMessage에 필요한 직렬화 가능 객체)
+ * port를 전달하면 해당 탭의 독립 컨텍스트(selectedArea 등)가 적용됩니다.
  * UI-only 상태 (activeTab, currentModal 등)는 클라이언트가 로컬로 관리합니다.
  */
-function getSnapshot() {
+function getSnapshot(port) {
+  const ctx = port ? clientContextMap.get(port) : null;
   return {
-    currentTheme: state.currentTheme,
-    isDarkMode: state.isDarkMode,
-    selectedArea: state.selectedArea,
-    selectedMenu: state.selectedMenu,
-    memoFilter: state.memoFilter,
+    currentTheme:        state.currentTheme,
+    isDarkMode:          state.isDarkMode,
+    // 탭별 독립 컨텍스트 — 다른 탭의 화면 전환이 이 탭에 영향을 주지 않음
+    selectedArea:        ctx ? ctx.selectedArea        : state.selectedArea,
+    selectedMenu:        ctx ? ctx.selectedMenu        : state.selectedMenu,
+    memoFilter:          state.memoFilter,
     isMemoPanelExpanded: state.isMemoPanelExpanded,
-    lastMenuChangeTime: state.lastMenuChangeTime,
-    menuTimeStats: state.menuTimeStats,
-    timeBuckets: state.timeBuckets,
-    memos: state.memos,
-    memosByArea: state.memosByArea,
-    clipboard: state.clipboard,
-    templates: state.templates,
-    stickyNotes: state.stickyNotes,
-    areaColors: state.areaColors,
-    settings: state.settings,
-    nextTemplateId: state.nextTemplateId,
-    userInfo: state.userInfo,
+    lastMenuChangeTime:  ctx ? ctx.lastMenuChangeTime  : state.lastMenuChangeTime,
+    // 시간 통계: DB에 저장된 값만 반환 (탭 간 중복 누적 방지)
+    // 현재 세션 누적분은 BEFORE_UNLOAD 시점에만 DB에 병합 저장됨
+    menuTimeStats:       state.menuTimeStats,
+    timeBuckets:         state.timeBuckets,
+    memos:               state.memos,
+    memosByArea:         state.memosByArea,
+    clipboard:           state.clipboard,
+    templates:           state.templates,
+    stickyNotes:         state.stickyNotes,
+    areaColors:          state.areaColors,
+    settings:            state.settings,
+    nextTemplateId:      state.nextTemplateId,
+    userInfo:            state.userInfo,
   };
 }
 
-/** 상태 변경 후 모든 클라이언트에게 브로드캐스트 */
+/** 상태 변경 후 모든 클라이언트에게 브로드캐스트 (각 탭은 자신의 컨텍스트로 수신) */
 function broadcastState() {
-  broadcast('STATE_UPDATE', getSnapshot());
+  ports.forEach(port => {
+    try { port.postMessage({ type: 'STATE_UPDATE', payload: getSnapshot(port) }); }
+    catch (e) { ports.delete(port); clientContextMap.delete(port); }
+  });
 }
 
 // ========================================
@@ -495,6 +558,37 @@ function recordAreaTime(areaId) {
   state.menuTimeStats[areaId] += elapsedMs;
   recordToBucket(areaId, elapsedMs);
   state.lastMenuChangeTime = now;
+}
+
+/**
+ * 탭(포트)별 독립 시간 기록
+ * 특정 탭의 areaId 체류 시간을 해당 탭의 클라이언트 컨텍스트에만 누적합니다.
+ */
+function recordClientAreaTime(port, areaId) {
+  if (!areaId) return;
+  const ctx = getClientContext(port);
+  // 비활성 탭(백그라운드/포커스 없음)은 시간 누적 안 함 → 탭 수 증가 시 중복 집계 방지
+  if (!ctx.isActive) return;
+  const now = Date.now();
+  const elapsedMs = now - ctx.lastMenuChangeTime;
+  if (elapsedMs <= 0) return;
+  if (!ctx.menuTimeStats[areaId]) ctx.menuTimeStats[areaId] = 0;
+  ctx.menuTimeStats[areaId] += elapsedMs;
+  // timeBuckets에도 기록
+  if (!ctx.timeBuckets) ctx.timeBuckets = { daily: {}, weekly: {}, monthly: {} };
+  const nowDate = new Date();
+  const dk = getDailyBucket(nowDate);
+  const wk = getWeeklyBucket(nowDate);
+  const mk = getMonthlyBucket(nowDate);
+  const add = (bucket, key) => {
+    if (!ctx.timeBuckets[bucket]) ctx.timeBuckets[bucket] = {};
+    if (!ctx.timeBuckets[bucket][key]) ctx.timeBuckets[bucket][key] = {};
+    ctx.timeBuckets[bucket][key][areaId] = (ctx.timeBuckets[bucket][key][areaId] || 0) + elapsedMs;
+  };
+  add('daily', dk);
+  add('weekly', wk);
+  add('monthly', mk);
+  ctx.lastMenuChangeTime = now;
 }
 
 // ── 메뉴 시간 통계 저장/로드 ──
@@ -657,15 +751,19 @@ async function runAutoCleanup({ silent = true } = {}) {
 
 async function handleInit(port, payload) {
   await ensureInit(payload?.loginId);
-  sendTo(port, 'STATE_UPDATE', getSnapshot());
+  initClientContext(port);
+  sendTo(port, 'STATE_UPDATE', getSnapshot(port));
 }
 
 async function handleContextChange(port, payload) {
   const { areaId, menuId } = payload || {};
-  recordAreaTime(state.selectedArea);
-  if (areaId) state.selectedArea = areaId;
-  if (menuId !== undefined) state.selectedMenu = menuId;
-  broadcastState();
+  const ctx = getClientContext(port);
+  // 이전 area 체류 시간을 이 탭의 컨텍스트에만 기록 (다른 탭 불침범)
+  recordClientAreaTime(port, ctx.selectedArea);
+  if (areaId) ctx.selectedArea = areaId;
+  if (menuId !== undefined) ctx.selectedMenu = menuId;
+  // 이 탭에게만 상태 전송 (다른 탭의 selectedArea/selectedMenu를 건드리지 않음)
+  sendTo(port, 'STATE_UPDATE', getSnapshot(port));
 }
 
 async function handleAddMemo(port, payload) {
@@ -981,8 +1079,26 @@ async function handleToggleLabel(port, payload) {
 }
 
 async function handleRecordAreaTime(port, payload) {
-  recordAreaTime(payload.areaId);
+  recordClientAreaTime(port, payload.areaId);
   // 시간 기록은 브로드캐스트 없이 로컬 업데이트만 (성능)
+}
+
+/**
+ * 탭 포커스/비포커스 상태 변경 핸들러
+ * isActive=false 탭은 시간 누적을 중단하여 여러 탭 열림 시 중복 집계를 방지합니다.
+ */
+async function handleTabActive(port, payload) {
+  const { isActive } = payload || {};
+  const ctx = getClientContext(port);
+  if (isActive) {
+    // 포커스 복귀: lastMenuChangeTime 갱신 (백그라운드 체류 시간 제외)
+    ctx.isActive = true;
+    ctx.lastMenuChangeTime = Date.now();
+  } else {
+    // 포커스 상실: 지금까지 누적 시간을 flush하고 비활성 전환
+    recordClientAreaTime(port, ctx.selectedArea);
+    ctx.isActive = false;
+  }
 }
 
 async function handleImportData(port, payload) {
@@ -1010,7 +1126,34 @@ async function handleClearOldData(port, payload) {
 }
 
 async function handleBeforeUnload(port) {
-  await saveMenuTimeStats();
+  const ctx = clientContextMap.get(port);
+  if (ctx) {
+    // 현재 선택 영역의 잔여 시간 기록
+    recordClientAreaTime(port, ctx.selectedArea);
+    // DB에 저장된 누적 stats + 이 탭의 현재 세션 stats를 병합하여 저장
+    try {
+      const savedStats   = (await db.getSetting('menu_time_stats')) || {};
+      const mergedStats  = mergeStats(savedStats, ctx.menuTimeStats);
+      await db.saveSetting('menu_time_stats', mergedStats);
+      // 전역 state도 업데이트 (다른 탭의 getSnapshot 기준값 갱신)
+      state.menuTimeStats = mergedStats;
+
+      const savedBuckets  = (await db.getSetting('time_buckets')) || { daily: {}, weekly: {}, monthly: {} };
+      const mergedBuckets = mergeTimeBuckets(savedBuckets, ctx.timeBuckets);
+      await db.saveSetting('time_buckets', mergedBuckets);
+      state.timeBuckets = mergedBuckets;
+
+      // 저장 완료 후 이 탭의 세션 stats 리셋 (중복 저장 방지)
+      ctx.menuTimeStats = {};
+      ctx.timeBuckets   = { daily: {}, weekly: {}, monthly: {} };
+      ctx.lastMenuChangeTime = Date.now();
+    } catch (error) {
+      console.error('[Worker] 탭 종료 시 시간 통계 저장 실패:', error);
+    }
+  } else {
+    // ctx가 없는 경우 기존 방식으로 폴백
+    await saveMenuTimeStats();
+  }
   if (state.settings) await db.saveSetting('app_settings', state.settings);
   await db.saveSetting('sticky_notes', state.stickyNotes || []);
 }
@@ -1071,6 +1214,7 @@ const HANDLERS = {
   REMOVE_STICKY_NOTE:handleRemoveStickyNote,
   TOGGLE_LABEL:      handleToggleLabel,
   RECORD_AREA_TIME:  handleRecordAreaTime,
+  TAB_ACTIVE:        handleTabActive,
   IMPORT_DATA:       handleImportData,
   EXPORT_DATA:       handleExportData,
   CLEAR_OLD_DATA:    handleClearOldData,
@@ -1106,12 +1250,14 @@ self.onconnect = function (connectEvent) {
   port.addEventListener('messageerror', () => {
     console.warn('[Worker] port messageerror');
     ports.delete(port);
+    clientContextMap.delete(port); // 탭별 컨텍스트 정리
   });
 
   port.start();
 
-  // 이미 초기화된 경우 현재 상태를 즉시 전송
+  // 이미 초기화된 경우 클라이언트 컨텍스트 초기화 후 즉시 전송
   if (_initialized) {
-    sendTo(port, 'STATE_UPDATE', getSnapshot());
+    initClientContext(port);
+    sendTo(port, 'STATE_UPDATE', getSnapshot(port));
   }
 };

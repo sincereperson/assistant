@@ -2302,46 +2302,69 @@ function _resolveTargetContainer() {
  */
 function relocateStickyLayer() {
   if (_stickyLayerRelocating) return;
+
+  let layer = document.getElementById('sticky-layer');
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.id = 'sticky-layer';
+  }
+
+  const targetElement = _resolveTargetContainer();
+
+  // 이미 올바른 위치에 있으면 아무것도 하지 않음
+  if (targetElement && layer.parentElement === targetElement) return;
+
   _stickyLayerRelocating = true;
 
-  try {
-    const targetElement = _resolveTargetContainer();
+  // 1단계: 페이드아웃
+  layer.classList.add('imsmassi-relocating');
 
-    let layer = document.getElementById('sticky-layer');
-    if (!layer) {
-      layer = document.createElement('div');
-      layer.id = 'sticky-layer';
-    }
-
-    if (targetElement && layer.parentElement === targetElement) return;
-
-    const prevParent = layer.parentElement;
-    if (prevParent
-        && prevParent !== document.body
-        && typeof prevParent._stickyPositionBackup !== 'undefined') {
-      prevParent.style.position = prevParent._stickyPositionBackup;
-      delete prevParent._stickyPositionBackup;
-    }
-
-    if (targetElement && targetElement.isConnected) {
-      const computedPos = window.getComputedStyle(targetElement).position;
-      if (computedPos === 'static') {
-        targetElement._stickyPositionBackup = targetElement.style.position || '';
-        targetElement.style.position = 'relative';
+  // 2단계: transition 완료 후 DOM 이동 + 페이드인
+  const doRelocate = () => {
+    try {
+      // 이전 부모의 position 복원
+      const prevParent = layer.parentElement;
+      if (prevParent
+          && prevParent !== document.body
+          && typeof prevParent._stickyPositionBackup !== 'undefined') {
+        prevParent.style.position = prevParent._stickyPositionBackup;
+        delete prevParent._stickyPositionBackup;
       }
-      targetElement.appendChild(layer);
-      layer.style.display = '';
-      console.log(`[Assistant] sticky-layer 주입 → ${targetElement.tagName}#${targetElement.id || ''}.${targetElement.className || ''}`);
-    } else {
-      document.body.appendChild(layer);
-      layer.style.display = 'none';
-      console.log('[Assistant] sticky-layer 비활성화 (대상 없음)');
-    }
 
-    renderStickyNotes();
-  } finally {
-    _stickyLayerRelocating = false;
-  }
+      if (targetElement && targetElement.isConnected) {
+        const computedPos = window.getComputedStyle(targetElement).position;
+        if (computedPos === 'static') {
+          targetElement._stickyPositionBackup = targetElement.style.position || '';
+          targetElement.style.position = 'relative';
+        }
+        targetElement.appendChild(layer);
+        layer.style.display = '';
+        console.log(`[Assistant] sticky-layer 주입 → ${targetElement.tagName}#${targetElement.id || ''}.${targetElement.className || ''}`);
+      } else {
+        document.body.appendChild(layer);
+        layer.style.display = 'none';
+        console.log('[Assistant] sticky-layer 비활성화 (대상 없음)');
+      }
+
+      renderStickyNotes();
+
+      // 포스트잇 wrapper에 entering 클래스 부여 후 즉시 제거 → 등장 애니메이션 트리거
+      requestAnimationFrame(() => {
+        const wrappers = layer.querySelectorAll('.imsmassi-sticky-note-wrapper');
+        wrappers.forEach(w => w.classList.add('imsmassi-entering'));
+        requestAnimationFrame(() => {
+          // 3단계: 페이드인 (entering 제거 → transition으로 opacity 1, scale 1로 복귀)
+          layer.classList.remove('imsmassi-relocating');
+          wrappers.forEach(w => w.classList.remove('imsmassi-entering'));
+        });
+      });
+    } finally {
+      _stickyLayerRelocating = false;
+    }
+  };
+
+  // transition duration(0.18s)만큼 대기 후 이동
+  setTimeout(doRelocate, 180);
 }
 
 // ========================================
@@ -5327,8 +5350,15 @@ function setMemoFilter(filter) {
   if (!['menu', 'area', 'all'].includes(filter)) return;
   if (state.memoFilter === filter) return;
   state.memoFilter = filter;
-  if (db) db.transaction('settings', 'readwrite', store => store.put(filter, 'memoFilter')).catch(() => {});
-  renderAssistantContent();
+  if (workerPort) {
+    // Worker 상태에도 반영 → 이후 CONTEXT_CHANGE 등 STATE_UPDATE가 와도 필터가 초기화되지 않음
+    workerSend('SAVE_UI_PREFS', { memoFilter: filter });
+    // SAVE_UI_PREFS → broadcastState() → handleStateUpdate → renderAssistant() 로 리렌더링됨
+  } else {
+    // SharedWorker 미지원 폴백: 직접 DB 저장 후 리렌더링
+    if (db) db.transaction('settings', 'readwrite', store => store.put(filter, 'memoFilter')).catch(() => {});
+    renderAssistantContent();
+  }
 }
 
 function toggleMemoSidePanel() {
@@ -6016,6 +6046,25 @@ window.bootstrapAssistant = bootstrapAssistant;
 window.addEventListener('assistant:mounted', (event) => {
   bootstrapAssistant(event.detail || {});
 });
+
+// ── 탭 포커스/Visibility 추적 ──────────────────────────────
+// 탭이 여러 개 열려 있을 때 비활성 탭은 시간 누적을 중단하여
+// 여러 사용자가 쓰는 것처럼 시간이 중복 집계되는 문제를 방지합니다.
+(function setupTabActiveTracking() {
+  function notifyActive(isActive) {
+    if (!window.assistantInitialized) return;
+    workerSend('TAB_ACTIVE', { isActive });
+  }
+
+  // Page Visibility API: 탭 전환/최소화 감지
+  document.addEventListener('visibilitychange', () => {
+    notifyActive(document.visibilityState === 'visible');
+  });
+
+  // 창 포커스 이벤트: 같은 브라우저 내 다른 창으로 전환 감지
+  window.addEventListener('focus', () => notifyActive(true));
+  window.addEventListener('blur',  () => notifyActive(false));
+})();
 
 // 페이지 닫기 전 Worker에 저장 요청
 window.addEventListener('beforeunload', () => {
