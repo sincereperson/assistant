@@ -106,29 +106,5 @@
       console.error('[assistant-loader] load failed:', error);
     }
   }
-
-  /**
-   * loadAssistant(options)
-   *
-   * 기존 빌드 소스(window.onload = init)를 건드리지 않고 체이닝합니다.
-   * - 페이지 로드 전 호출 시: 기존 window.onload(init) 완료 후 자동 실행
-   * - 페이지 로드 후 호출 시: 즉시 실행
-   */
-  function loadAssistant(options) {
-    if (document.readyState === 'complete') {
-      // 이미 로드 완료 → 즉시 실행
-      _initAssistant(options);
-    } else {
-      // 기존 window.onload(웹스퀘어 init 등) 보존 후 체이닝
-      const _prevOnload = window.onload;
-      window.onload = async function (e) {
-        if (typeof _prevOnload === 'function') {
-          await _prevOnload.call(this, e);
-        }
-        _initAssistant(options);
-      };
-    }
-  }
-
   window.loadAssistant = loadAssistant;
 })();
