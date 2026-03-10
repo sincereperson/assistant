@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>어시스턴트 Worker 아키텍처 테스트</title>
+
+  <!-- =====================================================
+  🔴 [배포시 제거] 테스트 전용 스타일
+       내부 시스템에는 이미 GNB·LNB·화면 컨테이너 스타일이 존재합니다.
+       아래 <style> 블록 전체를 제거하세요.
+  ===================================================== -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Malgun Gothic', sans-serif; background: #f0f2f5; }
+
+    /* ── 헤더 ── */
+    .sys-header {
+      height: 48px; background: #2c3e50; color: #fff;
+      display: flex; align-items: center; padding: 0 20px; gap: 16px;
+      font-size: 14px; font-weight: 600; position: sticky; top: 0; z-index: 100;
+    }
+    .sys-header span { opacity: .6; font-size: 11px; font-weight: 400; }
+
+    /* ── GNB ── */
+    .sys-gnb {
+      height: 44px; background: #34495e; display: flex; align-items: stretch;
+      padding: 0 12px; gap: 2px;
+    }
+    .gnb-tab {
+      display: flex; align-items: center; padding: 0 18px;
+      color: rgba(255,255,255,.65); font-size: 13px; cursor: pointer;
+      border-bottom: 3px solid transparent; transition: all .15s;
+      user-select: none;
+    }
+    .gnb-tab:hover { color: #fff; background: rgba(255,255,255,.08); }
+    /* ▼ setupContextObserver가 감시하는 클래스 */
+    .gnb-tab.w2group.active { color: #fff; border-bottom-color: #3498db; background: rgba(52,152,219,.2); }
+
+    /* ── LNB + 본문 ── */
+    .sys-body { display: flex; height: calc(100vh - 92px); }
+    .sys-lnb {
+      width: 180px; background: #2c3e50; padding: 12px 0; flex-shrink: 0; overflow-y: auto;
+    }
+    .lnb-item {
+      padding: 9px 20px; color: rgba(255,255,255,.6); font-size: 12px;
+      cursor: pointer; transition: all .12s; user-select: none;
+    }
+    .lnb-item:hover { color: #fff; background: rgba(255,255,255,.08); }
+    .lnb-item.active { color: #3498db; background: rgba(52,152,219,.12); font-weight: 600; }
+
+    /* ── 화면 컨테이너 영역 ── */
+    .sys-content { flex: 1; overflow: auto; padding: 20px; }
+
+    /* ── 각 화면 컨테이너 ── */
+    .screen-panel {
+      display: none;  /* 비활성 화면은 숨김 */
+      background: #fff; border-radius: 8px; border: 2px solid #e0e4e9;
+      min-height: 300px; padding: 16px; position: relative;
+      transition: border-color .15s;
+    }
+    /* ▼ setupStickyLayerObserver가 감시하는 클래스 */
+    .screen-panel.selected {
+      display: block;  /* 활성 화면만 표시 */
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px rgba(52,152,219,.15);
+    }
+    .screen-label {
+      font-size: 11px; font-weight: 600; color: #7f8c8d; text-transform: uppercase;
+      letter-spacing: .5px; margin-bottom: 8px;
+    }
+    .screen-title { font-size: 16px; font-weight: 700; color: #2c3e50; margin-bottom: 12px; }
+    .screen-hint { font-size: 12px; color: #95a5a6; }
+
+    /* ── 디버그 패널 ── */
+    .debug-bar {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999;
+      background: rgba(20,20,30,.92); color: #0f0; font-size: 11px; font-family: monospace;
+      padding: 6px 16px; display: flex; gap: 24px; align-items: center;
+      backdrop-filter: blur(6px);
+    }
+    .debug-bar .dbg-label { color: #888; }
+    .debug-bar .dbg-val { color: #0ff; font-weight: 600; }
+    .debug-bar .dbg-worker { color: #f90; }
+    .debug-bar .dbg-layer { color: #0f0; }
+    .debug-bar .dbg-sep { color: #444; }
+    #dbg-log {
+      position: fixed; bottom: 32px; left: 0; right: 0; max-height: 100px;
+      background: rgba(10,10,20,.88); color: #ccc; font-size: 10px; font-family: monospace;
+      overflow-y: auto; padding: 4px 16px; z-index: 9998;
+      border-top: 1px solid #333;
+    }
+    .log-line { line-height: 1.6; }
+    .log-line.info { color: #7ec8e3; }
+    .log-line.warn { color: #f0c040; }
+    .log-line.ok   { color: #5cd65c; }
+
+    /* ── 어시스턴트 마운트 ── */
+    #assistant-mount { position: fixed; top: 0; right: 0; bottom: 0; z-index: 500; }
+  </style>
+  <!-- ===================================================== 🔴 [배포시 제거] 끝 ===== -->
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════
+       가짜 내부 시스템 UI (Worker 테스트용)
+  ════════════════════════════════════════════ -->
+
+  <!-- 헤더 -->
+  <div class="sys-header">
+    SOLOMON SYSTEM
+    <span>Worker 아키텍처 테스트 페이지 — GNB·화면 전환으로 컨텍스트 감지 확인</span>
+  </div>
+
+  <!-- GNB: .w2group.active → setupContextObserver가 감지 -->
+  <div class="sys-gnb" id="sys-gnb">
+    <div class="gnb-tab w2group active" data-area-id="UW">📋 UW 언더라이팅</div>
+    <div class="gnb-tab w2group" data-area-id="CT">📝 CT 계약</div>
+    <div class="gnb-tab w2group" data-area-id="CL">⚖️ CL 손사</div>
+    <div class="gnb-tab w2group" data-area-id="AC">📊 AC 계수</div>
+    <div class="gnb-tab w2group" data-area-id="PF">📈 PF 실적</div>
+    <div class="gnb-tab w2group" data-area-id="ST">🔄 ST 정청산</div>
+    <div class="gnb-tab w2group" data-area-id="FN">💰 FN 회계</div>
+  </div>
+
+  <!-- 본문 -->
+  <div class="sys-body">
+
+    <!-- LNB -->
+    <div class="sys-lnb" id="sys-lnb"></div>
+
+    <!-- 화면 컨테이너 영역 -->
+    <div class="sys-content" id="sys-content">
+
+      <!-- w2ui 앵커: parentElement(sys-content) 가 윈도우 컨테이너 역할 -->
+      <div class="w2windowContainer_selectedNameLayer" style="display:none;"></div>
+
+      <!-- ══ UW-001 언더라이팅 조회 ══ -->
+      <div class="screen-panel selected" id="screen-UW-001" data-screen-id="UW-001" data-area-id="UW">
+        <div class="pg-id" style="display:none;">UW-001</div>
+        <div class="screen-label">UW-001 · 언더라이팅</div>
+        <div class="screen-title">언더라이팅 조회</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+          <input type="text" placeholder="증권번호" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;width:120px;">
+          <input type="text" placeholder="계약자명" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;width:110px;">
+          <select style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;">
+            <option>전체 상품</option><option>화재보험</option><option>배상책임</option><option>재산종합</option>
+          </select>
+          <button style="padding:5px 14px;background:#3498db;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">🔍 조회</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#f4f6f8;">
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:center;">증권번호</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;">계약자</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;">상품명</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:right;">보험료</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:center;">상태</th>
+          </tr></thead>
+          <tbody>
+            <tr><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">UW-2025-00123</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">㈜한국물류</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">재산종합보험</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">12,450,000</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;"><span style="background:#d5f5e3;color:#1e8449;padding:2px 6px;border-radius:10px;font-size:11px;">승인</span></td></tr>
+            <tr style="background:#fafafa;"><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">UW-2025-00124</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">대성건설㈜</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">배상책임보험</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">3,200,000</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;"><span style="background:#fdebd0;color:#d35400;padding:2px 6px;border-radius:10px;font-size:11px;">검토중</span></td></tr>
+            <tr><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">UW-2025-00125</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">서울식품㈜</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">화재보험</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">870,000</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;"><span style="background:#d5f5e3;color:#1e8449;padding:2px 6px;border-radius:10px;font-size:11px;">승인</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ══ UW-002 언더라이팅 등록 ══ -->
+      <div class="screen-panel" id="screen-UW-002" data-screen-id="UW-002" data-area-id="UW">
+        <div class="pg-id" style="display:none;">UW-002</div>
+        <div class="screen-label">UW-002 · 언더라이팅</div>
+        <div class="screen-title">언더라이팅 등록</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
+          <label style="display:flex;flex-direction:column;gap:3px;">계약자명<input type="text" value="㈜미래산업" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;"></label>
+          <label style="display:flex;flex-direction:column;gap:3px;">사업자번호<input type="text" value="123-45-67890" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;"></label>
+          <label style="display:flex;flex-direction:column;gap:3px;">보험 상품<select style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;"><option>재산종합보험</option><option>화재보험</option><option>배상책임</option></select></label>
+          <label style="display:flex;flex-direction:column;gap:3px;">보험기간<input type="text" value="2025.03.01 ~ 2026.02.28" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;"></label>
+          <label style="display:flex;flex-direction:column;gap:3px;">보험가입금액<input type="text" value="500,000,000" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;"></label>
+          <label style="display:flex;flex-direction:column;gap:3px;">예상보험료<input type="text" value="4,750,000" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;color:#c0392b;font-weight:600;"></label>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end;">
+          <button style="padding:5px 16px;background:#95a5a6;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">초기화</button>
+          <button style="padding:5px 16px;background:#3498db;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">저장</button>
+          <button style="padding:5px 16px;background:#27ae60;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">결재요청</button>
+        </div>
+      </div>
+
+      <!-- ══ CT-001 계약 목록 ══ -->
+      <div class="screen-panel" id="screen-CT-001" data-screen-id="CT-001" data-area-id="CT">
+        <div class="pg-id" style="display:none;">CT-001</div>
+        <div class="screen-label">CT-001 · 계약</div>
+        <div class="screen-title">계약 목록</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+          <input type="text" placeholder="계약번호" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;width:120px;">
+          <input type="text" placeholder="피보험자명" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;width:110px;">
+          <input type="date" value="2025-01-01" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;">
+          <button style="padding:5px 14px;background:#e67e22;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">🔍 조회</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#fef9e7;">
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:center;">계약번호</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;">피보험자</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:center;">계약일</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:right;">보험료</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:center;">상태</th>
+          </tr></thead>
+          <tbody>
+            <tr><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">CT-2025-0441</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">이준호</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">2025.01.05</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">1,200,000</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;"><span style="background:#d5f5e3;color:#1e8449;padding:2px 6px;border-radius:10px;font-size:11px;">유효</span></td></tr>
+            <tr style="background:#fafafa;"><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">CT-2025-0442</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">박수진</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">2025.01.07</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">890,000</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;"><span style="background:#d6eaf8;color:#1a5276;padding:2px 6px;border-radius:10px;font-size:11px;">갱신예정</span></td></tr>
+            <tr><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">CT-2025-0443</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">최동현</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">2025.01.09</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">2,540,000</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;"><span style="background:#fadbd8;color:#922b21;padding:2px 6px;border-radius:10px;font-size:11px;">해지</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ══ CL-001 사고 접수 ══ -->
+      <div class="screen-panel" id="screen-CL-001" data-screen-id="CL-001" data-area-id="CL">
+        <div class="pg-id" style="display:none;">CL-001</div>
+        <div class="screen-label">CL-001 · 손사</div>
+        <div class="screen-title">사고 접수</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
+          <label style="display:flex;flex-direction:column;gap:3px;">계약번호<input type="text" value="CT-2025-0441" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;"></label>
+          <label style="display:flex;flex-direction:column;gap:3px;">사고일시<input type="text" value="2025.03.04 14:30" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;"></label>
+          <label style="display:flex;flex-direction:column;gap:3px;">사고유형<select style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;"><option>화재</option><option>폭발</option><option>자연재해</option><option>도난</option></select></label>
+          <label style="display:flex;flex-direction:column;gap:3px;">추정손해액<input type="text" value="15,300,000" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;color:#c0392b;font-weight:600;"></label>
+          <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:3px;">사고개요<textarea style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;height:52px;resize:none;">경기도 안산시 소재 공장 내부에서 전기 합선으로 인한 화재가 발생하여 생산설비 일부 소손됨.</textarea></label>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;justify-content:flex-end;">
+          <button style="padding:5px 16px;background:#c0392b;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">사고접수</button>
+          <button style="padding:5px 16px;background:#8e44ad;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">현장조사 배정</button>
+        </div>
+      </div>
+
+      <!-- ══ AC-001 계수 조회 ══ -->
+      <div class="screen-panel" id="screen-AC-001" data-screen-id="AC-001" data-area-id="AC">
+        <div class="pg-id" style="display:none;">AC-001</div>
+        <div class="screen-label">AC-001 · 계수</div>
+        <div class="screen-title">계수 조회</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap;">
+          <select style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;"><option>2025년</option><option>2024년</option></select>
+          <select style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;"><option>전체 부문</option><option>화재</option><option>배상책임</option><option>재산종합</option></select>
+          <button style="padding:5px 14px;background:#1a5276;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">📊 조회</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#ebf5fb;">
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;">부문</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:right;">원수보험료</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:right;">지급보험금</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:right;">손해율</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:right;">합산비율</th>
+          </tr></thead>
+          <tbody>
+            <tr><td style="border:1px solid #e0e4e9;padding:5px 8px;">화재</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">4,820M</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">2,940M</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;color:#27ae60;">61.0%</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">98.4%</td></tr>
+            <tr style="background:#fafafa;"><td style="border:1px solid #e0e4e9;padding:5px 8px;">배상책임</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">2,110M</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">1,650M</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;color:#e74c3c;">78.2%</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">112.6%</td></tr>
+            <tr><td style="border:1px solid #e0e4e9;padding:5px 8px;">재산종합</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">7,340M</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">3,890M</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;color:#27ae60;">53.0%</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">91.2%</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ══ PF-001 실적 조회 ══ -->
+      <div class="screen-panel" id="screen-PF-001" data-screen-id="PF-001" data-area-id="PF">
+        <div class="pg-id" style="display:none;">PF-001</div>
+        <div class="screen-label">PF-001 · 실적</div>
+        <div class="screen-title">실적 조회</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+          <select style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;"><option>2025년 1분기</option><option>2024년 4분기</option></select>
+          <select style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;"><option>전체 지점</option><option>서울본사</option><option>부산지점</option><option>대구지점</option></select>
+          <button style="padding:5px 14px;background:#1e8449;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">📈 조회</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#eafaf1;">
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;">지점</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:right;">목표</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:right;">실적</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:right;">달성률</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:center;">전월대비</th>
+          </tr></thead>
+          <tbody>
+            <tr><td style="border:1px solid #e0e4e9;padding:5px 8px;">서울본사</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">12,000M</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">13,240M</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;color:#27ae60;font-weight:600;">110.3%</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;color:#27ae60;">▲ 4.2%</td></tr>
+            <tr style="background:#fafafa;"><td style="border:1px solid #e0e4e9;padding:5px 8px;">부산지점</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">4,500M</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">4,120M</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;color:#e74c3c;font-weight:600;">91.6%</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;color:#e74c3c;">▼ 2.1%</td></tr>
+            <tr><td style="border:1px solid #e0e4e9;padding:5px 8px;">대구지점</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">3,200M</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">3,380M</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;color:#27ae60;font-weight:600;">105.6%</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;color:#27ae60;">▲ 1.8%</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ══ ST-001 정산 내역 ══ -->
+      <div class="screen-panel" id="screen-ST-001" data-screen-id="ST-001" data-area-id="ST">
+        <div class="pg-id" style="display:none;">ST-001</div>
+        <div class="screen-label">ST-001 · 정청산</div>
+        <div class="screen-title">정산 내역</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+          <input type="text" placeholder="정산번호" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;width:130px;">
+          <select style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;"><option>2025년 02월</option><option>2025년 01월</option><option>2024년 12월</option></select>
+          <button style="padding:5px 14px;background:#7d3c98;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">🔍 조회</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#f5eef8;">
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:center;">정산번호</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;">거래처</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:right;">정산금액</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:center;">정산일</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:center;">상태</th>
+          </tr></thead>
+          <tbody>
+            <tr><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">ST-25-0291</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">현대해운㈜</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">8,740,000</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">2025.02.28</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;"><span style="background:#d5f5e3;color:#1e8449;padding:2px 6px;border-radius:10px;font-size:11px;">완료</span></td></tr>
+            <tr style="background:#fafafa;"><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">ST-25-0292</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">삼성화재㈜</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">21,500,000</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">-</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;"><span style="background:#fdebd0;color:#d35400;padding:2px 6px;border-radius:10px;font-size:11px;">처리중</span></td></tr>
+            <tr><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">ST-25-0293</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">LG생활건강</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">4,230,000</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">2025.02.27</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;"><span style="background:#d5f5e3;color:#1e8449;padding:2px 6px;border-radius:10px;font-size:11px;">완료</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ══ FN-001 회계 전표 ══ -->
+      <div class="screen-panel" id="screen-FN-001" data-screen-id="FN-001" data-area-id="FN">
+        <div class="pg-id" style="display:none;">FN-001</div>
+        <div class="screen-label">FN-001 · 회계</div>
+        <div class="screen-title">회계 전표</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+          <input type="text" placeholder="전표번호" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;width:130px;">
+          <select style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;"><option>일반전표</option><option>입금전표</option><option>출금전표</option><option>대체전표</option></select>
+          <input type="date" value="2025-03-01" style="border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;">
+          <button style="padding:5px 14px;background:#c0392b;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">🔍 조회</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#fdedec;">
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:center;">전표번호</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;">계정과목</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:right;">차변</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:right;">대변</th>
+            <th style="border:1px solid #e0e4e9;padding:6px 8px;text-align:center;">승인</th>
+          </tr></thead>
+          <tbody>
+            <tr><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">FN-25-1041</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">보험료수입</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">-</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;color:#1e8449;">12,450,000</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;"><span style="background:#d5f5e3;color:#1e8449;padding:2px 6px;border-radius:10px;font-size:11px;">승인</span></td></tr>
+            <tr style="background:#fafafa;"><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">FN-25-1042</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">지급보험금</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;color:#c0392b;">8,200,000</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">-</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;"><span style="background:#fdebd0;color:#d35400;padding:2px 6px;border-radius:10px;font-size:11px;">검토중</span></td></tr>
+            <tr><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;">FN-25-1043</td><td style="border:1px solid #e0e4e9;padding:5px 8px;">사업비</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;color:#c0392b;">1,830,000</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:right;">-</td><td style="border:1px solid #e0e4e9;padding:5px 8px;text-align:center;"><span style="background:#d5f5e3;color:#1e8449;padding:2px 6px;border-radius:10px;font-size:11px;">승인</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div><!-- /.sys-content -->
+  </div><!-- /.sys-body -->
+
+  <!-- 디버그 로그 -->
+  <div id="dbg-log" style="z-index:0;"></div>
+
+  <!-- 디버그 상태바 -->
+  <div class="debug-bar" style="z-index:0;">
+    <span><span class="dbg-label">areaId </span><span class="dbg-val" id="dbg-area">-</span></span>
+    <span class="dbg-sep">│</span>
+    <span><span class="dbg-label">menuId </span><span class="dbg-val" id="dbg-menu">-</span></span>
+    <span class="dbg-sep">│</span>
+    <span><span class="dbg-label">sticky-layer 부모 </span><span class="dbg-layer" id="dbg-layer">-</span></span>
+    <span class="dbg-sep">│</span>
+    <span class="dbg-worker" id="dbg-worker">Worker: 연결 대기중...</span>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       어시스턴트 마운트 포인트
+  ════════════════════════════════════════════ -->
+  <div id="assistant-mount"></div>
+
+  <!-- ══════════════════════════════════════════
+       호스트 시스템 인터랙션 스크립트
+  ════════════════════════════════════════════ -->
+  <script>
+    // GNB별 LNB 메뉴 데이터
+    const LNB_MENUS = {
+      'UW': [
+        { id: 'UW-001', label: 'UW-001 조회' },
+        { id: 'UW-002', label: 'UW-002 등록' },
+        { id: 'UW-003', label: 'UW-003 수정' },
+        { id: 'UW-004', label: 'UW-004 결재' },
+        { id: 'UW-005', label: 'UW-005 보고서' },
+      ],
+      'CT': [
+        { id: 'CT-001', label: 'CT-001 계약목록' },
+        { id: 'CT-002', label: 'CT-002 계약등록' },
+        { id: 'CT-003', label: 'CT-003 계약변경' },
+      ],
+      'CL': [
+        { id: 'CL-001', label: 'CL-001 사고접수' },
+        { id: 'CL-002', label: 'CL-002 손사처리' },
+        { id: 'CL-003', label: 'CL-003 보험금지급' },
+      ],
+      'AC': [
+        { id: 'AC-001', label: 'AC-001 계수조회' },
+        { id: 'AC-002', label: 'AC-002 통계' },
+      ],
+      'PF': [
+        { id: 'PF-001', label: 'PF-001 실적조회' },
+        { id: 'PF-002', label: 'PF-002 목표관리' },
+      ],
+      'ST': [
+        { id: 'ST-001', label: 'ST-001 정산내역' },
+        { id: 'ST-002', label: 'ST-002 청산처리' },
+      ],
+      'FN': [
+        { id: 'FN-001', label: 'FN-001 회계전표' },
+        { id: 'FN-002', label: 'FN-002 결산' },
+      ],
+    };
+
+    function renderLnb(areaId) {
+      const lnb = document.getElementById('sys-lnb');
+      const menus = LNB_MENUS[areaId] || [];
+      lnb.innerHTML = '';
+      menus.forEach((m, i) => {
+        const item = document.createElement('div');
+        item.className = 'lnb-item' + (i === 0 ? ' active' : '');
+        item.dataset.menu = m.id;
+        item.textContent = m.label;
+        lnb.appendChild(item);
+      });
+    }
+
+    // screen-id → screen panel id 매핑 (데모에 존재하는 화면만)
+    const SCREEN_PANEL_MAP = {
+      'UW-001': 'screen-UW-001',
+      'UW-002': 'screen-UW-002',
+      'CT-001': 'screen-CT-001',
+      'CL-001': 'screen-CL-001',
+      'AC-001': 'screen-AC-001',
+      'PF-001': 'screen-PF-001',
+      'ST-001': 'screen-ST-001',
+      'FN-001': 'screen-FN-001',
+    };
+
+    // ── GNB 탭 전환: .w2group.active 클래스 변경 → setupContextObserver 감지 ──
+    document.getElementById('sys-gnb').addEventListener('click', function(e) {
+      const tab = e.target.closest('.gnb-tab');
+      if (!tab) return;
+      document.querySelectorAll('.gnb-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const areaId = tab.dataset.areaId;
+      renderLnb(areaId);  // LNB 갱신
+      // 해당 업무의 첫 번째 화면 자동 활성화
+      const firstMenu = LNB_MENUS[areaId]?.[0];
+      if (firstMenu && SCREEN_PANEL_MAP[firstMenu.id]) {
+        activateScreen(SCREEN_PANEL_MAP[firstMenu.id]);
+      }
+      dbgLog(`GNB 전환 → ${areaId}`, 'info');
+      updateDebugBar();
+    });
+
+    // ── LNB 항목 전환 (이벤트 위임) ──
+    document.getElementById('sys-lnb').addEventListener('click', function(e) {
+      const item = e.target.closest('.lnb-item');
+      if (!item) return;
+      document.querySelectorAll('.lnb-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      const menuId = item.dataset.menu;
+      dbgLog(`LNB 전환 → ${menuId}`, 'info');
+      // 데모에 해당 화면 패널이 있으면 활성화, 없으면 menuId만 브리지 전달
+      if (SCREEN_PANEL_MAP[menuId]) {
+        activateScreen(SCREEN_PANEL_MAP[menuId]);
+      } else {
+        if (window.assistantBridge?.setMenu) window.assistantBridge.setMenu(menuId);
+      }
+      updateDebugBar();
+    });
+
+    // 초기 LNB 렌더링
+    renderLnb('UW');
+
+    // ── 화면 포커스 전환 ──
+    // .selected 클래스 변경 → setupStickyLayerObserver 감지
+    // data-area-id / data-screen-id 를 브리지로 전달 → Worker CONTEXT_CHANGE
+    // GNB·LNB DOM 은 건드리지 않습니다 (내부 시스템도 동일)
+    function activateScreen(screenId) {
+      document.querySelectorAll('.screen-panel').forEach(p => p.classList.remove('selected'));
+      const target = document.getElementById(screenId);
+      if (!target) return;
+      target.classList.add('selected');
+
+      const areaId = target.dataset.areaId;
+      const menuId = target.dataset.screenId;
+
+      if (areaId && window.assistantBridge?.setArea) window.assistantBridge.setArea(areaId);
+      if (menuId && window.assistantBridge?.setMenu) window.assistantBridge.setMenu(menuId);
+
+      dbgLog(`화면 포커스 → #${screenId} | area: ${areaId || '?'} | menu: ${menuId || '?'}`, 'ok');
+      updateDebugBar();
+    }
+
+    // ── getMenuId / getAreaId: setupStickyLayerObserver 초기화·옵저버에서 호출 ──
+    // 현재 .selected 화면 패널의 data-screen-id / data-area-id 를 반환합니다.
+    window.getMenuId = function() {
+      return document.querySelector('.screen-panel.selected')?.dataset.screenId || '';
+    };
+    window.getAreaId = function(menuId) {
+      // menuId 와 일치하는 패널에서 areaId 우선 조회, 없으면 현재 selected 패널 기준
+      const byId = document.querySelector(`.screen-panel[data-screen-id="${menuId}"]`);
+      return (byId || document.querySelector('.screen-panel.selected'))?.dataset.areaId || '';
+    };
+
+    // ── 디버그 바 업데이트 ──
+    function updateDebugBar() {
+      // areaId·menuId: GNB/LNB 아닌 현재 포커스 화면 패널에서 직접 읽기
+      const selected = document.querySelector('.screen-panel.selected');
+      document.getElementById('dbg-area').textContent = selected?.dataset.areaId || '-';
+      document.getElementById('dbg-menu').textContent = selected?.dataset.screenId || '-';
+      // sticky-layer 부모
+      const layer = document.getElementById('sticky-layer');
+      const parent = layer?.parentElement;
+      document.getElementById('dbg-layer').textContent =
+        parent ? `${parent.tagName}#${parent.id || '?'}` : '없음';
+    }
+
+    // ── 디버그 로그 ──
+    function dbgLog(msg, type = 'info') {
+      const el = document.getElementById('dbg-log');
+      const line = document.createElement('div');
+      line.className = `log-line ${type}`;
+      const t = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+      line.textContent = `[${t}] ${msg}`;
+      el.appendChild(line);
+      el.scrollTop = el.scrollHeight;
+    }
+
+    // console.log 인터셉트 → 디버그 로그에 출력
+    const _origLog = console.log.bind(console);
+    console.log = function(...args) {
+      _origLog(...args);
+      const msg = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
+      if (msg.includes('[Assistant]')) dbgLog(msg, 'ok');
+    };
+    const _origWarn = console.warn.bind(console);
+    console.warn = function(...args) {
+      _origWarn(...args);
+      const msg = args.map(a => String(a)).join(' ');
+      if (msg.includes('[Assistant]')) dbgLog(msg, 'warn');
+    };
+
+    // sticky-layer 위치를 주기적으로 디버그 바에 반영
+    setInterval(updateDebugBar, 800);
+  </script>
+
+  <!-- ══════════════════════════════════════════
+       어시스턴트 로더
+  ════════════════════════════════════════════ -->
+  <script src="vendor/assistant-loader.js"></script>
+  <script>
+    // window.ASSISTANT_AREA_kEYS = {
+    //   id : 'menuId',
+    //   name : 'menuName'
+    // }
+    loadAssistant({
+      mountId: 'assistant-mount',
+      loginId: 'test_user_01',
+      htmlPath: 'vendor/assistant/assistant-fragment.html',
+      cssPath: 'vendor/assistant/assistant.css',
+      cssPaths: [
+        'vendor/quill/quill.bubble.css',
+        'vendor/quill/quill-better-table.css'
+      ],
+      jsPath: 'vendor/assistant/assistant.js',
+      scriptPaths: [
+        'vendor/quill/quill.min.js',
+        'vendor/quill/quill-better-table.min.js',
+        'vendor/quill/quill-markdown-shortcuts.js',
+        'vendor/purify/purify.min.js'
+      ],
+      // ── Worker 경로 (명시)
+      workerPath: 'vendor/assistant/assistant-worker.js',
+
+      // ── sticky-layer 주입 (pg-id innerText 매칭)
+      stickyLayerSelectors: {
+        windowContainerClass: 'w2windowContainer_selectedNameLayer',
+        pgIdClass: 'pg-id',
+        // 앵커 클래스 변경 시 호출 → 현재 활성 menuId 반환
+        getMenuId: () => window.getMenuId?.(),
+        // menuId로부터 areaId 파생
+        getAreaId: (menuId) => window.getAreaId?.(menuId),
+      },
+    });
+
+    // Worker 연결 완료 여부 표시
+    window.addEventListener('assistant:mounted', () => {
+      document.getElementById('dbg-worker').textContent = 'Worker: 연결됨 ✅';
+      // 초기 selected 화면을 브리지에 등록 (페이지 로드 시 자동 포커스)
+      const initPanel = document.querySelector('.screen-panel.selected');
+      if (initPanel) {
+        const areaId = initPanel.dataset.areaId;
+        const menuId = initPanel.dataset.screenId;
+        if (areaId && window.assistantBridge?.setArea) window.assistantBridge.setArea(areaId);
+        if (menuId && window.assistantBridge?.setMenu) window.assistantBridge.setMenu(menuId);
+        dbgLog(`초기 화면 등록 → area: ${areaId || '?'} | menu: ${menuId || '?'}`, 'ok');
+      }
+      updateDebugBar();
+    });
+    // STATE_UPDATE 수신 시에도 갱신
+    const _origBootstrap = window.bootstrapAssistant;
+    window.bootstrapAssistant = async function(cfg) {
+      await _origBootstrap?.(cfg);
+      document.getElementById('dbg-worker').textContent = 'Worker: 초기화 완료 ✅';
+      updateDebugBar();
+    };
+  </script>
+</body>
+</html>
