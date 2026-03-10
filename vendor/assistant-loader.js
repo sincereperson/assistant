@@ -45,7 +45,7 @@
     });
   }
 
-  async function _initAssistant(options) {
+  async function loadAssistant(options) {
     const config = options || {};
     const mountId = config.mountId || 'assistant-mount';
     // const mountContainerId = config.mountContainerId || 'mf_VFrames_Root';

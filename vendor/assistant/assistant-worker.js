@@ -751,7 +751,17 @@ async function runAutoCleanup({ silent = true } = {}) {
 
 async function handleInit(port, payload) {
   await ensureInit(payload?.loginId);
-  initClientContext(port);
+  // CONTEXT_CHANGE가 INIT의 await 도중 먼저 처리된 경우 컨텍스트가 이미 존재할 수 있음
+  if (!clientContextMap.has(port)) {
+    initClientContext(port);
+  }
+  // INIT 페이로드의 초기 컨텍스트를 원자적으로 적용
+  // bootstrapAssistant에서 수집한 menuId/areaId가 있으면 덮어씀 (레이스 결과 무관하게 보장)
+  const ctx = clientContextMap.get(port);
+  if (ctx) {
+    if (payload?.menuId) ctx.selectedMenu = payload.menuId;
+    if (payload?.areaId) ctx.selectedArea = payload.areaId;
+  }
   sendTo(port, 'STATE_UPDATE', getSnapshot(port));
 }
 

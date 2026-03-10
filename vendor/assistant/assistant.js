@@ -2181,19 +2181,19 @@ function setupStickyLayerObserver(cfg = {}) {
     if (!hasClassChange) return;
 
     // 윈도우 컨테이너 범위 내 클래스 변경 → getMenuId()로 현재 화면 확인
-    // 이전 값과 달라졌을 때만 state 갱신
+    // menuId + areaId를 한 번에 전송 → Worker가 STATE_UPDATE 1회만 응답
+    // (분리 전송 시 첫 STATE_UPDATE에서 menuId는 신규·areaId는 구값인 채로 리렌더링되는 문제 방지)
     if (typeof _stickyLayerConfig.getMenuId === 'function') {
       const newMenuId = _stickyLayerConfig.getMenuId();
       if (newMenuId && newMenuId !== state.selectedMenu) {
+        const newAreaId = typeof _stickyLayerConfig.getAreaId === 'function'
+          ? _stickyLayerConfig.getAreaId(newMenuId)
+          : null;
+        // 로컬 state 먼저 동기 업데이트 (렌더 함수가 즉시 올바른 값 읽도록)
         state.selectedMenu = newMenuId;
-        workerSend('CONTEXT_CHANGE', { menuId: newMenuId });
-        if (typeof _stickyLayerConfig.getAreaId === 'function') {
-          const newAreaId = _stickyLayerConfig.getAreaId(newMenuId);
-          if (newAreaId && newAreaId !== state.selectedArea) {
-            state.selectedArea = newAreaId;
-            workerSend('CONTEXT_CHANGE', { areaId: newAreaId });
-          }
-        }
+        if (newAreaId) state.selectedArea = newAreaId;
+        // menuId + areaId 한 번에 전송
+        workerSend('CONTEXT_CHANGE', { menuId: newMenuId, ...(newAreaId ? { areaId: newAreaId } : {}) });
         console.log(`[Assistant] 화면 전환 감지 → menuId: ${newMenuId}, areaId: ${state.selectedArea}`);
       }
     }
@@ -2219,18 +2219,18 @@ function setupStickyLayerObserver(cfg = {}) {
     });
 
     // 초기 menuId/areaId 즉시 설정 (옵저버 발화 전에 state를 올바른 값으로)
+    // 앵커가 즉시 발견된 경우: INIT 페이로드에 이미 포함됨 (bootstrapAssistant에서 수집)
+    // 앵커가 지연 발견된 경우(DOM watcher 경유): Worker가 이미 초기화된 후이므로 CONTEXT_CHANGE 필요
     if (typeof _stickyLayerConfig.getMenuId === 'function') {
       const initMenuId = _stickyLayerConfig.getMenuId();
       if (initMenuId) {
         state.selectedMenu = initMenuId;
-        workerSend('CONTEXT_CHANGE', { menuId: initMenuId });
-        if (typeof _stickyLayerConfig.getAreaId === 'function') {
-          const initAreaId = _stickyLayerConfig.getAreaId(initMenuId);
-          if (initAreaId) {
-            state.selectedArea = initAreaId;
-            workerSend('CONTEXT_CHANGE', { areaId: initAreaId });
-          }
-        }
+        const initAreaId = typeof _stickyLayerConfig.getAreaId === 'function'
+          ? _stickyLayerConfig.getAreaId(initMenuId)
+          : null;
+        if (initAreaId) state.selectedArea = initAreaId;
+        // menuId + areaId를 한 번에 전송 (STATE_UPDATE 1회로 감소)
+        workerSend('CONTEXT_CHANGE', { menuId: initMenuId, ...(initAreaId ? { areaId: initAreaId } : {}) });
         console.log(`[Assistant] 초기 컨텍스트 설정 → menuId: ${initMenuId}, areaId: ${state.selectedArea}`);
       }
     }
@@ -5160,9 +5160,10 @@ function renderMemoTab() {
   const currentFilter = state.memoFilter || 'menu';
   let filteredMemos;
   if (currentFilter === 'menu') {
+    // menuId만으로 화면을 완전히 특정 — areaId 이중 검사 불필요
+    // (menuId/areaId가 별도 STATE_UPDATE로 오는 타이밍 차에 메모 목록이 비는 문제 방지)
     filteredMemos = allMemos.filter(m =>
-      (m.menuId === state.selectedMenu || m.labels?.includes(state.selectedMenu)) &&
-      (m.createdAreaId === state.selectedArea || m.areaId === state.selectedArea)
+      m.menuId === state.selectedMenu || m.labels?.includes(state.selectedMenu)
     );
   } else if (currentFilter === 'area') {
     filteredMemos = allMemos.filter(m => m.createdAreaId === state.selectedArea || m.areaId === state.selectedArea);
@@ -5930,7 +5931,7 @@ var assistantInitialized = window.assistantInitialized || false;
  * @param {string} workerPath - assistant-worker.js 경로
  * @param {string} [loginId] - 사용자 로그인 ID (DB 격리에 사용)
  */
-function connectToWorker(workerPath, loginId) {
+function connectToWorker(workerPath, loginId, initialContext = {}) {
   try {
     const worker = new SharedWorker(workerPath, { name: 'assistant-worker' });
     workerPort = worker.port;
@@ -5953,8 +5954,8 @@ function connectToWorker(workerPath, loginId) {
     });
 
     workerPort.start();
-    // INIT 메시지로 초기 상태 요청
-    workerPort.postMessage({ type: 'INIT', payload: { loginId } });
+    // INIT 메시지로 초기 상태 요청 (initialContext 포함 → 레이스 없이 원자적 컨텍스트 설정)
+    workerPort.postMessage({ type: 'INIT', payload: { loginId, ...initialContext } });
     console.log('[Assistant] SharedWorker 연결 완료:', workerPath);
   } catch (error) {
     console.error('[Assistant] SharedWorker 연결 실패, 폴백 모드로 전환합니다.', error);
@@ -5995,9 +5996,27 @@ async function bootstrapAssistant(config = {}) {
   renderAll();
 
   // 2단계: Shared Worker 연결
-  // Worker INIT 완료 → STATE_UPDATE 수신 → handleStateUpdate() → 자동 재렌더링
+  // 초기 컨텍스트(menuId/areaId)를 INIT 페이로드에 포함 → 비동기 레이스 없이 원자적 처리
+  // (별도 CONTEXT_CHANGE 메시지를 보내면 INIT의 await ensureInit() 도중 선처리되어 덮어쓰이는 문제 방지)
   const workerPath = config.workerPath || 'assistant/assistant-worker.js';
-  connectToWorker(workerPath, config.loginId);
+  const _selCfg = config.stickyLayerSelectors;
+  const _initialCtx = {};
+  if (_selCfg && _selCfg !== false && typeof _selCfg.getMenuId === 'function') {
+    const _menuId = _selCfg.getMenuId();
+    if (_menuId) {
+      _initialCtx.menuId = _menuId;
+      state.selectedMenu = _menuId;
+      if (typeof _selCfg.getAreaId === 'function') {
+        const _areaId = _selCfg.getAreaId(_menuId);
+        if (_areaId) {
+          _initialCtx.areaId = _areaId;
+          state.selectedArea = _areaId;
+        }
+      }
+      console.log(`[Assistant] 초기 컨텍스트 수집 → menuId: ${_initialCtx.menuId}, areaId: ${_initialCtx.areaId || '-'}`);
+    }
+  }
+  connectToWorker(workerPath, config.loginId, _initialCtx);
 
   // 2-1단계: UserInfo 암호화 저장 (loginId + getUserInfo 모두 있을 때만)
   if (config.loginId && config.getUserInfo) {
