@@ -1,0 +1,559 @@
+﻿/* 다크모드: 설정탭 셀렉트박스/토글버튼 스타일 */
+#assistant-root.imsmassi-dark-mode select,
+#assistant-root.imsmassi-dark-mode option {
+	background: #232323;
+	color: #F0F0F0;
+	border: 1px solid #444;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-toggle-switch {
+	background: transparent;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-toggle-slider {
+	background: #444;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-toggle-switch input:checked + .imsmassi-toggle-slider {
+	background: #5BA55B;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-toggle-slider:before {
+	background: #F0F0F0;
+}
+/* 슬라이드(확장) 상태에 따라 메모 가로 스크롤 기준 분기 */
+#assistant-root .imsmassi-floating-panel .imsmassi-memo-item-content,
+#assistant-root .imsmassi-floating-panel .imsmassi-memo-inline-text,
+#assistant-root .imsmassi-floating-panel .imsmassi-memo-inline-editor {
+	/* transition: max-width 0.3s cubic-bezier(.4,1,.4,1), opacity 0.25s; */
+	will-change: max-width, opacity;
+}
+#assistant-root .imsmassi-floating-panel.imsmassi-expanded .imsmassi-memo-item-content,
+#assistant-root .imsmassi-floating-panel.imsmassi-expanded .imsmassi-memo-inline-text,
+#assistant-root .imsmassi-floating-panel.imsmassi-expanded .imsmassi-memo-inline-editor {
+	max-width: 580px;
+	/* opacity: 1; */
+}
+#assistant-root .imsmassi-floating-panel:not(.imsmassi-expanded) .imsmassi-memo-item-content,
+#assistant-root .imsmassi-floating-panel:not(.imsmassi-expanded) .imsmassi-memo-inline-text,
+#assistant-root .imsmassi-floating-panel:not(.imsmassi-expanded) .imsmassi-memo-inline-editor {
+	max-width: 320px;
+	/* opacity: 0.7; */
+}
+/* ========== 기본 리셋/스코프 ========== */
+#assistant-root, #assistant-root * { box-sizing: border-box; margin: 0; padding: 0; }
+#assistant-root { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; background-color: transparent; transition: background-color 0.3s; position: fixed; top: 0; left: 0; width: 0; height: 0; overflow: visible; display: block; z-index: 2000; }
+#assistant-root .imsmassi-assistant-body { background-color: transparent; position: fixed; top: 0; left: 0; width: 0; height: 0; overflow: visible; }
+#assistant-root.imsmassi-low-spec, #assistant-root.imsmassi-low-spec *, #assistant-root.imsmassi-low-spec *::before, #assistant-root.imsmassi-low-spec *::after {
+	transition: none;
+	animation: none;
+}
+
+/* ========== scoped overrides (웹스퀘어/외부 CSS 충돌 방지) ========== */
+#assistant-root .imsmassi-floating-btn { position: fixed; bottom: 30px; right: 30px; width: 56px; height: 56px; border-radius: 50%; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.25); cursor: pointer; font-size: 24px; z-index: 2001; }
+#assistant-root .imsmassi-assistant-badge { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: #E74C3C; top: 6px; right: 6px; box-shadow: 0 0 0 2px #FFF; display: none; }
+#assistant-root .imsmassi-floating-btn.imsmassi-show-badge .imsmassi-assistant-badge { display: block; }
+#assistant-root .imsmassi-floating-panel { position: fixed; top: 24px; right: 24px; width: 360px; height: calc(100vh - 48px); border-radius: 14px; box-shadow: 0 10px 32px rgba(0,0,0,0.18); display: flex; flex-direction: column; z-index: 2000; overflow: hidden; transition: width 0.25s cubic-bezier(.4,1,.4,1), box-shadow 0.25s, background 0.25s; will-change: width, box-shadow, background; }
+#assistant-root .imsmassi-floating-panel.imsmassi-expanded { width: 640px; }
+#assistant-root .imsmassi-assistant-header { padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; }
+#assistant-root .imsmassi-assistant-title { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; }
+#assistant-root .imsmassi-assistant-header-actions { display: flex; align-items: center; gap: 6px; }
+#assistant-root .imsmassi-assistant-header-btn { padding: 4px 8px; font-size: 10px; border: 1px solid; border-radius: 4px; background: rgba(255,255,255,0.15); color: inherit; cursor: pointer; }
+#assistant-root .imsmassi-assistant-header-btn.imsmassi-active { background: rgba(255,255,255,0.32); font-weight: 600; }
+#assistant-root .imsmassi-assistant-close { background: none; border: none; font-size: 16px; cursor: pointer; padding: 2px; }
+
+#assistant-root .imsmassi-assistant-tabs { display: none; }
+#assistant-root .imsmassi-assistant-tab { flex: 1; padding: 10px 4px; border: none; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+#assistant-root .imsmassi-assistant-tab-icon { font-size: 16px; }
+#assistant-root .imsmassi-assistant-tab-label { font-size: 10px; }
+#assistant-root .imsmassi-assistant-tab.imsmassi-active { border-bottom-color: currentColor; }
+
+#assistant-root .imsmassi-assistant-content { flex: 1; overflow-y: auto; padding: 16px; }
+#assistant-root .imsmassi-assistant-footer { padding: 8px 12px; border-top: 1px solid; display: flex; justify-content: space-between; align-items: center; font-size: 10px; gap: 8px; overflow: hidden; }
+#assistant-root #footer-storage-info { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#assistant-root .imsmassi-assistant-footer-btn { padding: 4px 8px; font-size: 10px; border: 1px solid; border-radius: 4px; background: transparent; cursor: pointer; }
+#assistant-root .imsmassi-assistant-footer-controls { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+#assistant-root .imsmassi-assistant-footer-modes { display: flex; gap: 6px; align-items: center; }
+#assistant-root .imsmassi-assistant-footer-themes { display: flex; gap: 6px; align-items: center; }
+#assistant-root .imsmassi-assistant-footer-group { padding: 2px 6px; border: 1px solid; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; height: 28px; overflow: hidden; }
+#assistant-root .imsmassi-assistant-footer-theme-btn { width: 20px; height: 20px; border-radius: 50%; border: 2px solid; cursor: pointer; padding: 0; flex-shrink: 0; }
+/* 저사양 모드 푸터 오버라이드 */
+#assistant-root.imsmassi-low-spec .imsmassi-assistant-footer { padding: 5px 10px; gap: 6px; }
+#assistant-root.imsmassi-low-spec .imsmassi-assistant-footer-group { border: none; border-radius: 4px; padding: 1px 4px; height: auto; background: rgba(128,128,128,0.1); }
+#assistant-root.imsmassi-low-spec .imsmassi-assistant-footer-controls { gap: 4px; }
+#assistant-root.imsmassi-low-spec .imsmassi-assistant-footer-btn { padding: 2px 6px; }
+
+#assistant-root .imsmassi-memo-layout { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; position: relative; }
+#assistant-root .imsmassi-memo-layout.imsmassi-panel-hidden .imsmassi-memo-side { display: none; }
+#assistant-root .imsmassi-memo-main { min-width: 0; width: 100%; }
+#assistant-root .imsmassi-memo-side { min-width: 0; width: 100%; display: flex; flex-direction: column; gap: 12px; position: relative; }
+#assistant-root .imsmassi-memo-list-area { grid-column: 1 / -1; }
+#assistant-root .imsmassi-memo-side-content { display: flex; flex-direction: row; gap: 12px; transition: transform 0.25s ease, opacity 0.25s ease; min-width: 0; flex-wrap: wrap; }
+#assistant-root .imsmassi-memo-side.imsmassi-hidden .imsmassi-memo-side-content { transform: translateX(100%); opacity: 0.7; }
+#assistant-root .imsmassi-memo-side-toggle-btn { margin-left: 8px; }
+
+#assistant-root .imsmassi-memo-options { display: flex; gap: 8px; margin: 12px 0 16px 0; flex-wrap: wrap; }
+#assistant-root .imsmassi-memo-option-btn { padding: 4px 10px; font-size: 11px; border: 1px solid; border-radius: 4px; background: transparent; cursor: pointer; }
+
+#assistant-root .imsmassi-memo-list-header { font-size: 12px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+#assistant-root .imsmassi-memo-filter-bar { display: flex; gap: 4px; }
+#assistant-root .imsmassi-memo-filter-btn { padding: 3px 9px; font-size: 11px; border: 1px solid currentColor; border-radius: 999px; background: transparent; cursor: pointer; color: inherit; opacity: 0.55; transition: opacity 0.15s, background 0.15s, color 0.15s; white-space: nowrap; }
+#assistant-root .imsmassi-memo-filter-btn:hover { opacity: 0.85; }
+#assistant-root .imsmassi-memo-filter-btn.imsmassi-memo-filter-active { background: var(--filter-color); color: #fff; border-color: var(--filter-color); opacity: 1; font-weight: 600; }
+#assistant-root .imsmassi-memo-list-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+#assistant-root .imsmassi-memo-list-column { min-width: 0; }
+#assistant-root .imsmassi-memo-list-subheader { font-size: 11px; margin-bottom: 6px; }
+#assistant-root .imsmassi-memo-list-area .imsmassi-memo-list-column .imsmassi-memo-item { max-width: 100%; }
+#assistant-root .imsmassi-memo-item { border-radius: 8px; margin-bottom: 8px; position: relative; max-height: 250px; overflow: hidden; display: flex; flex-direction: column; width: 100%; max-width: 100%; transition: box-shadow 0.3s; }
+#assistant-root .imsmassi-memo-item.imsmassi-memo-item-highlight { box-shadow: 0 0 0 3px #f5a623, 0 0 16px 4px rgba(245,166,35,0.45); animation: memoHighlightFade 1.8s ease forwards; }
+@keyframes memoHighlightFade {
+  0%   { box-shadow: 0 0 0 3px #f5a623, 0 0 20px 6px rgba(245,166,35,0.55); }
+  60%  { box-shadow: 0 0 0 3px #f5a623, 0 0 12px 3px rgba(245,166,35,0.35); }
+  100% { box-shadow: none; }
+}
+#assistant-root .imsmassi-memo-item-header { display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 4px 6px; border-radius: 8px 8px 0 0; flex-shrink: 0; }
+
+/* 인라인 제목 편집 */
+#assistant-root .imsmassi-memo-title-editable { color: inherit; font-weight: 600; font-size: 11px; outline: none; cursor: text; border-radius: 3px; min-width: 20px; max-width: 160px; overflow: hidden; white-space: nowrap; display: inline-block; vertical-align: middle; }
+#assistant-root .imsmassi-sticky-title-editable { outline: none; cursor: text; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; display: inline-block; color: #7D6B00; font-weight: 600; font-size: 10px; }
+#assistant-root .imsmassi-memo-title-editable:empty::before,
+#assistant-root .imsmassi-sticky-title-editable:empty::before { content: attr(data-placeholder); color: rgba(128,128,128,0.4); pointer-events: none; font-weight: normal; }
+#assistant-root .imsmassi-memo-title-editable:focus { background: rgba(0,0,0,0.07); padding: 1px 4px; }
+#assistant-root .imsmassi-sticky-title-editable:focus { background: rgba(0,0,0,0.1); padding: 0 3px; border-radius: 2px; }
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-title-editable:focus { background: rgba(255,255,255,0.1); }
+#assistant-root.imsmassi-dark-mode .imsmassi-sticky-title-editable:focus { background: rgba(255,255,255,0.12); }
+#assistant-root .imsmassi-memo-drag-handle { cursor: grab; background: rgba(0,0,0,0.04); padding: 4px 6px; border-radius: 6px; }
+#assistant-root .imsmassi-memo-drag-handle:active { cursor: grabbing; }
+#assistant-root .imsmassi-memo-item-content {
+	font-size: 13px;
+	flex: 1;
+	overflow-y: auto;
+	overflow-x: auto;
+	padding: 8px 10px 12px;
+	min-height: 0;
+	min-width: 0;
+	max-width: 100%;
+	display: block;
+	white-space: pre;
+	word-break: break-all;
+	box-sizing: border-box;
+}
+#assistant-root .imsmassi-memo-item-tags { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; padding: 6px 10px 10px; }
+#assistant-root .imsmassi-memo-action-btn { padding: 2px 6px; font-size: 9px; border: 1px solid; border-radius: 4px; background: transparent; cursor: pointer; }
+#assistant-root .imsmassi-memo-action-btn.imsmassi-toggle-label { min-width: 60px; display: inline-flex; align-items: center; justify-content: center; }
+
+#assistant-root .imsmassi-memo-inline-text {
+	min-height: 70px;
+	padding: 8px;
+	border-radius: 6px;
+	border: none;
+	background: transparent;
+	box-shadow: none;
+	outline: none;
+	max-width: 100%;
+	min-width: 0;
+	overflow-x: auto;
+	display: block;
+	white-space: pre;
+	word-break: break-all;
+	box-sizing: border-box;
+}
+#assistant-root .imsmassi-memo-inline-editor {
+	min-height: 70px;
+	padding: 4px;
+	border-radius: 6px;
+	border: none;
+	background: transparent;
+	box-shadow: none;
+	max-width: 100%;
+	min-width: 0;
+	overflow-x: auto;
+	display: block;
+	white-space: pre;
+	word-break: break-all;
+	box-sizing: border-box;
+}
+
+#assistant-root .imsmassi-memo-quill-wrapper { position: relative; border: 1.5px solid var(--memo-border-color); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.06); background: var(--memo-bg); }
+#assistant-root .imsmassi-memo-quill-wrapper .ql-container { border: none; background: var(--memo-bg); color: var(--memo-text); min-height: 140px; max-height: 300px; overflow-y: auto; }
+#assistant-root .imsmassi-memo-quill-wrapper .ql-editor { color: var(--memo-text); font-size: 13px; line-height: 1.6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 12px; min-height: 140px; box-sizing: border-box; }
+#assistant-root .imsmassi-memo-quill-wrapper.imsmassi-focused { border-color: var(--memo-focus-color); box-shadow: 0 0 0 2px var(--memo-focus-shadow); }
+#assistant-root .imsmassi-memo-editor { min-height: 140px; }
+#assistant-root .imsmassi-memo-quill-wrapper .ql-editor.ql-blank::before { color: var(--memo-placeholder); }
+
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-textarea,
+.imsmassi-dark-mode #assistant-root .imsmassi-memo-textarea { background: #1A1A1A; color: #E0E0E0; border-color: #404040; }
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-inline-text,
+.imsmassi-dark-mode #assistant-root .imsmassi-memo-inline-text { background: transparent; color: #E0E0E0; border-color: transparent; }
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-inline-editor,
+.imsmassi-dark-mode #assistant-root .imsmassi-memo-inline-editor { background: transparent; color: #E0E0E0; border-color: transparent; }
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-inline-editor .ql-editor,
+.imsmassi-dark-mode #assistant-root .imsmassi-memo-inline-editor .ql-editor { color: #E0E0E0; }
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-inline-editor .ql-editor.ql-blank::before,
+.imsmassi-dark-mode #assistant-root .imsmassi-memo-inline-editor .ql-editor.ql-blank::before { color: #A0A0A0; }
+
+#assistant-root .imsmassi-memo-card { border: 1px solid; border-radius: 12px; padding: 10px 10px 12px; background: transparent; box-shadow: 0 6px 14px rgba(0,0,0,0.06); min-height: 220px; flex: 1 1 0; width: 0; flex-basis: 0; display: flex; flex-direction: column; }
+#assistant-root .imsmassi-memo-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 12px; font-weight: 600; padding-bottom: 6px; border-bottom: 1px dashed rgba(0,0,0,0.08); }
+#assistant-root .imsmassi-memo-card-body { max-height: 300px; overflow: auto; flex: 1 1 0; min-height: 120px; }
+
+#assistant-root .imsmassi-clipboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 12px; }
+#assistant-root .imsmassi-clipboard-item { padding: 10px 12px; border-radius: 6px; margin-bottom: 6px; cursor: pointer; position: relative; }
+#assistant-root .imsmassi-template-item { padding: 12px; border-radius: 8px; margin-bottom: 8px; cursor: pointer; position: relative; }
+#assistant-root .imsmassi-dashboard-section { margin-bottom: 16px; }
+
+/* ========== 모달/토스트/리마인더 알림 복구 ========== */
+#assistant-root .imsmassi-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; }
+#assistant-root .imsmassi-modal { background: #FFF; border-radius: 12px; padding: 20px; width: 320px; max-width: 90%; max-height: 90vh; overflow-y: auto; }
+#assistant-root .imsmassi-modal.imsmassi-modal-wide { width: 380px; }
+#assistant-root .imsmassi-modal-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #333; }
+#assistant-root .imsmassi-modal-input { width: 100%; padding: 12px; border: 1px solid #E0E0E0; border-radius: 6px; font-size: 14px; margin-bottom: 12px; }
+#assistant-root .imsmassi-modal-input:focus { outline: none; border-color: #4A90D9; }
+#assistant-root .imsmassi-modal-textarea { width: 100%; height: 100px; padding: 12px; border: 1px solid #E0E0E0; border-radius: 6px; font-size: 14px; margin-bottom: 12px; resize: none; font-family: inherit; }
+#assistant-root .imsmassi-modal-textarea:focus { outline: none; border-color: #4A90D9; }
+#assistant-root .imsmassi-modal-label { font-size: 12px; color: #666; margin-bottom: 6px; display: block; }
+#assistant-root .imsmassi-modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+#assistant-root .imsmassi-modal-btn { padding: 10px 20px; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 500; }
+#assistant-root .imsmassi-modal-btn-primary { background: #4A90D9; color: #FFF; border: none; }
+#assistant-root .imsmassi-modal-btn-primary:hover { background: #3A7BC8; }
+#assistant-root .imsmassi-modal-btn-secondary { background: #E8E8E8; color: #333; border: none; }
+#assistant-root .imsmassi-modal-btn-secondary:hover { background: #D8D8D8; }
+#assistant-root .imsmassi-modal-btn-danger { background: #E74C3C; color: #FFF; border: none; }
+#assistant-root .imsmassi-modal-btn-danger:hover { background: #C0392B; }
+
+#assistant-root .imsmassi-toast { position: fixed; right: 24px; bottom: 40px; transform: none; background: #333; color: #FFF; padding: 12px 24px; border-radius: 8px; font-size: 13px; z-index: 3000; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+#assistant-root .imsmassi-toast.imsmassi-show { opacity: 1; }
+#assistant-root .imsmassi-floating-panel .imsmassi-toast { position: absolute; left: 50%; right: auto; bottom: 12px; transform: translateX(-50%); }
+
+#assistant-root .imsmassi-notification-toast { position: fixed; top: 20px; right: 20px; background: #333; color: #FFF; padding: 16px 20px; border-radius: 8px; font-size: 14px; z-index: 3000; opacity: 0; transform: translateX(400px); transition: all 0.3s ease; pointer-events: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.25); max-width: 320px; }
+#assistant-root .imsmassi-notification-toast.imsmassi-show { opacity: 1; transform: translateX(0); }
+#assistant-root .imsmassi-notification-toast.success { background: #5BA55B; }
+#assistant-root .imsmassi-notification-toast.warning { background: #E67E22; }
+#assistant-root .imsmassi-notification-toast.info { background: #3498DB; }
+#assistant-root .imsmassi-notification-toast-title { font-weight: 600; margin-bottom: 4px; }
+#assistant-root .imsmassi-notification-toast-content { font-size: 12px; opacity: 0.95; }
+#assistant-root .imsmassi-notification-toast-area { font-size: 11px; opacity: 0.8; margin-top: 4px; }
+
+#assistant-root .imsmassi-notification-balloon { position: fixed; bottom: 100px; right: 24px; background: #FF6B6B; color: #FFF; padding: 12px 16px; border-radius: 16px; font-size: 13px; font-weight: 600; z-index: 3000; opacity: 0; transform: scale(0.8); transform-origin: bottom imsmassi-right; transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: auto; box-shadow: 0 4px 16px rgba(255, 107, 107, 0.4); max-width: 200px; text-align: center; line-height: 1.4; }
+#assistant-root .imsmassi-notification-balloon.imsmassi-show { opacity: 1; transform: scale(1); animation: float 2s ease-in-out infinite; }
+#assistant-root .imsmassi-notification-balloon::after { content: ''; position: absolute; bottom: -12px; right: 20px; width: 0; height: 0; border-left: 12px solid transparent; border-right: 0 solid transparent; border-top: 12px solid #FF6B6B; }
+
+#assistant-root .imsmassi-test-button { padding: 10px 16px; background: #6C5CE7; color: #FFF; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600; transition: all 0.2s; box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3); }
+#assistant-root .imsmassi-test-button:hover { background: #5F3DC4; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(108, 92, 231, 0.5); }
+#assistant-root .imsmassi-test-button:active { transform: translateY(0); }
+
+#assistant-root .imsmassi-toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+#assistant-root .imsmassi-toggle-switch input { opacity: 0; width: 0; height: 0; }
+#assistant-root .imsmassi-toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; border-radius: 24px; transition: 0.3s; }
+#assistant-root .imsmassi-toggle-slider:before { position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; }
+#assistant-root .imsmassi-toggle-switch input:checked + .imsmassi-toggle-slider { background: #5BA55B; }
+#assistant-root .imsmassi-toggle-switch input:checked + .imsmassi-toggle-slider:before { transform: translateX(20px); }
+#assistant-root { --scrollbar-track: rgba(0,0,0,0.08); --scrollbar-thumb: rgba(0,0,0,0.35); --scrollbar-thumb-hover: rgba(0,0,0,0.5); }
+#assistant-root.imsmassi-dark-mode { --scrollbar-track: rgba(255,255,255,0.08); --scrollbar-thumb: rgba(255,255,255,0.35); --scrollbar-thumb-hover: rgba(255,255,255,0.55); }
+#assistant-root * { scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track); scrollbar-width: thin; }
+#assistant-root *::-webkit-scrollbar { width: 8px; height: 8px; }
+#assistant-root *::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+#assistant-root *::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 8px; }
+#assistant-root *::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+
+/* ========== 공통 스타일 ========== */
+#assistant-root .imsmassi-container { padding: 0; width: 0; height: 0; overflow: visible; }
+#assistant-root .imsmassi-card { background: #FFFFFF; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+#assistant-root .imsmassi-flex { display: flex; }
+#assistant-root .imsmassi-flex-wrap { flex-wrap: wrap; }
+#assistant-root .imsmassi-gap-8 { gap: 8px; }
+#assistant-root .imsmassi-gap-16 { gap: 16px; }
+#assistant-root .imsmassi-gap-24 { gap: 24px; }
+#assistant-root .imsmassi-items-center { align-items: center; }
+#assistant-root .imsmassi-justify-between { justify-content: space-between; }
+#assistant-root .imsmassi-justify-end { justify-content: flex-end; }
+#assistant-root .imsmassi-flex-1 { flex: 1; }
+#assistant-root .imsmassi-text-center { text-align: center; }
+#assistant-root .imsmassi-cursor-pointer { cursor: pointer; }
+#assistant-root .imsmassi-hidden { display: none; }
+
+/* 배포시제거 -------------------------------------------------------------- */
+/* ========== 컨트롤 패널 ========== */
+#assistant-root .imsmassi-control-panel h2 { margin-bottom: 16px; font-size: 18px; color: #333; }
+#assistant-root .imsmassi-control-label { font-size: 13px; color: #666; margin-bottom: 8px; display: block; }
+#assistant-root .imsmassi-theme-btn { padding: 8px 16px; border: 2px solid #E0E0E0; border-radius: 6px; background: #FFF; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+#assistant-root .imsmassi-theme-btn.imsmassi-active { font-weight: 600; }
+#assistant-root .imsmassi-theme-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+#assistant-root .imsmassi-mode-btn { padding: 8px 16px; border: 2px solid #E0E0E0; border-radius: 6px; background: #FFF; cursor: pointer; font-size: 13px; }
+#assistant-root .imsmassi-mode-btn.imsmassi-active { border-color: #333; font-weight: 600; }
+#assistant-root .imsmassi-mode-btn.dark-active { background: #333; color: #FFF; border-color: #333; }
+
+
+
+/* ========== 시스템 UI 미리보기 (scoped) ========== */
+#assistant-root .imsmassi-system-preview { border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15); position: relative; }
+#assistant-root .imsmassi-header { padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; }
+#assistant-root .imsmassi-header-logo { font-weight: 700; font-size: 18px; }
+#assistant-root .imsmassi-header-subtitle { font-size: 13px; }
+#assistant-root .imsmassi-header-user { font-size: 12px; }
+#assistant-root .imsmassi-header-logout { padding: 6px 12px; background: rgba(255,255,255,0.2); border: none; border-radius: 4px; font-size: 12px; cursor: pointer; }
+
+#assistant-root .imsmassi-gnb { padding: 0 20px; display: flex; gap: 4px; }
+#assistant-root .imsmassi-gnb-btn { padding: 12px 16px; border: none; border-bottom: 3px solid transparent; background: transparent; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+
+#assistant-root .imsmassi-lnb { width: 200px; padding: 16px 0; min-height: 400px; }
+#assistant-root .imsmassi-lnb-header { padding: 8px 16px; border-left: 4px solid; margin-bottom: 8px; font-size: 13px; font-weight: 600; }
+#assistant-root .imsmassi-lnb-item { padding: 10px 20px; font-size: 13px; cursor: pointer; }
+
+#assistant-root .imsmassi-main-content { flex: 1; padding: 20px; position: relative; }
+#assistant-root .imsmassi-page-title { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid; display: flex; align-items: center; justify-content: space-between; }
+#assistant-root .imsmassi-page-title h3 { font-size: 16px; margin: 0; }
+#assistant-root .imsmassi-search-box { padding: 16px; border-radius: 8px; margin-bottom: 16px; }
+#assistant-root .imsmassi-search-label { font-size: 12px; display: block; margin-bottom: 4px; }
+#assistant-root .imsmassi-search-input { padding: 8px 12px; border: 1px solid; border-radius: 4px; font-size: 13px; }
+#assistant-root .imsmassi-search-input.w150 { width: 150px; }
+#assistant-root .imsmassi-search-input.w120 { width: 120px; }
+#assistant-root .imsmassi-btn { padding: 8px 20px; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; }
+#assistant-root .imsmassi-btn-primary { color: #FFF; font-weight: 600; }
+#assistant-root .imsmassi-btn-secondary { background: #E8E8E8; }
+#assistant-root .imsmassi-btn-lg { padding: 10px 24px; font-size: 14px; }
+#assistant-root .imsmassi-btn-danger { background: #E74C3C; color: #FFF; }
+#assistant-root .imsmassi-btn-outline { background: transparent; }
+
+#assistant-root .imsmassi-grid-container { border: 1px solid; border-radius: 8px; overflow: hidden; }
+#assistant-root .imsmassi-grid-toolbar { padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+#assistant-root .imsmassi-grid-toolbar-btn { padding: 4px 8px; background: transparent; border: 1px solid; border-radius: 4px; font-size: 12px; cursor: pointer; }
+#assistant-root .imsmassi-grid-header, #assistant-root .imsmassi-grid-row { display: grid; grid-template-columns: 60px 100px 120px 80px 100px 1fr; }
+#assistant-root .imsmassi-grid-header { font-weight: 600; font-size: 12px; }
+#assistant-root .imsmassi-grid-cell { padding: 10px 8px; border-right: 1px solid; font-size: 13px; }
+#assistant-root .imsmassi-grid-cell:last-child { border-right: none; }
+#assistant-root .imsmassi-grid-cell.imsmassi-link { cursor: pointer; }
+#assistant-root .imsmassi-grid-cell.imsmassi-right { text-align: right; }
+
+#assistant-root .imsmassi-palette-title { margin: 0 0 16px 0; font-size: 16px; color: #333; }
+#assistant-root .imsmassi-palette-label { font-size: 12px; color: #666; margin: 0 0 8px 0; }
+#assistant-root .imsmassi-color-box { width: 48px; height: 48px; border-radius: 8px; }
+#assistant-root .imsmassi-color-name { font-size: 10px; color: #666; }
+#assistant-root .imsmassi-color-code { font-size: 10px; color: #999; }
+/* --------------------------------------------------------------  배포시제거 */
+
+/* 메모 탭 상세 스타일 (scoped) */
+#assistant-root .imsmassi-memo-textarea { width: 100%; height: 120px; padding: 12px; border: 1px solid; border-radius: 8px; font-size: 13px; resize: none; font-family: inherit; }
+#assistant-root .imsmassi-memo-capacity { font-size: 8px; }
+#assistant-root .imsmassi-memo-tag { font-size: 10px; padding: 2px 6px; border-radius: 3px; display: inline-flex; align-items: center; gap: 4px; }
+#assistant-root .imsmassi-memo-tag-delete { cursor: pointer; font-size: 12px; opacity: 0.7; }
+#assistant-root .imsmassi-memo-tag-delete:hover { opacity: 1; }
+#assistant-root .imsmassi-memo-delete-btn { position: absolute; top: 8px; right: 8px; background: none; border: none; cursor: pointer; font-size: 14px; opacity: 0.5; }
+#assistant-root .imsmassi-memo-delete-btn:hover { opacity: 1; }
+#assistant-root .imsmassi-memo-header-delete-btn { background: rgba(0,0,0,0.08); border: none; cursor: pointer; font-size: 10px; width: 16px; height: 16px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; line-height: 1; opacity: 0.7; }
+#assistant-root .imsmassi-memo-header-delete-btn:hover { opacity: 1; }
+#assistant-root .imsmassi-memo-header-pin-btn { background: rgba(0,0,0,0.08); border: none; cursor: pointer; font-size: 11px; width: 16px; height: 16px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; line-height: 1; opacity: 0.7; }
+#assistant-root .imsmassi-memo-header-pin-btn:hover { opacity: 1; }
+#assistant-root .imsmassi-memo-header-action-btn { background: rgba(0,0,0,0.08); border: none; cursor: pointer; font-size: 11px; width: 18px; height: 18px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; line-height: 1; opacity: 0.75; }
+#assistant-root .imsmassi-memo-header-action-btn:hover { opacity: 1; }
+
+/* 포스트잇 메모 (scoped) */
+#assistant-root .imsmassi-sticky-note-wrapper { position: absolute; width: var(--sticky-width, 220px); height: var(--sticky-height, 150px); min-width: 150px; min-height: 150px; z-index: 10; }
+#assistant-root .imsmassi-sticky-note-wrapper.imsmassi-is-collapsed { height: 22px; min-height: unset; }
+#assistant-root .imsmassi-sticky-note { position: relative; width: 100%; height: 100%; min-width: 150px; min-height: 150px; background: var(--area-sub2, #FFF9C4); border: 1px solid var(--area-sub1, #E6D98A); border-left: 4px solid var(--area-primary, #F1C40F); box-shadow: 0 6px 14px rgba(0,0,0,0.15); border-radius: 8px; padding: 0; resize: both; overflow: hidden; z-index: 1; display: flex; flex-direction: column; }
+#assistant-root .imsmassi-sticky-note.imsmassi-is-collapsed { resize: none; min-height: unset; height: 22px; }
+#assistant-root .imsmassi-sticky-note-header { position: relative; display: flex; align-items: center; justify-content: space-between; height: 18px; font-size: 10px; color: var(--area-primary, #7D6B00); font-weight: 600; background: rgba(0,0,0,0.06); padding: 0 6px; border-radius: 8px 8px 0 0; pointer-events: auto; cursor: default; z-index: 2; flex-shrink: 0; }
+#assistant-root .imsmassi-sticky-drag-handle { cursor: grab; user-select: none; color: #A09060; font-size: 13px; line-height: 1; padding: 0 4px 0 0; flex-shrink: 0; opacity: 0.7; transition: opacity 0.15s; }
+#assistant-root .imsmassi-sticky-drag-handle:hover { opacity: 1; }
+#assistant-root .imsmassi-sticky-drag-handle:active { cursor: grabbing; }
+#assistant-root .imsmassi-sticky-note-body { font-size: 12px; color: #3D3D3D; line-height: 1.4; word-break: break-word; overflow: auto; padding: 6px 10px 12px; flex: 1; min-height: 0; }
+#assistant-root .imsmassi-sticky-note.imsmassi-is-collapsed .imsmassi-sticky-note-body { display: none; }
+#assistant-root .imsmassi-sticky-note-body .ql-container { border: none; }
+#assistant-root .imsmassi-sticky-note-body .ql-toolbar { display: none; }
+#assistant-root .imsmassi-sticky-note-body .ql-editor { padding: 0; font-size: 12px; line-height: 1.4; color: #3D3D3D; }
+#assistant-root .imsmassi-sticky-note-actions { display: inline-flex; gap: 4px; align-items: center; }
+#assistant-root .imsmassi-sticky-note-btn { background: rgba(0,0,0,0.08); border: none; cursor: pointer; font-size: 10px; color: var(--area-primary, #7D6B00); width: 16px; height: 16px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+#assistant-root .imsmassi-sticky-note-btn:hover { background: rgba(0,0,0,0.15); }
+/* sticky-layer: #assistant-root 내부 및 외부(동적 주입) 모두 동작 */
+/* ==== 호스트 CSS 침범 완전 차단 리셋 ==== */
+#sticky-layer,
+#sticky-layer div,
+#sticky-layer span,
+#sticky-layer button {
+  box-sizing: border-box !important;
+  font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif !important;
+}
+#sticky-layer div,
+#sticky-layer span {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  vertical-align: baseline !important;
+  float: none !important;
+  clear: none !important;
+}
+#sticky-layer button {
+  margin: 0 !important;
+  padding: 0 !important;
+  float: none !important;
+  clear: none !important;
+  vertical-align: baseline !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  letter-spacing: normal !important;
+}
+/* ==== sticky-layer 구조 ==== */
+#sticky-layer { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; z-index: 1500 !important; pointer-events: none !important; overflow: visible !important; background: transparent !important; }
+#sticky-layer .imsmassi-sticky-note-wrapper { position: absolute !important; pointer-events: auto !important; width: var(--sticky-width, 220px) !important; height: var(--sticky-height, 150px) !important; min-width: 150px !important; min-height: 150px !important; z-index: 10 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; }
+#sticky-layer .imsmassi-sticky-note-wrapper.imsmassi-is-collapsed { height: 22px !important; min-height: unset !important; }
+#sticky-layer .imsmassi-sticky-note { position: relative !important; pointer-events: auto !important; display: flex !important; flex-direction: column !important; width: 100% !important; height: 100% !important; min-width: 150px !important; min-height: 150px !important; background: var(--area-sub2, #FFF9C4) !important; border: 1px solid var(--area-sub1, #E6D98A) !important; border-left: 4px solid var(--area-primary, #F1C40F) !important; box-shadow: 0 6px 14px rgba(0,0,0,0.15) !important; border-radius: 8px !important; padding: 0 !important; resize: both !important; overflow: hidden !important; z-index: 1 !important; margin: 0 !important; color: #3D3D3D !important; font-size: 12px !important; line-height: 1.4 !important; }
+#sticky-layer .imsmassi-sticky-note.imsmassi-is-collapsed { resize: none !important; min-height: unset !important; height: 22px !important; }
+#sticky-layer .imsmassi-sticky-note-header { position: relative !important; display: flex !important; align-items: center !important; justify-content: space-between !important; height: 18px !important; font-size: 10px !important; color: var(--area-primary, #7D6B00) !important; font-weight: 600 !important; background: rgba(0,0,0,0.06) !important; padding: 0 6px !important; border: none !important; border-radius: 8px 8px 0 0 !important; pointer-events: auto !important; cursor: default !important; z-index: 2 !important; flex-shrink: 0 !important; margin: 0 !important; line-height: 1 !important; }
+#sticky-layer .imsmassi-sticky-drag-handle { cursor: grab !important; user-select: none !important; color: #A09060 !important; font-size: 13px !important; line-height: 1 !important; padding: 0 4px 0 0 !important; flex-shrink: 0 !important; opacity: 0.7 !important; transition: opacity 0.15s !important; border: none !important; background: transparent !important; margin: 0 !important; }
+#sticky-layer .imsmassi-sticky-drag-handle:hover { opacity: 1 !important; }
+#sticky-layer .imsmassi-sticky-drag-handle:active { cursor: grabbing !important; }
+#sticky-layer .imsmassi-sticky-note-body { display: block !important; font-size: 12px !important; color: #3D3D3D !important; line-height: 1.4 !important; word-break: break-word !important; overflow: auto !important; padding: 6px 10px 12px !important; flex: 1 !important; min-height: 0 !important; border: none !important; background: transparent !important; margin: 0 !important; }
+#sticky-layer .imsmassi-sticky-note.imsmassi-is-collapsed .imsmassi-sticky-note-body { display: none !important; }
+#sticky-layer .imsmassi-sticky-note-body .ql-container { border: none !important; }
+#sticky-layer .imsmassi-sticky-note-body .ql-toolbar { display: none !important; }
+#sticky-layer .imsmassi-sticky-note-body .ql-editor { padding: 0 !important; font-size: 12px !important; line-height: 1.4 !important; color: #3D3D3D !important; margin: 0 !important; border: none !important; background: transparent !important; }
+#sticky-layer .imsmassi-sticky-note-actions { display: inline-flex !important; gap: 4px !important; align-items: center !important; margin: 0 !important; padding: 0 !important; border: none !important; background: transparent !important; }
+#sticky-layer .imsmassi-sticky-note-btn { background: rgba(0,0,0,0.08) !important; border: none !important; cursor: pointer !important; font-size: 10px !important; color: var(--area-primary, #7D6B00) !important; width: 16px !important; height: 16px !important; border-radius: 4px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; line-height: 1 !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; outline: none !important; }
+#sticky-layer .imsmassi-sticky-note-btn:hover { background: rgba(0,0,0,0.15) !important; }
+#sticky-layer .imsmassi-sticky-title-editable { outline: none !important; cursor: text !important; flex: 1 !important; min-width: 0 !important; overflow: hidden !important; white-space: nowrap !important; display: inline-block !important; color: #7D6B00 !important; font-weight: 600 !important; font-size: 10px !important; background: transparent !important; border: none !important; margin: 0 !important; padding: 0 !important; }
+#sticky-layer .imsmassi-sticky-title-editable:empty::before { content: attr(data-placeholder) !important; color: rgba(128,128,128,0.4) !important; pointer-events: none !important; font-weight: normal !important; }
+#sticky-layer .imsmassi-sticky-title-editable:focus { background: rgba(0,0,0,0.1) !important; padding: 0 3px !important; border-radius: 2px !important; }
+#sticky-layer.imsmassi-dark-mode .imsmassi-sticky-title-editable:focus { background: rgba(255,255,255,0.12) !important; }
+
+/* Quill/리치텍스트 (scoped) */
+#assistant-root .imsmassi-memo-richtext .ql-container { border: none; }
+#assistant-root .imsmassi-memo-richtext .ql-editor { padding: 0; }
+#assistant-root .ql-bubble .ql-tooltip { font-size: 12px; padding: 3px 4px; }
+#assistant-root .ql-bubble .ql-tooltip .ql-formats { margin: 2px; }
+#assistant-root .ql-bubble .ql-tooltip button { width: 20px; height: 20px; }
+#assistant-root .ql-editor table,
+#assistant-root .imsmassi-memo-item-content table,
+#assistant-root .imsmassi-memo-inline-text table,
+#assistant-root .imsmassi-memo-inline-editor table { table-layout: auto; width: auto; min-width: 100%; border-collapse: collapse; font-size: 10.5px; font-family: inherit; }
+#assistant-root .ql-editor td, #assistant-root .ql-editor th,
+#assistant-root .imsmassi-memo-item-content td, #assistant-root .imsmassi-memo-item-content th,
+#assistant-root .imsmassi-memo-inline-text td, #assistant-root .imsmassi-memo-inline-text th,
+#assistant-root .imsmassi-memo-inline-editor td, #assistant-root .imsmassi-memo-inline-editor th { padding: 3px 6px; border: 1px solid #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; line-height: 1.2; max-width: 200px; font-family: inherit; }
+#assistant-root .ql-editor th,
+#assistant-root .imsmassi-memo-item-content th,
+#assistant-root .imsmassi-memo-inline-text th,
+#assistant-root .imsmassi-memo-inline-editor th { font-weight: 600; background: var(--memo-hover-bg); text-align: center; padding-top: 5px; padding-bottom: 5px; }
+
+
+/* 다크모드: 테이블 셀 배경은 투명, 글자색만 밝게, !important 없이 */
+#assistant-root.imsmassi-dark-mode .ql-editor td,
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-item-content td,
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-inline-text td,
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-inline-editor td {
+	background: transparent;
+	color: #E0E0E0;
+	border-color: #666;
+}
+#assistant-root.imsmassi-dark-mode .ql-editor th,
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-item-content th,
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-inline-text th,
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-inline-editor th {
+	background: transparent;
+	color: #FFF;
+	border-color: #888;
+}
+
+/* 클립보드/템플릿/시간/대시보드 (scoped) */
+#assistant-root .imsmassi-clipboard-filter { font-size: 11px; padding: 4px 8px; border: 1px solid; border-radius: 4px; }
+#assistant-root .imsmassi-clipboard-item-content { font-size: 13px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#assistant-root .imsmassi-clipboard-item-meta { font-size: 10px; display: flex; justify-content: space-between; }
+#assistant-root .imsmassi-clipboard-hint { text-align: center; margin-top: 12px; font-size: 11px; }
+#assistant-root .imsmassi-template-add-btn { width: 100%; padding: 10px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; margin-bottom: 16px; color: #FFF; }
+#assistant-root .imsmassi-template-list-header { font-size: 12px; margin-bottom: 8px; }
+#assistant-root .imsmassi-template-edit-btn { position: absolute; top: 8px; right: 28px; background: none; border: none; cursor: pointer; font-size: 12px; opacity: 0.6; }
+#assistant-root .imsmassi-template-edit-btn:hover { opacity: 1; }
+#assistant-root .imsmassi-template-item-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+#assistant-root .imsmassi-template-item-title { font-size: 13px; font-weight: 600; }
+#assistant-root .imsmassi-template-item-count { font-size: 10px; }
+#assistant-root .imsmassi-template-item-content { font-size: 12px; padding: 8px; border-radius: 4px; border: 1px solid; }
+#assistant-root .imsmassi-time-summary { text-align: center; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
+#assistant-root .imsmassi-time-summary-label { font-size: 12px; margin-bottom: 4px; }
+#assistant-root .imsmassi-time-summary-value { font-size: 28px; font-weight: 700; }
+#assistant-root .imsmassi-time-period-btns { display: flex; gap: 8px; margin-bottom: 16px; justify-content: center; }
+#assistant-root .imsmassi-time-period-btn { padding: 6px 12px; font-size: 12px; border: 1px solid; border-radius: 4px; background: transparent; cursor: pointer; }
+#assistant-root .imsmassi-time-period-btn.imsmassi-active { font-weight: 600; }
+#assistant-root .imsmassi-time-chart-header { font-size: 12px; margin-bottom: 8px; }
+#assistant-root .imsmassi-time-chart-item { margin-bottom: 10px; }
+#assistant-root .imsmassi-time-chart-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+#assistant-root .imsmassi-time-chart-bar { height: 8px; border-radius: 4px; overflow: hidden; }
+#assistant-root .imsmassi-time-chart-bar-fill { height: 100%; border-radius: 4px; }
+#assistant-root .imsmassi-dashboard-section-header { font-size: 12px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+#assistant-root .imsmassi-todo-item { padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+#assistant-root .imsmassi-todo-checkbox { width: 16px; height: 16px; border-radius: 4px; border: 2px solid; display: flex; align-items: center; justify-content: center; font-size: 10px; cursor: pointer; flex-shrink: 0; }
+#assistant-root .imsmassi-todo-checkbox.imsmassi-checked { border: none; color: #FFF; }
+#assistant-root .imsmassi-todo-text { flex: 1; font-size: 12px; }
+#assistant-root .imsmassi-todo-text.imsmassi-done { text-decoration: line-through; }
+#assistant-root .imsmassi-todo-time { font-size: 10px; }
+#assistant-root .imsmassi-recent-memo-item { padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; cursor: pointer; }
+#assistant-root .imsmassi-recent-memo-menu { font-size: 10px; margin-bottom: 2px; }
+#assistant-root .imsmassi-recent-memo-text { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#assistant-root .imsmassi-favorite-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+#assistant-root .imsmassi-favorite-btn { padding: 6px 12px; font-size: 11px; border: 1px solid; border-radius: 4px; background: transparent; cursor: pointer; }
+
+/* Dark mode for Quill Tooltip */
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-tooltip {
+  background-color: #333;
+  border: 1px solid #555;
+  color: #f0f0f0;
+}
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-tooltip-arrow {
+    border-bottom-color: #333;
+}
+#assistant-root.imsmassi-dark-mode .ql-bubble.ql-flip .ql-tooltip-arrow {
+    border-top-color: #333;
+}
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-stroke {
+    stroke: #f0f0f0;
+}
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-fill,
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-stroke.ql-fill {
+    fill: #f0f0f0;
+}
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-picker-label {
+    color: #f0f0f0;
+}
+
+#assistant-root.imsmassi-dark-mode .ql-bubble button:hover,
+#assistant-root.imsmassi-dark-mode .ql-bubble button.ql-active,
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-picker-label:hover,
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-picker-label.ql-active,
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-picker-item:hover,
+#assistant-root .ql-bubble .ql-picker-item.ql-selected {
+    color: var(--memo-focus-color, #4A90A4);
+}
+
+#assistant-root.imsmassi-dark-mode .ql-bubble button:hover .ql-fill,
+#assistant-root.imsmassi-dark-mode .ql-bubble button.ql-active .ql-fill,
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-picker-label:hover .ql-fill,
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-picker-label.ql-active .ql-fill {
+    fill: var(--memo-focus-color, #4A90A4);
+}
+#assistant-root.imsmassi-dark-mode .ql-bubble button:hover .ql-stroke,
+#assistant-root.imsmassi-dark-mode .ql-bubble button.ql-active .ql-stroke,
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-picker-label:hover .ql-stroke,
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-picker-label.ql-active .ql-stroke {
+    stroke: var(--memo-focus-color, #4A90A4);
+}
+
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-picker-options {
+    background-color: #222;
+    border-color: #555;
+}
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-tooltip input[type=text] {
+    background-color: #555;
+    color: #f0f0f0;
+}
+#assistant-root.imsmassi-dark-mode .ql-bubble .ql-tooltip a:before {
+    color: #f0f0f0;
+}
+
+/* Dark mode for code blocks */
+#assistant-root.imsmassi-dark-mode .ql-editor code {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+  border: 1px solid #333;
+}
+#assistant-root.imsmassi-dark-mode .ql-editor .ql-code-block-container {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+  border: 1px solid #333;
+}

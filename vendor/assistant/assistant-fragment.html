@@ -1,0 +1,150 @@
+﻿<div id="assistant-root" class="assistant-root">
+  <div class="imsmassi-assistant-body">
+    <div id="sticky-layer"></div>
+    <div class="imsmassi-container">
+      <!--
+      ====== 배포시 제거: 컨트롤 패널 + 시스템 UI 미리보기 + 컬러 팔레트 ======
+
+        <div class="imsmassi-card imsmassi-control-panel">
+          <h2>솔로몬시스템 UI 테마 시안</h2>
+          <div class="imsmassi-flex imsmassi-gap-24 imsmassi-flex-wrap">
+            <div>
+              <label class="imsmassi-control-label">테마 선택</label>
+              <div class="imsmassi-flex imsmassi-gap-8 imsmassi-flex-wrap" id="theme-buttons"></div>
+            </div>
+            <div>
+              <label class="imsmassi-control-label">모드</label>
+              <div class="imsmassi-flex imsmassi-gap-8">
+                <button class="imsmassi-mode-btn imsmassi-active" id="btn-light" onclick="setDarkMode(false)">☀️ 라이트</button>
+                <button class="imsmassi-mode-btn" id="btn-dark" onclick="setDarkMode(true)">🌙 다크</button>
+              </div>
+            </div>
+            <div>
+              <label class="imsmassi-control-label">기능 테스트</label>
+              <div class="imsmassi-flex imsmassi-gap-8 imsmassi-flex-wrap">
+                <button class="imsmassi-test-button" onclick="testReminderNotification()" title="리마인더 알림 테스트">⏰ 리마인더 알림 테스트</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="imsmassi-system-preview" id="imsmassi-system-preview">
+          <div class="imsmassi-header" id="imsmassi-header">
+            <div class="imsmassi-flex imsmassi-items-center imsmassi-gap-16">
+              <span class="imsmassi-header-logo">SOLOMON</span>
+              <span class="imsmassi-header-subtitle">솔로몬시스템</span>
+            </div>
+            <div class="imsmassi-flex imsmassi-items-center imsmassi-gap-8">
+              <span class="imsmassi-header-user">홍길동 님</span>
+              <button class="imsmassi-header-logout">로그아웃</button>
+            </div>
+          </div>
+          <div class="imsmassi-gnb" id="imsmassi-gnb"></div>
+          <div class="imsmassi-flex">
+            <div class="imsmassi-lnb" id="imsmassi-lnb"></div>
+            <div class="imsmassi-main-content" id="imsmassi-main-content">
+              <div class="imsmassi-page-title" id="imsmassi-page-title">
+                <h3 id="page-title-text"></h3>
+              </div>
+              <div class="imsmassi-search-box" id="imsmassi-search-box">
+                <div class="imsmassi-flex imsmassi-gap-16 imsmassi-flex-wrap imsmassi-items-center">
+                  <div>
+                    <label class="imsmassi-search-label">계약번호</label>
+                    <input type="text" class="imsmassi-search-input w150" placeholder="계약번호 입력">
+                  </div>
+                  <div>
+                    <label class="imsmassi-search-label">조회기간</label>
+                    <input type="text" class="imsmassi-search-input w120" placeholder="2025-01-01">
+                    <span style="margin: 0 8px;">~</span>
+                    <input type="text" class="imsmassi-search-input w120" placeholder="2025-12-31">
+                  </div>
+                  <button class="imsmassi-btn imsmassi-btn-primary" id="btn-search">조회</button>
+                  <button class="imsmassi-btn imsmassi-btn-secondary" id="btn-reset">초기화</button>
+                </div>
+              </div>
+              <div class="imsmassi-grid-container" id="imsmassi-grid-container">
+                <div class="imsmassi-grid-toolbar" id="imsmassi-grid-toolbar">
+                  <span>조회결과 <strong>123</strong>건</span>
+                  <div class="imsmassi-flex imsmassi-gap-8">
+                    <button class="imsmassi-grid-toolbar-btn">⤢ 확대</button>
+                    <button class="imsmassi-grid-toolbar-btn">📥 엑셀</button>
+                  </div>
+                </div>
+                <div class="imsmassi-grid-header" id="imsmassi-grid-header">
+                  <div class="imsmassi-grid-cell">No</div>
+                  <div class="imsmassi-grid-cell">계약번호</div>
+                  <div class="imsmassi-grid-cell">계약자명</div>
+                  <div class="imsmassi-grid-cell">보험종목</div>
+                  <div class="imsmassi-grid-cell">계약일자</div>
+                  <div class="imsmassi-grid-cell">보험료</div>
+                </div>
+                <div id="grid-body"></div>
+              </div>
+              <div class="imsmassi-flex imsmassi-justify-end imsmassi-gap-8" style="margin-top: 16px;">
+                <button class="imsmassi-btn imsmassi-btn-lg imsmassi-btn-primary" id="btn-save">저장</button>
+                <button class="imsmassi-btn imsmassi-btn-lg imsmassi-btn-danger">삭제</button>
+                <button class="imsmassi-btn imsmassi-btn-lg imsmassi-btn-outline" id="btn-cancel">취소</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="imsmassi-card" style="margin-top: 20px;">
+          <h3 class="imsmassi-palette-title" id="imsmassi-palette-title"></h3>
+          <div class="imsmassi-flex imsmassi-gap-24 imsmassi-flex-wrap">
+            <div>
+              <p class="imsmassi-palette-label">테마 컬러</p>
+              <div class="imsmassi-flex imsmassi-gap-8" id="theme-colors"></div>
+            </div>
+            <div>
+              <p class="imsmassi-palette-label">업무영역 컬러</p>
+              <div class="imsmassi-flex imsmassi-gap-8 imsmassi-flex-wrap" id="area-colors"></div>
+            </div>
+          </div>
+        </div>
+
+      ====== 배포시 제거 끝 ======
+      -->
+  </div>
+
+    <!-- ========== 플로팅 어시스턴트 ========== -->
+    <button class="imsmassi-floating-btn" id="imsmassi-floating-btn" onclick="openAssistant()">💼<span class="imsmassi-assistant-badge"></span></button>
+
+    <div class="imsmassi-floating-panel imsmassi-hidden" id="imsmassi-floating-panel">
+    <!-- 헤더 -->
+    <div class="imsmassi-assistant-header" id="imsmassi-assistant-header">
+      <div class="imsmassi-assistant-title">
+        <!-- <span>💼</span> -->
+        <span>어시스턴트</span>
+      </div>
+      <div class="imsmassi-assistant-header-actions">
+        <button class="imsmassi-assistant-header-btn" id="assistant-dashboard-btn" onclick="toggleDashboardView()" title="대시보드">📊 대시보드</button>
+        <button class="imsmassi-assistant-close" onclick="closeAssistant()" title="닫기">✕</button>
+      </div>
+    </div>
+
+    <!-- 콘텐츠 -->
+    <div class="imsmassi-assistant-content" id="imsmassi-assistant-content"></div>
+
+    <!-- 푸터 -->
+    <div class="imsmassi-assistant-footer" id="imsmassi-assistant-footer">
+      <span id="footer-storage-info">로컬 저장 (IndexedDB)</span>
+      <div class="imsmassi-assistant-footer-controls">
+        <div class="imsmassi-assistant-footer-modes imsmassi-assistant-footer-group" id="imsmassi-assistant-footer-modes"></div>
+        <div class="imsmassi-assistant-footer-themes imsmassi-assistant-footer-group" id="imsmassi-assistant-footer-themes"></div>
+        <button class="imsmassi-assistant-footer-btn" onclick="openSettingsModal()">⚙️</button>
+      </div>
+    </div>
+  </div>
+
+    <!-- ========== 모달 ========== -->
+    <div class="imsmassi-modal-overlay imsmassi-hidden" id="imsmassi-modal-overlay">
+      <div class="imsmassi-modal" id="modal-content" onclick="event.stopPropagation()">
+        <!-- 모달 내용은 동적으로 생성됨 -->
+      </div>
+    </div>
+
+    <!-- ========== 토스트 ========== -->
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
