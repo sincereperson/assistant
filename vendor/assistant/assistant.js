@@ -102,6 +102,7 @@ const USER_SENSITIVE_FIELDS = ['userId', 'userEmpNo', 'userNm', 'userEnglNm'];
 
 /** 파생된 AES 키 캐시 (페이지 수명 동안 재파생 방지) */
 let _userCryptoKey = null;
+let _userCryptoKeyId = null;
 
 /**
  * loginId로부터 AES-256-GCM 키 파생 (PBKDF2 100,000회)
@@ -109,7 +110,7 @@ let _userCryptoKey = null;
  * @returns {Promise<CryptoKey>}
  */
 async function deriveUserCryptoKey(loginId) {
-  if (_userCryptoKey) return _userCryptoKey;
+  if (_userCryptoKey && _userCryptoKeyId === loginId) return _userCryptoKey;
   const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     'raw', enc.encode(String(loginId)), 'PBKDF2', false, ['deriveKey']
@@ -121,6 +122,7 @@ async function deriveUserCryptoKey(loginId) {
     false,
     ['encrypt', 'decrypt']
   );
+  _userCryptoKeyId = loginId;
   return _userCryptoKey;
 }
 
@@ -168,48 +170,25 @@ async function decryptUserField(b64, key) {
 }
 
 /**
- * gcm.gds_UserInfo.commandList 파싱
- * [{ row:0, col:'userId', oldValue:'', value:'2017806' }, ...] → { userId:'2017806', ... }
- * @returns {Object|null}
- */
-function parseUserInfoFromGcm() {
-  try {
-    const list = window.gcm?.gds_UserInfo?.commandList;
-    const rows = (typeof list?.getAllJSON === 'function' ? list.getAllJSON() : list) || [];
-    if (!rows.length) return null;
-    return rows.reduce((acc, item) => {
-      if (item?.col && item?.value !== undefined) acc[item.col] = item.value;
-      return acc;
-    }, {});
-  } catch (e) {
-    console.warn('[Assistant] UserInfo 파싱 실패:', e);
-    return null;
-  }
-}
-
-/**
- * gcm UserInfo를 파싱 → 민감 필드 암호화 → Worker에 저장 요청
+ * UserInfo 암호화 → Worker에 저장 요청
  *
  * @param {string} loginId
- * @param {Function|Object|null} [userInfoSource]
+ * @param {Function|Object} userInfoSource
  *   - Function : () => Object | Promise<Object>  호스트가 직접 제공하는 파서
  *   - Object   : 이미 파싱된 userInfo 객체를 직접 전달
- *   - null/undefined : window.gcm 기반 기본 파서(parseUserInfoFromGcm) 사용
  *
- * @example 다른 시스템에서 사용 시
+ * @example
  *   saveUserInfoToWorker(loginId, () => ({ userId: '123', userNm: '홍길동' }))
  *   saveUserInfoToWorker(loginId, { userId: '123', userNm: '홍길동' })
  */
 async function saveUserInfoToWorker(loginId, userInfoSource) {
+  if (!userInfoSource) return;
   let raw;
   try {
     if (typeof userInfoSource === 'function') {
       raw = await userInfoSource();
-    } else if (userInfoSource && typeof userInfoSource === 'object') {
+    } else if (typeof userInfoSource === 'object') {
       raw = userInfoSource;
-    } else {
-      // 기본 폴백: gcm 파서
-      raw = parseUserInfoFromGcm();
     }
   } catch (e) {
     console.warn('[Assistant] UserInfo 소스 실행 실패:', e);
@@ -254,6 +233,7 @@ async function decryptUserInfo(loginId) {
       result[field] = await decryptUserField(encrypted[field], key);
     }
     delete result._encrypted;
+    delete result._savedAt;
     return result;
   } catch (e) {
     console.error('[Assistant] UserInfo 복호화 실패:', e);
@@ -2182,7 +2162,7 @@ function setupStickyLayerObserver(cfg = {}) {
   }
 
   _stickyLayerConfig = {
-    windowContainerClass: cfg.windowContainerClass || 'w2windowContainer_selectNameLayer',
+    windowContainerClass: cfg.windowContainerClass || 'w2windowContainer_selectedNameLayer',
     pgIdClass:            cfg.pgIdClass            || 'pg-id',
     // 앵커 클래스 변경 시 최신 menuId를 반환하는 함수 (호스트 측에서 주입)
     getMenuId:            cfg.getMenuId            || null,
@@ -2225,42 +2205,52 @@ function setupStickyLayerObserver(cfg = {}) {
     }, 80);
   });
 
-  // 앵커 미발견 시 옵저버 설정 없이 종료 — body 전체 감시로 인한 무한루프 방지
-  const anchorEl = document.querySelector(`.${_stickyLayerConfig.windowContainerClass}`);
-  if (!anchorEl) {
-    console.warn(`[Assistant] setupStickyLayerObserver: .${_stickyLayerConfig.windowContainerClass} 미발견 → sticky-layer 비활성`);
-    _stickyLayerObserver.disconnect();
-    _stickyLayerObserver = null;
-    return;
-  }
+  // 앵커 요소 탐색 후 옵저버 활성화
+  // 웹스퀘어 init() 이후 동적으로 DOM이 생성되는 경우를 위해 폴링으로 재시도
+  function _attachObserver() {
+    const anchorEl = document.querySelector(`.${_stickyLayerConfig.windowContainerClass}`);
+    if (!anchorEl) return false;
 
-  // 앵커의 부모(윈도우 컨테이너)만 감시 — body 전체 감시보다 범위 최소화
-  _stickyLayerObserver.observe(anchorEl.parentElement || document.body, {
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['class'],
-  });
+    // 앵커의 부모(윈도우 컨테이너)만 감시 — body 전체 감시보다 범위 최소화
+    _stickyLayerObserver.observe(anchorEl.parentElement || document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class'],
+    });
 
-  // 초기 menuId/areaId 즉시 설정 (옵저버 발화 전에 state를 올바른 값으로)
-  if (typeof _stickyLayerConfig.getMenuId === 'function') {
-    const initMenuId = _stickyLayerConfig.getMenuId();
-    if (initMenuId) {
-      state.selectedMenu = initMenuId;
-      workerSend('CONTEXT_CHANGE', { menuId: initMenuId });
-      if (typeof _stickyLayerConfig.getAreaId === 'function') {
-        const initAreaId = _stickyLayerConfig.getAreaId(initMenuId);
-        if (initAreaId) {
-          state.selectedArea = initAreaId;
-          workerSend('CONTEXT_CHANGE', { areaId: initAreaId });
+    // 초기 menuId/areaId 즉시 설정 (옵저버 발화 전에 state를 올바른 값으로)
+    if (typeof _stickyLayerConfig.getMenuId === 'function') {
+      const initMenuId = _stickyLayerConfig.getMenuId();
+      if (initMenuId) {
+        state.selectedMenu = initMenuId;
+        workerSend('CONTEXT_CHANGE', { menuId: initMenuId });
+        if (typeof _stickyLayerConfig.getAreaId === 'function') {
+          const initAreaId = _stickyLayerConfig.getAreaId(initMenuId);
+          if (initAreaId) {
+            state.selectedArea = initAreaId;
+            workerSend('CONTEXT_CHANGE', { areaId: initAreaId });
+          }
         }
+        console.log(`[Assistant] 초기 컨텍스트 설정 → menuId: ${initMenuId}, areaId: ${state.selectedArea}`);
       }
-      console.log(`[Assistant] 초기 컨텍스트 설정 → menuId: ${initMenuId}, areaId: ${state.selectedArea}`);
     }
+
+    // 초기 배치
+    relocateStickyLayer();
+    console.log('[Assistant] sticky-layer 옵저버 활성화:', _stickyLayerConfig);
+    return true;
   }
 
-  // 초기 배치
-  relocateStickyLayer();
-  console.log('[Assistant] sticky-layer 옵저버 활성화:', _stickyLayerConfig);
+  if (!_attachObserver()) {
+    // 앵커 미발견 → DOM 추가 감지 옵저버로 대기 (웹스퀘어 init() 이후 동적 생성 대응)
+    console.warn(`[Assistant] .${_stickyLayerConfig.windowContainerClass} 미발견 → DOM 추가 감지 대기 중`);
+    const _domWatcher = new MutationObserver(() => {
+      if (_attachObserver()) {
+        _domWatcher.disconnect();
+      }
+    });
+    _domWatcher.observe(document.body, { subtree: true, childList: true });
+  }
 }
 
 /**
@@ -6009,10 +5999,8 @@ async function bootstrapAssistant(config = {}) {
   const workerPath = config.workerPath || 'assistant/assistant-worker.js';
   connectToWorker(workerPath, config.loginId);
 
-  // 2-1단계: UserInfo 암호화 저장 (loginId가 있을 때만)
-  if (config.loginId) {
-    // config.getUserInfo: 호스트가 주입하는 파서 함수 또는 객체
-    // 미지정 시 gcm 기본 파서 사용
+  // 2-1단계: UserInfo 암호화 저장 (loginId + getUserInfo 모두 있을 때만)
+  if (config.loginId && config.getUserInfo) {
     Promise.resolve().then(() => saveUserInfoToWorker(config.loginId, config.getUserInfo));
   }
 
@@ -6025,17 +6013,7 @@ async function bootstrapAssistant(config = {}) {
   // 4단계: sticky-layer 재배치 옵저버
   // config.stickyLayerSelectors = false 로 비활성화 가능
   if (config.stickyLayerSelectors !== false) {
-    setupStickyLayerObserver(config.stickyLayerSelectors || {
-      getMenuId : function() {
-        let menuId = window.gcm.gv_SCREEN_ID = window.gcm.gv_SCREEN_ID || '';
-        return menuId;
-      },
-      getAreaId : function(menuId) {
-        const aList = window.gcm.gds_MenuList.getAllJSON();
-        let areaId = aList.filter(row => row.PGM_ID === menuId)[0].MENUTYPE;
-        return areaId;
-      }
-    });
+    setupStickyLayerObserver(config.stickyLayerSelectors || {});
   }
 
   console.log('[Assistant] 초기화 완료 (Shared Worker 연결 중)');

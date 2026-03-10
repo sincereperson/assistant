@@ -537,6 +537,24 @@
   ════════════════════════════════════════════ -->
   <script src="vendor/assistant-loader.js"></script>
   <script>
+    /**
+     * 웹스퀘어 내부시스템은 window.onload = init; 패턴으로 초기화됩니다.
+     * 어시스턴트는 내부시스템 init() 완료 후 실행되어야 하므로,
+     * 기존 onload를 교체하지 않고 아래처럼 체이닝합니다.
+     *
+     * ── 실제 배포 시 적용 예시 ──────────────────────────────────
+     * <script src="vendor/assistant-loader.js"><\/script>
+     * <script>
+     *   (function () {
+     *     const _prevOnload = window.onload;          // 웹스퀘어 init 보존
+     *     window.onload = async function () {
+     *       if (typeof _prevOnload === 'function') await _prevOnload(); // 내부시스템 먼저 실행
+     *       loadAssistant({ loginId: gcm.gv_USER_ID, ... });           // 이후 어시스턴트 로드
+     *     };
+     *   })();
+     * <\/script>
+     * ────────────────────────────────────────────────────────────
+     */
     // window.ASSISTANT_AREA_kEYS = {
     //   id : 'menuId',
     //   name : 'menuName'
@@ -544,6 +562,13 @@
     loadAssistant({
       mountId: 'assistant-mount',
       loginId: 'test_user_01',
+      // ── 유저 정보: 있을 때만 암호화되어 IndexedDB userinfo 스토어에 저장됨
+      getUserInfo: {
+        userId:     'test_user_01',
+        userEmpNo:  '2017806',
+        userNm:     '홍길동',
+        userEnglNm: 'Hong Gildong',
+      },
       htmlPath: 'vendor/assistant/assistant-fragment.html',
       cssPath: 'vendor/assistant/assistant.css',
       cssPaths: [
