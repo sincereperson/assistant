@@ -1928,6 +1928,7 @@ function renderStickyNotes() {
         : (isRichText
           ? `<div class="imsmassi-sticky-note-body imsmassi-sticky-note-richtext" data-memo-id="${note.memoId}" data-content="${encodeURIComponent(sanitizeHtml(memo.content || ''))}"></div>`
           : `<div class="imsmassi-sticky-note-body" contenteditable="true" data-memo-id="${note.memoId}" onfocus="state.isStickyNoteEditing = true; scrollToMemoItem('${note.memoId}')" onblur="saveStickyNoteEdit('${note.memoId}', this)" style="outline: none;">${displayText || '내용 없음'}</div>`)}
+      ${isCollapsed ? '' : '<div class="imsmassi-sticky-resize-handle" title="크기 조절"></div>'}
     `;
     wrapperEl.appendChild(noteEl);
     layer.appendChild(wrapperEl);
@@ -1941,64 +1942,75 @@ function renderStickyNotes() {
   initStickyNoteRichText();
 }
 
-// 5. 크기 조절 (ResizeObserver) 로직 안정화
+// 5. 크기 조절 (커스텀 핸들 드래그) 로직
 function enableStickyNoteResize(wrapperEl, note) {
-  const noteEl = wrapperEl.querySelector('.imsmassi-sticky-note');
-  if (!noteEl) return;
   const memoId = wrapperEl.dataset.memoId || note?.memoId;
   const menuId  = note?.menuId;
   if (!memoId) return;
 
-  let resizeSaveTimer = null;
-  let isFirstObservation = true;  // 첫 발화(초기 렌더 확인)는 무시
-  let lastSavedWidth = note.width  || 220;
-  let lastSavedHeight = note.height || 150;
+  const handle = wrapperEl.querySelector('.imsmassi-sticky-resize-handle');
+  if (!handle) return;
 
-  const observer = new ResizeObserver(entries => {
-    for (const entry of entries) {
-      // 첫 observe 콜백은 현재 크기 스냅샷이므로 저장 불필요
-      if (isFirstObservation) { isFirstObservation = false; return; }
+  let isResizing = false;
+  let startX = 0, startY = 0;
+  let startW = 0, startH = 0;
+  let saveTimer = null;
 
-      // 요소가 DOM에서 제거된 경우 observer 정리
-      if (!document.contains(noteEl)) { observer.disconnect(); return; }
+  const ac = new AbortController();
+  const { signal } = ac;
 
-      const rect = entry.target.getBoundingClientRect();
+  // wrapperEl이 DOM에서 제거되면 리스너 정리
+  const cleanupObserver = new MutationObserver(() => {
+    if (!document.contains(wrapperEl)) {
+      if (isResizing) {
+        isResizing = false;
+        state.stickyResizeActive = false;
+      }
+      ac.abort();
+      cleanupObserver.disconnect();
+    }
+  });
+  cleanupObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
 
-      // 화면에 보이지 않거나 비정상적인 크기일 때는 무시합니다.
-      if (rect.width < 50 || rect.height < 50) return;
+  handle.addEventListener('mousedown', (e) => {
+    if (!document.contains(wrapperEl)) return;
+    isResizing = true;
+    state.stickyResizeActive = true;
+    startX = e.pageX;
+    startY = e.pageY;
+    const curr = (state.stickyNotes || []).find(n => n.memoId === memoId && n.menuId === menuId)
+              || (state.stickyNotes || []).find(n => n.memoId === memoId)
+              || {};
+    startW = curr.width  || 220;
+    startH = curr.height || 150;
+    e.preventDefault();
+    e.stopPropagation();
+  });
 
-      const nextWidth  = Math.min(1200, Math.round(rect.width));
-      const nextHeight = Math.min(900,  Math.round(rect.height));
+  document.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+    if (!document.contains(wrapperEl)) {
+      isResizing = false;
+      state.stickyResizeActive = false;
+      return;
+    }
+    const nextW = Math.max(150, Math.min(1200, startW + (e.pageX - startX)));
+    const nextH = Math.max(150, Math.min(900,  startH + (e.pageY - startY)));
+    wrapperEl.style.setProperty('--sticky-width',  `${nextW}px`);
+    wrapperEl.style.setProperty('--sticky-height', `${nextH}px`);
+    upsertStickyNote(memoId, { width: nextW, height: nextH, menuId });
+  }, { signal });
 
-      // 2px 미만 변화는 레이아웃 리플로우 잡음으로 무시
-      if (Math.abs(nextWidth - lastSavedWidth) < 2 && Math.abs(nextHeight - lastSavedHeight) < 2) return;
-      lastSavedWidth  = nextWidth;
-      lastSavedHeight = nextHeight;
-
-      // 리사이즈 진행 중 플래그 설정 — STATE_UPDATE가 오더라도 local 크기 변경 보호
-      state.stickyResizeActive = true;
-
-      // menuId 포함 상태 업데이트
-      const sizePatch = {};
-      if (Number.isFinite(nextWidth)  && nextWidth  > 50) sizePatch.width  = Math.min(1200, Math.max(150, nextWidth));
-      if (Number.isFinite(nextHeight) && nextHeight > 50) sizePatch.height = Math.min(900,  Math.max(150, nextHeight));
-      if (menuId) sizePatch.menuId = menuId;
-      upsertStickyNote(memoId, sizePatch);
-
-      // 즉각적인 시각적 피드백 (CSS 변수 업데이트)
-      wrapperEl.style.setProperty('--sticky-width',  `${nextWidth}px`);
-      wrapperEl.style.setProperty('--sticky-height', `${nextHeight}px`);
-
-      // 디바운스 처리된 DB 저장 (너무 잦은 저장을 방지)
-      if (resizeSaveTimer) clearTimeout(resizeSaveTimer);
-      resizeSaveTimer = setTimeout(() => {
+  document.addEventListener('mouseup', () => {
+    if (isResizing) {
+      isResizing = false;
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
         state.stickyResizeActive = false;
         saveStickyNotes();
       }, 300);
     }
-  });
-
-  observer.observe(noteEl);
+  }, { signal });
 }
 
 let stickyNoteQuillMap = {};
@@ -2147,6 +2159,12 @@ let _stickyLayerConfig = {};
 /** @type {boolean} relocateStickyLayer 실행 중 재진입 방지 플래그 */
 let _stickyLayerRelocating = false;
 
+/** @type {Element|null} sticky-layer가 fixed 위치로 추적 중인 타겟 요소 */
+let _stickyLayerTarget = null;
+
+/** @type {ResizeObserver|null} 타겟 요소 크기 변경 감지 */
+let _stickyTargetResizeObserver = null;
+
 /**
  * MutationObserver를 설정하여 sticky-layer 재배치를 담당합니다.
  *
@@ -2160,6 +2178,7 @@ function setupStickyLayerObserver(cfg = {}) {
     _stickyLayerObserver.disconnect();
     _stickyLayerObserver = null;
   }
+  _detachStickyPositionSync();
 
   _stickyLayerConfig = {
     windowContainerClass: cfg.windowContainerClass || 'w2windowContainer_selectedNameLayer',
@@ -2254,12 +2273,86 @@ function setupStickyLayerObserver(cfg = {}) {
 }
 
 /**
+ * sticky-layer(position:fixed)의 top/left/width/height를 _stickyLayerTarget에 동기화합니다.
+ * ResizeObserver, scroll, resize 이벤트에서 호출됩니다.
+ */
+/**
+ * 요소의 조상 중 overflow 클리핑 컨테이너를 모두 타고 올라가
+ * 실제 가시 영역(뷰포트 교차 포함)을 반환합니다.
+ * → 시스템 고정 헤더/GNB 등이 차지하는 영역까지 자동으로 제외됩니다.
+ */
+function _getClipRect(el) {
+  // 기본값: 전체 뷰포트
+  let top    = 0;
+  let left   = 0;
+  let bottom = window.innerHeight;
+  let right  = window.innerWidth;
+
+  let node = el.parentElement;
+  while (node && node !== document.documentElement) {
+    const style = window.getComputedStyle(node);
+    const ov = style.overflow + ' ' + style.overflowX + ' ' + style.overflowY;
+    if (/hidden|auto|scroll|clip/.test(ov)) {
+      const r = node.getBoundingClientRect();
+      // 각 조상 클리핑 영역과 교차(intersection) → 더 좁은 쪽으로 좁혀 나감
+      top    = Math.max(top,    r.top);
+      left   = Math.max(left,   r.left);
+      bottom = Math.min(bottom, r.bottom);
+      right  = Math.min(right,  r.right);
+    }
+    node = node.parentElement;
+  }
+  return { top, left, bottom, right };
+}
+
+function _syncStickyLayerPosition() {
+  const layer = document.getElementById('sticky-layer');
+  if (!layer || !_stickyLayerTarget || !_stickyLayerTarget.isConnected) return;
+  const rect = _stickyLayerTarget.getBoundingClientRect();
+  layer.style.setProperty('top',    rect.top    + 'px', 'important');
+  layer.style.setProperty('left',   rect.left   + 'px', 'important');
+  layer.style.setProperty('width',  rect.width  + 'px', 'important');
+  layer.style.setProperty('height', rect.height + 'px', 'important');
+
+  // 조상 overflow 컨테이너 + 뷰포트 기준으로 실제 가시 영역 계산
+  // → 시스템 고정 헤더/GNB/사이드바 위로 포스트잇이 튀어나오는 현상 방지
+  const clip = _getClipRect(_stickyLayerTarget);
+  const clipTop    = Math.max(0, clip.top    - rect.top);
+  const clipLeft   = Math.max(0, clip.left   - rect.left);
+  const clipBottom = Math.max(0, rect.bottom - clip.bottom);
+  const clipRight  = Math.max(0, rect.right  - clip.right);
+  layer.style.setProperty('clip-path',
+    `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px)`, 'important');
+}
+
+/** 타겟 추적(ResizeObserver + scroll/resize 리스너) 시작 */
+function _attachStickyPositionSync(targetEl) {
+  _detachStickyPositionSync();
+  _stickyLayerTarget = targetEl;
+  _stickyTargetResizeObserver = new ResizeObserver(_syncStickyLayerPosition);
+  _stickyTargetResizeObserver.observe(targetEl);
+  window.addEventListener('scroll', _syncStickyLayerPosition, { passive: true, capture: true });
+  window.addEventListener('resize', _syncStickyLayerPosition, { passive: true });
+}
+
+/** 타겟 추적 해제 */
+function _detachStickyPositionSync() {
+  if (_stickyTargetResizeObserver) {
+    _stickyTargetResizeObserver.disconnect();
+    _stickyTargetResizeObserver = null;
+  }
+  window.removeEventListener('scroll', _syncStickyLayerPosition, { capture: true });
+  window.removeEventListener('resize', _syncStickyLayerPosition);
+  _stickyLayerTarget = null;
+}
+
+/**
  * sticky-layer 주입 타겟 탐색
  *
  *   .{windowContainerClass} (앵커)
  *       └── parentElement (윈도우 컨테이너)
  *             └── .{pgIdClass} 중 innerText === state.selectedMenu
- *                   └── parentElement  ← 주입 타겟
+ *                   └── parentElement  ← 위치 기준 타겟
  */
 function _resolveTargetContainer() {
   const cfg          = _stickyLayerConfig;
@@ -2288,7 +2381,11 @@ function _resolveTargetContainer() {
 }
 
 /**
- * #sticky-layer를 현재 활성 화면 컨테이너에 동적으로 주입합니다.
+ * #sticky-layer를 document.body에 position:fixed로 유지하면서
+ * 현재 활성 화면 컨테이너의 영역에 맞춰 위치를 동기화합니다.
+ *
+ * ※ targetElement를 직접 수정(position, appendChild)하지 않으므로
+ *    같은 레벨 요소들의 레이아웃·스태킹에 전혀 영향을 주지 않습니다.
  */
 function relocateStickyLayer() {
   if (_stickyLayerRelocating) return;
@@ -2301,37 +2398,35 @@ function relocateStickyLayer() {
 
   const targetElement = _resolveTargetContainer();
 
-  // 이미 올바른 위치에 있으면 아무것도 하지 않음
-  if (targetElement && layer.parentElement === targetElement) return;
+  // 이미 body에 있고 동일한 타겟을 추적 중이면 위치만 재동기화하고 종료
+  if (layer.parentElement === document.body && _stickyLayerTarget === targetElement) {
+    if (targetElement) _syncStickyLayerPosition();
+    return;
+  }
 
   _stickyLayerRelocating = true;
 
   // 1단계: 페이드아웃
   layer.classList.add('imsmassi-relocating');
 
-  // 2단계: transition 완료 후 DOM 이동 + 페이드인
+  // 2단계: transition 완료 후 위치 동기화 + 페이드인
   const doRelocate = () => {
     try {
-      // 이전 부모의 position 복원
-      const prevParent = layer.parentElement;
-      if (prevParent
-          && prevParent !== document.body
-          && typeof prevParent._stickyPositionBackup !== 'undefined') {
-        prevParent.style.position = prevParent._stickyPositionBackup;
-        delete prevParent._stickyPositionBackup;
+      // 기존 타겟 추적 해제 (이전 ResizeObserver / scroll 리스너 정리)
+      _detachStickyPositionSync();
+
+      // sticky-layer는 항상 document.body 직속 자식으로 유지
+      if (layer.parentElement !== document.body) {
+        document.body.appendChild(layer);
       }
 
       if (targetElement && targetElement.isConnected) {
-        const computedPos = window.getComputedStyle(targetElement).position;
-        if (computedPos === 'static') {
-          targetElement._stickyPositionBackup = targetElement.style.position || '';
-          targetElement.style.position = 'relative';
-        }
-        targetElement.appendChild(layer);
         layer.style.display = '';
-        console.log(`[Assistant] sticky-layer 주입 → ${targetElement.tagName}#${targetElement.id || ''}.${targetElement.className || ''}`);
+        // 타겟 위치에 fixed 레이어 동기화 시작
+        _attachStickyPositionSync(targetElement);
+        _syncStickyLayerPosition();
+        console.log(`[Assistant] sticky-layer 동기화 → ${targetElement.tagName}#${targetElement.id || ''}.${targetElement.className || ''}`);
       } else {
-        document.body.appendChild(layer);
         layer.style.display = 'none';
         console.log('[Assistant] sticky-layer 비활성화 (대상 없음)');
       }
@@ -2343,7 +2438,7 @@ function relocateStickyLayer() {
         const wrappers = layer.querySelectorAll('.imsmassi-sticky-note-wrapper');
         wrappers.forEach(w => w.classList.add('imsmassi-entering'));
         requestAnimationFrame(() => {
-          // 3단계: 페이드인 (entering 제거 → transition으로 opacity 1, scale 1로 복귀)
+          // 3단계: 페이드인
           layer.classList.remove('imsmassi-relocating');
           wrappers.forEach(w => w.classList.remove('imsmassi-entering'));
         });
@@ -5355,10 +5450,8 @@ function setMemoFilter(filter) {
 function toggleMemoSidePanel() {
   state.isMemoPanelExpanded = !state.isMemoPanelExpanded;
   renderAssistantContent();
-  // Persist imsmassi-expanded/collapsed state
-  if (db) db.transaction('settings', 'readwrite', store => {
-      return store.put(state.isMemoPanelExpanded, 'isMemoPanelExpanded');
-  });
+  // Worker 상태 동기화 — broadcastState()가 동일한 값을 전송하도록
+  workerSend('SAVE_UI_PREFS', { isMemoPanelExpanded: state.isMemoPanelExpanded });
 }
 
 function updateMemoSidePanelState() {
@@ -5947,6 +6040,12 @@ function connectToWorker(workerPath, loginId, initialContext = {}) {
           break;
         case 'EXPORT_DATA_RESULT':
           downloadExportData(payload?.data);
+          break;
+        case 'TEMPLATE_SUGGEST':
+          // 모달이 이미 열려있으면 무시
+          if (!state.currentModal) {
+            openModal('templateSuggest', { suggestedText: payload?.suggestedText || '' });
+          }
           break;
         default:
           console.warn('[Assistant] Worker로부터 알 수 없는 메시지:', type);

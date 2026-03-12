@@ -350,6 +350,20 @@ let db = null;
 let _initialized = false;
 let memoIdSequence = 0;
 
+/**
+ * 슬라이딩 윈도우 복사 추적 Map
+ * key: content 문자열, value: 복사 발생 타임스탬프 배열
+ * COPY_WINDOW_MS 이내에 COPY_THRESHOLD 회 복사 시 템플릿 제안 발동
+ */
+const _copyWindowMap = new Map();
+const COPY_WINDOW_MS   = 10 * 60 * 1000; // 10분
+const COPY_THRESHOLD   = 5;              // 5회
+
+/** 이미 템플릿 제안을 실행한 컨텐츠 목록 (최초 1회만 발동) 
+ *  단 워커 재시작 시 초기화되어 다시 제안 가능
+*/
+const _suggestedContents = new Set();
+
 const state = {
   currentTheme: 'earthBrown',
   isDarkMode: false,
@@ -372,7 +386,7 @@ const state = {
     lowSpecMode: false,
     debugLogs: true,
     backupReminder: true,
-    lastBackup: '2026-01-03',
+    lastBackup: '2026-02-28',
     enableClipboardCapture: true,
     markdownEnabled: true,
     autoNavigateToDashboard: true,
@@ -689,12 +703,12 @@ async function loadStateFromDB() {
       ...state.settings,
       ...settings,
       autoCleanup: { ...state.settings.autoCleanup, ...(settings.autoCleanup || {}) },
-      markdownEnabled: settings.markdownEnabled !== undefined ? settings.markdownEnabled : true,
-      browserNotificationEnabled: settings.browserNotificationEnabled !== undefined ? settings.browserNotificationEnabled : true,
-      debugLogs: settings.debugLogs !== undefined ? settings.debugLogs : true,
-      toastEnabled: settings.toastEnabled !== undefined ? settings.toastEnabled : true,
-      showTimeTab: settings.showTimeTab !== undefined ? settings.showTimeTab : true,
-      showAreaColorSection: settings.showAreaColorSection !== undefined ? settings.showAreaColorSection : true,
+      markdownEnabled: settings.markdownEnabled !== undefined ? settings.markdownEnabled : state.settings.markdownEnabled,
+      browserNotificationEnabled: settings.browserNotificationEnabled !== undefined ? settings.browserNotificationEnabled : state.settings.browserNotificationEnabled,
+      debugLogs: settings.debugLogs !== undefined ? settings.debugLogs : state.settings.debugLogs,
+      toastEnabled: settings.toastEnabled !== undefined ? settings.toastEnabled : state.settings.toastEnabled,
+      showTimeTab: settings.showTimeTab !== undefined ? settings.showTimeTab : state.settings.showTimeTab,
+      showAreaColorSection: settings.showAreaColorSection !== undefined ? settings.showAreaColorSection : state.settings.showAreaColorSection,
     };
   }
 
@@ -877,12 +891,33 @@ async function handleAddClipboard(port, payload) {
 
   if (!Array.isArray(state.clipboard)) state.clipboard = [];
   const existing = state.clipboard.findIndex(item => item.content === trimmed);
+  const now = Date.now();
+
+  // ── 슬라이딩 윈도우 업데이트 ──
+  if (!options.skipTemplateSuggest) {
+    if (!_copyWindowMap.has(trimmed)) _copyWindowMap.set(trimmed, []);
+    const timestamps = _copyWindowMap.get(trimmed);
+    timestamps.push(now);
+    // 윈도우 밖 타임스탬프 제거
+    const cutoff = now - COPY_WINDOW_MS;
+    while (timestamps.length && timestamps[0] < cutoff) timestamps.shift();
+
+    // 윈도우 내 COPY_THRESHOLD 회 달성 + 최초 1회만 → 템플릿 제안
+    if (timestamps.length >= COPY_THRESHOLD && !_suggestedContents.has(trimmed)) {
+      const alreadyTemplate = state.templates.some(t => t.content === trimmed);
+      if (!alreadyTemplate) {
+        sendTo(port, 'TEMPLATE_SUGGEST', { suggestedText: trimmed });
+      }
+      // 컨텐츠를 제안 리스트에 등록 → 이후 엄마나 복사해도 재발동 안 함
+      _suggestedContents.add(trimmed);
+    }
+  }
 
   if (existing > -1) {
     // 기존 항목 업데이트 (카운트 증가, 최상단 이동)
     const item = state.clipboard[existing];
     item.count = (item.count || 1) + 1;
-    item.timestamp = Date.now();
+    item.timestamp = now;
     state.clipboard.splice(existing, 1);
     state.clipboard.unshift(item);
     await db.updateClipboardItem(item);
@@ -894,7 +929,7 @@ async function handleAddClipboard(port, payload) {
       content: trimmed,
       menu: state.selectedMenu,
       areaId: state.selectedArea,
-      timestamp: Date.now(),
+      timestamp: now,
       count: 1,
     };
     state.clipboard.unshift(newItem);
