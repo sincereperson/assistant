@@ -5974,11 +5974,18 @@ function initializeStyles() {
   const theme = getTheme();
   const c = getColors();
 
-  // Body 배경색
+  // 이식(embedded) 모드에서 호스트 페이지 바닥화면 보호:
+  // getAssistantRoot()가 mf_VFrames_Root 등 호스트 컨테이너를 반환할 수 있으므로
+  // #assistant-root 스코프 요소에만 배경/글자색을 적용하고, 호스트 컨테이너에는 미적용.
   const root = getAssistantRoot();
   if (!root) return;
-  root.style.backgroundColor = c.bg;
-  root.style.color = c.text;
+  const assistantScopeEl = document.getElementById('assistant-root');
+  // #assistant-root가 존재하면 이식 모드 → 호스트 컨테이너에 배경색 적용 금지
+  // #assistant-root가 없거나 root 자체가 #assistant-root인 경우(standalone)만 적용
+  if (!assistantScopeEl || root === assistantScopeEl) {
+    root.style.backgroundColor = c.bg;
+    root.style.color = c.text;
+  }
   applyLowSpecMode();
 
   // 시스템 미리보기 초기 스타일
