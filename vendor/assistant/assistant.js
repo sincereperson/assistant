@@ -2125,8 +2125,54 @@ function initStickyNoteDrop() {
 
   const root = getAssistantRoot();
 
+  // ── 헬퍼 ──────────────────────────────────────────────────────────────────
+  /** drag 데이터에 memo-id 포함 여부 확인 */
+  function _isMemoIdDrag(event) {
+    return event.dataTransfer?.types?.includes('text/memo-id') ||
+           event.dataTransfer?.types?.includes('text/plain');
+  }
+
+  /**
+   * cursor 위치가 sticky-layer 가시 영역 내에 있는지 확인
+   * clip-path 로 가려진 영역은 드롭 대상에서 제외합니다.
+   */
+  function _isInsideStickyLayer(event) {
+    const layerEl = document.getElementById('sticky-layer');
+    if (!layerEl || layerEl.style.display === 'none') return false;
+    const lr = layerEl.getBoundingClientRect();
+    // getBoundingClientRect는 clip-path를 무시하므로 표시 영역 체크 추가
+    if (event.clientX < lr.left || event.clientX > lr.right) return false;
+    if (event.clientY < lr.top  || event.clientY > lr.bottom) return false;
+    // sticky-layer 상의 실제 좌표 (레이어 내부 기준)
+    const nx = event.clientX - lr.left;
+    const ny = event.clientY - lr.top;
+    // clip-path inset 값 체크 (클리핑 영역 밖은 드롭 제외)
+    const cp = layerEl.style.clipPath || layerEl.style.getPropertyValue('clip-path') || '';
+    const m = cp.match(/inset\(([\d.]+)px\s+([\d.]+)px\s+([\d.]+)px\s+([\d.]+)px\)/);
+    if (m) {
+      const [, ct, cr, cb, cl] = m.map(Number);
+      const lw = parseFloat(layerEl.style.width)  || lr.width;
+      const lh = parseFloat(layerEl.style.height) || lr.height;
+      if (ny < ct || ny > lh - cb) return false;
+      if (nx < cl || nx > lw - cr) return false;
+    }
+    return true;
+  }
+
+  /** clientX/Y → sticky-layer 기준 상대좌표 변환 */
+  function _toLayerCoords(event) {
+    const layerEl = document.getElementById('sticky-layer');
+    if (!layerEl) return { x: 0, y: 0 };
+    const lr = layerEl.getBoundingClientRect();
+    return {
+      x: Math.max(0, event.clientX - lr.left),
+      y: Math.max(0, event.clientY - lr.top),
+    };
+  }
+
+  // ── 1. 어시스턴트 패널 내 dragover/drop ──────────────────────────────────
   root.addEventListener('dragover', (event) => {
-    if (event.dataTransfer?.types?.includes('text/memo-id') || event.dataTransfer?.types?.includes('text/plain')) {
+    if (_isMemoIdDrag(event)) {
       event.preventDefault();
       event.dataTransfer.dropEffect = 'copy';
     }
@@ -2136,11 +2182,36 @@ function initStickyNoteDrop() {
     const memoId = event.dataTransfer?.getData('text/memo-id') || event.dataTransfer?.getData('text/plain');
     if (!memoId) return;
     event.preventDefault();
-
-    const x = event.pageX;
-    const y = event.pageY;
-    addStickyNote(memoId, x, y);
+    // 패널 내 드롭: 기본 위치 배치 (패널과 sticky-layer 좌표계가 다름)
+    addStickyNote(memoId);
   });
+
+  // ── 2. sticky-layer 오버레이 영역 dragover/drop (내부시스템 오버레이 대응) ─
+  // sticky-layer 는 pointer-events: none 이므로 HTML5 DnD 이벤트를 직접 받지 못합니다.
+  // 따라서 document 캡처 단계에서 커서 위치를 체크하여 드롭을 처리합니다.
+  document.addEventListener('dragover', (event) => {
+    if (!_isMemoIdDrag(event)) return;
+    if (_isInsideStickyLayer(event)) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    }
+  }, true /* capture */);
+
+  document.addEventListener('drop', (event) => {
+    if (!_isMemoIdDrag(event)) return;
+    // 패널 내 드롭은 위의 root 핸들러에서 처리
+    if (root.contains(event.target)) return;
+    if (!_isInsideStickyLayer(event)) return;
+
+    event.preventDefault();
+    event.stopPropagation(); // 호스트 시스템의 drop 처리 방지
+
+    const memoId = event.dataTransfer?.getData('text/memo-id') || event.dataTransfer?.getData('text/plain');
+    if (!memoId) return;
+
+    const { x, y } = _toLayerCoords(event);
+    addStickyNote(memoId, x, y);
+  }, true /* capture */);
 }
 
 // ========================================
@@ -2292,15 +2363,28 @@ function _getClipRect(el) {
   while (node && node !== document.documentElement) {
     const style = window.getComputedStyle(node);
     const ov = style.overflow + ' ' + style.overflowX + ' ' + style.overflowY;
-    if (/hidden|auto|scroll|clip/.test(ov)) {
+    // overflow: hidden / clip 만 클리핑 기준으로 사용
+    // overflow: auto / scroll 은 스크롤 가능 영역이므로 제외
+    // → 부모 컨테이너가 스크롤되더라도 뷰포트 안에 있으면 포스트잇이 잘리지 않음
+    if (/\bhidden\b|\bclip\b/.test(ov)) {
       const r = node.getBoundingClientRect();
-      // 각 조상 클리핑 영역과 교차(intersection) → 더 좁은 쪽으로 좁혀 나감
-      top    = Math.max(top,    r.top);
-      left   = Math.max(left,   r.left);
-      bottom = Math.min(bottom, r.bottom);
-      right  = Math.min(right,  r.right);
+      // [Fix] 실제 가시 크기가 1px 미만인 요소(숨겨진/off-screen 요소)는 제외
+      // — zero/negative 크기 요소가 clip rect에 포함되면 top > bottom 또는
+      //   left > right 가 되어 sticky-layer 전체가 보이지 않는 버그 발생
+      if (r.width > 1 && r.height > 1) {
+        // 각 조상 클리핑 영역과 교차(intersection) → 더 좁은 쪽으로 좁혀 나감
+        top    = Math.max(top,    r.top);
+        left   = Math.max(left,   r.left);
+        bottom = Math.min(bottom, r.bottom);
+        right  = Math.min(right,  r.right);
+      }
     }
     node = node.parentElement;
+  }
+  // [Fix] clip rect 유효성 검사: 교차 결과가 역전된 경우(완전히 가려진 요소)
+  // 잘못된 clip 값으로 전체 레이어가 숨겨지는 것을 방지 → 전체 뷰포트 반환
+  if (top >= bottom || left >= right) {
+    return { top: 0, left: 0, bottom: window.innerHeight, right: window.innerWidth };
   }
   return { top, left, bottom, right };
 }
@@ -2308,21 +2392,41 @@ function _getClipRect(el) {
 function _syncStickyLayerPosition() {
   const layer = document.getElementById('sticky-layer');
   if (!layer || !_stickyLayerTarget || !_stickyLayerTarget.isConnected) return;
+
   const rect = _stickyLayerTarget.getBoundingClientRect();
+
+  // zoom 보정 비율: getBoundingClientRect(zoom 영향) / offset*(zoom 무관)
+  // 브라우저 배율이 100%가 아닌 경우 두 좌표계가 달라지므로 비율로 변환
+  const zoomX = _stickyLayerTarget.offsetWidth  > 0 ? rect.width  / _stickyLayerTarget.offsetWidth  : 1;
+  const zoomY = _stickyLayerTarget.offsetHeight > 0 ? rect.height / _stickyLayerTarget.offsetHeight : 1;
+
+  // top/left: fixed 위치 기준 → getBoundingClientRect() (뷰포트 기준 CSS px)
+  // width/height: 브라우저 배율(zoom)에 무관한 CSS 레이아웃 크기 → offsetWidth/offsetHeight
   layer.style.setProperty('top',    rect.top    + 'px', 'important');
   layer.style.setProperty('left',   rect.left   + 'px', 'important');
-  layer.style.setProperty('width',  rect.width  + 'px', 'important');
-  layer.style.setProperty('height', rect.height + 'px', 'important');
+  layer.style.setProperty('width',  _stickyLayerTarget.offsetWidth  + 'px', 'important');
+  layer.style.setProperty('height', _stickyLayerTarget.offsetHeight + 'px', 'important');
 
-  // 조상 overflow 컨테이너 + 뷰포트 기준으로 실제 가시 영역 계산
-  // → 시스템 고정 헤더/GNB/사이드바 위로 포스트잇이 튀어나오는 현상 방지
+  // clip 계산: _getClipRect는 getBoundingClientRect 좌표계이므로 zoomX/Y로 나눠 offset 좌표계로 변환
   const clip = _getClipRect(_stickyLayerTarget);
-  const clipTop    = Math.max(0, clip.top    - rect.top);
-  const clipLeft   = Math.max(0, clip.left   - rect.left);
-  const clipBottom = Math.max(0, rect.bottom - clip.bottom);
-  const clipRight  = Math.max(0, rect.right  - clip.right);
-  layer.style.setProperty('clip-path',
-    `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px)`, 'important');
+  const clipTop    = Math.max(0, (clip.top    - rect.top)    / zoomY);
+  const clipLeft   = Math.max(0, (clip.left   - rect.left)   / zoomX);
+  const clipBottom = Math.max(0, (rect.bottom - clip.bottom) / zoomY);
+  const clipRight  = Math.max(0, (rect.right  - clip.right)  / zoomX);
+
+  // [Fix] clip inset 합이 레이어 전체 크기 이상이면 전체가 가려지는 상황
+  // (잘못된 clip rect로 포스트잇이 완전히 사라지는 버그 방지)
+  const layerW = _stickyLayerTarget.offsetWidth;
+  const layerH = _stickyLayerTarget.offsetHeight;
+  if (clipTop + clipBottom >= layerH || clipLeft + clipRight >= layerW) {
+    layer.style.removeProperty('clip-path');
+  } else if (clipTop > 0 || clipLeft > 0 || clipBottom > 0 || clipRight > 0) {
+    layer.style.setProperty('clip-path',
+      `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px)`, 'important');
+  } else {
+    // 클리핑 불필요 → 이전에 적용된 clip-path 제거
+    layer.style.removeProperty('clip-path');
+  }
 }
 
 /** 타겟 추적(ResizeObserver + scroll/resize 리스너) 시작 */
@@ -3401,26 +3505,22 @@ function buildReminderModal(data) {
 
   const repeatInput = createElement('input', { type: 'checkbox', id: 'modal-repeat-input' });
   repeatInput.checked = reminderRepeat;
-  const repeatLabel = createElement('label', { className: 'imsmassi-modal-label' });
+  const repeatLabel = createElement('label', { className: 'imsmassi-modal-label imsmassi-modal-label-inline' });
   repeatLabel.setAttribute('for', 'modal-repeat-input');
   repeatLabel.textContent = '매일 반복';
-  Object.assign(repeatLabel.style, { margin: '0' });
-  const repeatGroup = createElement('div');
-  Object.assign(repeatGroup.style, { margin: '6px 0 2px 0', display: 'flex', alignItems: 'center', gap: '8px' });
+  const repeatGroup = createElement('div', { className: 'imsmassi-modal-repeat-group' });
   repeatGroup.append(repeatInput, repeatLabel);
 
   const quickLabel = createElement('label', { className: 'imsmassi-modal-label' });
   quickLabel.textContent = '빠른 선택';
   const quickBtnsWrap = createElement('div', { className: 'imsmassi-flex imsmassi-gap-8 imsmassi-flex-wrap' });
   ['09:00', '12:00', '14:00', '17:00'].forEach(t => {
-    const btn = createElement('button', { className: 'imsmassi-memo-action-btn' });
-    Object.assign(btn.style, { padding: '6px 12px', fontSize: '12px' });
+    const btn = createElement('button', { className: 'imsmassi-memo-action-btn imsmassi-quick-time-btn' });
     btn.textContent = t;
     btn.addEventListener('click', () => setQuickTime(t));
     quickBtnsWrap.appendChild(btn);
   });
-  const quickGroup = createElement('div');
-  Object.assign(quickGroup.style, { marginTop: '8px' });
+  const quickGroup = createElement('div', { className: 'imsmassi-modal-quick-group' });
   quickGroup.append(quickLabel, quickBtnsWrap);
 
   const cancelBtn = createElement('button', { className: 'imsmassi-modal-btn imsmassi-modal-btn-secondary' });
@@ -3449,20 +3549,10 @@ function buildTemplateSuggestModal(data) {
   const title = createElement('div', { className: 'imsmassi-modal-title' });
   title.textContent = '⭐ 템플릿 제안';
 
-  const previewBox = createElement('div');
-  Object.assign(previewBox.style, {
-    padding: '12px', background: state.isDarkMode ? '#2A2A2A' : '#F0F7FF',
-    borderRadius: '6px', borderLeft: '3px solid #2196F3', marginBottom: '12px',
-  });
-  const previewLbl = createElement('div');
-  Object.assign(previewLbl.style, { fontSize: '12px', color: c.subText, marginBottom: '6px' });
+  const previewBox = createElement('div', { className: 'imsmassi-template-suggest-preview' });
+  const previewLbl = createElement('div', { className: 'imsmassi-template-suggest-preview-lbl' });
   previewLbl.textContent = '자주 사용하는 텍스트';
-  const codeEl = createElement('code');
-  Object.assign(codeEl.style, {
-    background: state.isDarkMode ? '#1A1A1A' : '#FFF', padding: '6px 8px',
-    borderRadius: '4px', display: 'block', fontSize: '13px', color: c.text,
-    wordBreak: 'break-word', maxHeight: '80px', overflowY: 'auto',
-  });
+  const codeEl = createElement('code', { className: 'imsmassi-template-suggest-code' });
   codeEl.textContent = suggestedText;
   previewBox.append(previewLbl, codeEl);
 
@@ -3474,16 +3564,14 @@ function buildTemplateSuggestModal(data) {
 
   const catLabel = createElement('label', { className: 'imsmassi-modal-label' });
   catLabel.textContent = '카테고리';
-  const catSelect = createElement('select', { className: 'imsmassi-modal-input', id: 'modal-suggested-template-category' });
-  Object.assign(catSelect.style, { marginTop: '8px' });
+  const catSelect = createElement('select', { className: 'imsmassi-modal-input imsmassi-modal-select-mt', id: 'modal-suggested-template-category' });
   [['default','일반'],['underwriting','인수'],['contract','계약'],['claims','청구'],
    ['accounting','회계'],['performance','실적'],['settlement','정산'],['finance','재무']].forEach(([val, lbl]) => {
     const opt = createElement('option', { value: val });
     opt.textContent = lbl;
     catSelect.appendChild(opt);
   });
-  const catGroup = createElement('div');
-  Object.assign(catGroup.style, { marginTop: '8px' });
+  const catGroup = createElement('div', { className: 'imsmassi-modal-field-mt' });
   catGroup.append(catLabel, catSelect);
 
   const laterBtn = createElement('button', { className: 'imsmassi-modal-btn imsmassi-modal-btn-secondary' });
@@ -3577,12 +3665,10 @@ function buildDeleteConfirmModal(data) {
   const title = createElement('div', { className: 'imsmassi-modal-title' });
   title.textContent = '⚠️ 메모 삭제';
 
-  const bodyText = createElement('p');
-  Object.assign(bodyText.style, { color: c.subText, marginBottom: '12px' });
+  const bodyText = createElement('p', { className: 'imsmassi-modal-body-text' });
   bodyText.textContent = '이 메모를 삭제하시겠습니까? (포스트잇도 함께 삭제됩니다.)';
   const reminderDisplay = createElement('div', { id: 'modal-delete-reminder-display' });
-  const bodyDiv = createElement('div');
-  Object.assign(bodyDiv.style, { padding: '12px 0', fontSize: '13px', lineHeight: '1.6' });
+  const bodyDiv = createElement('div', { className: 'imsmassi-modal-body' });
   bodyDiv.append(bodyText, reminderDisplay);
 
   const cancelBtn = createElement('button', { className: 'imsmassi-modal-btn imsmassi-modal-btn-secondary' });
@@ -5129,22 +5215,20 @@ function renderMemoItemDOM(memo) {
   // ── 루트 컨테이너 ──
   const item = createElement('div', { className: 'imsmassi-memo-item', 'data-id': memo.id });
   if (memo.pinned) {
-    Object.assign(item.style, { background: state.isDarkMode ? '#353535' : '#FFFBEB', borderLeft: `3px solid ${area.color}` });
+    item.classList.add('imsmassi-memo-item-pinned');
+    item.style.setProperty('--memo-pin-border', area.color);
   } else {
-    item.style.background = state.isDarkMode ? '#252525' : '#F8F9FA';
+    item.classList.add('imsmassi-memo-item-normal');
   }
 
   // ── 헤더 (드래그 핸들) ──
   const header = createElement('div', { className: 'imsmassi-memo-item-header imsmassi-memo-drag-handle', draggable: 'true' });
-  header.style.background = state.isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
   header.addEventListener('dragstart', (e) => handleMemoDragStart(e, memo.id));
 
   // 헤더 좌측: 고정 버튼 + 제목 + 알림 시간 뱃지
-  const headerLeft = createElement('div');
-  Object.assign(headerLeft.style, { display: 'inline-flex', alignItems: 'center', gap: '6px' });
+  const headerLeft = createElement('div', { className: 'imsmassi-memo-header-left' });
 
   const pinBtn = createElement('button', { className: 'imsmassi-memo-header-pin-btn', draggable: 'false', title: memo.pinned ? '고정 해제' : '고정' });
-  pinBtn.style.color = c.subText;
   pinBtn.textContent = '📌';
   pinBtn.addEventListener('click', () => togglePin(memo.id).catch(e => console.error('고정 실패:', e)));
   pinBtn.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -5159,18 +5243,15 @@ function renderMemoItemDOM(memo) {
 
   const reminderTime = memo.reminder ? (memo.reminder.split(' ')[1] || '') : '';
   if (reminderTime) {
-    const reminderBadge = createElement('span');
-    Object.assign(reminderBadge.style, { color: '#E67E22', fontSize: '11px', pointerEvents: 'none', flexShrink: '0' });
+    const reminderBadge = createElement('span', { className: 'imsmassi-memo-reminder-badge' });
     reminderBadge.textContent = `⏰ ${reminderTime}`;
     headerLeft.appendChild(reminderBadge);
   }
 
   // 헤더 우측: 삭제 버튼
-  const headerRight = createElement('div');
-  Object.assign(headerRight.style, { display: 'inline-flex', alignItems: 'center', gap: '6px' });
+  const headerRight = createElement('div', { className: 'imsmassi-memo-header-right' });
 
   const deleteBtn = createElement('button', { className: 'imsmassi-memo-header-delete-btn', draggable: 'false', title: '삭제' });
-  deleteBtn.style.color = c.subText;
   deleteBtn.textContent = '✕';
   deleteBtn.addEventListener('click', () => openDeleteConfirmModal(memo.id));
   deleteBtn.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -5188,44 +5269,36 @@ function renderMemoItemDOM(memo) {
     contentDiv.appendChild(inlineEditor);
   } else {
     const inlineText = createElement('div', { className: 'imsmassi-memo-inline-text', contenteditable: 'true', 'data-memo-id': memo.id });
-    Object.assign(inlineText.style, { color: c.text, background: state.isDarkMode ? '#1F1F1F' : '#FFF', borderColor: c.border });
     inlineText.innerHTML = escapeHtml(getMemoPlainText(memo)); // 이미 escape된 안전한 문자열
     inlineText.addEventListener('blur', () => saveInlineMemoEdit(memo.id));
     contentDiv.appendChild(inlineText);
   }
 
   // ── 푸터 (원산지 · 날짜 · 액션 버튼) ──
-  const footer = createElement('div', { className: 'imsmassi-memo-item-tags' });
-  footer.style.justifyContent = 'space-between';
+  const footer = createElement('div', { className: 'imsmassi-memo-item-tags imsmassi-memo-item-footer' });
 
   const createdAreaName = getAreaName(memo.createdAreaId, memo.createdAreaId);
-  const originBadge = createElement('span');
-  Object.assign(originBadge.style, { color: c.subText, fontSize: '9px', padding: '2px 3px', background: state.isDarkMode ? '#333' : '#F0F0F0', borderRadius: '3px' });
+  const originBadge = createElement('span', { className: 'imsmassi-memo-origin-badge' });
   originBadge.textContent = createdAreaName;
 
-  const dateSpan = createElement('span');
-  Object.assign(dateSpan.style, { color: c.subText, fontSize: '11px' });
+  const dateSpan = createElement('span', { className: 'imsmassi-memo-date' });
   dateSpan.textContent = memo.date;
 
   const currentMenu = state.selectedMenu;
   const hasStickyNote = (state.stickyNotes || []).some(n => n.memoId === memo.id && (!currentMenu || n.menuId === currentMenu));
-  const actionsDiv = createElement('div');
-  Object.assign(actionsDiv.style, { display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' });
+  const actionsDiv = createElement('div', { className: 'imsmassi-memo-actions' });
 
-  const screenBtn = createElement('button', { className: 'imsmassi-memo-action-btn imsmassi-toggle-label', draggable: 'false', title: `포스트잇 ${hasStickyNote ? '제거' : '추가'}` });
-  Object.assign(screenBtn.style, {
-    borderColor: hasStickyNote ? c.border : area.color,
-    color: hasStickyNote ? c.subText : '#fff',
-    background: hasStickyNote ? 'transparent' : area.color,
-    fontWeight: '700', padding: '4px 10px', borderRadius: '999px',
-    boxShadow: hasStickyNote ? 'none' : `0 4px 10px ${area.color}55`,
-  });
+  const screenBtn = createElement('button', { className: `imsmassi-memo-action-btn imsmassi-toggle-label imsmassi-screen-btn${hasStickyNote ? ' imsmassi-screen-btn-active' : ''}`, draggable: 'false', title: `포스트잇 ${hasStickyNote ? '제거' : '추가'}` });
+  // 동적 컬러값(area.color)은 CSS 변수로 주입
+  if (!hasStickyNote) {
+    screenBtn.style.setProperty('--screen-btn-color', area.color);
+    screenBtn.style.setProperty('--screen-btn-shadow', `${area.color}55`);
+  }
   screenBtn.textContent = hasStickyNote ? '− 화면' : '+ 화면';
   screenBtn.addEventListener('click', () => createStickyNoteForMemo(memo.id));
   screenBtn.addEventListener('mousedown', (e) => e.stopPropagation());
 
-  const reminderBtn = createElement('button', { className: 'imsmassi-memo-action-btn', draggable: 'false', title: memo.reminder ? '리마인더 수정' : '리마인더 설정' });
-  Object.assign(reminderBtn.style, { borderColor: c.border, color: memo.reminder ? '#E67E22' : c.subText });
+  const reminderBtn = createElement('button', { className: `imsmassi-memo-action-btn imsmassi-reminder-btn${memo.reminder ? ' imsmassi-reminder-btn-active' : ''}`, draggable: 'false', title: memo.reminder ? '리마인더 수정' : '리마인더 설정' });
   reminderBtn.textContent = '⏰ 알림';
   reminderBtn.addEventListener('click', () => openReminderModal(memo.id));
   reminderBtn.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -5727,7 +5800,7 @@ function renderAreaColorSection() {
   }).join('');
 
   return `
-    <div style="font-size:9px;color:${c.subText};margin-bottom:8px;line-height:1.6;">
+    <div class="imsmassi-area-color-legend">
       메인: 탭·버튼·강조선 &nbsp;/&nbsp; 서브1: 배경 틴트 &nbsp;/&nbsp; 서브2: 포스트잇 배경
     </div>
     ${rows}
@@ -5748,13 +5821,13 @@ function renderDashboardTab() {
     const daysSinceBackup = Math.floor((today - lastBackup) / (1000 * 60 * 60 * 24));
     if (daysSinceBackup >= 7) {
       backupBannerHtml = `
-        <div style="background: linear-gradient(135deg, #FFF3CD 0%, #FFE9A8 100%); border: 1px solid #F0D78C; border-radius: 8px; padding: 12px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px;">
-          <span style="font-size: 20px;">💾</span>
-          <div style="flex: 1;">
-            <div style="font-size: 12px; font-weight: 600; color: #856404;">데이터 백업을 권장합니다</div>
-            <div style="font-size: 10px; color: #997B00;">마지막 백업: ${daysSinceBackup}일 전</div>
+        <div class="imsmassi-dashboard-banner imsmassi-dashboard-banner-backup">
+          <span class="imsmassi-dashboard-banner-icon">💾</span>
+          <div class="imsmassi-dashboard-banner-body">
+            <div class="imsmassi-dashboard-banner-title imsmassi-dashboard-banner-title-backup">데이터 백업을 권장합니다</div>
+            <div class="imsmassi-dashboard-banner-desc imsmassi-dashboard-banner-desc-backup">마지막 백업: ${daysSinceBackup}일 전</div>
           </div>
-          <button style="padding: 6px 12px; background: #E2A500; color: #FFF; border: none; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="exportAllData()">백업</button>
+          <button class="imsmassi-dashboard-banner-btn imsmassi-dashboard-banner-btn-backup" onclick="exportAllData()">백업</button>
         </div>
       `;
     }
@@ -5765,13 +5838,13 @@ function renderDashboardTab() {
   const usagePercent = (state.storageUsed / state.storageLimit * 100);
   if (usagePercent >= 80) {
     storageWarningHtml = `
-      <div style="background: linear-gradient(135deg, #F8D7DA 0%, #F5C6CB 100%); border: 1px solid #F5C6CB; border-radius: 8px; padding: 12px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px;">
-        <span style="font-size: 20px;">⚠️</span>
-        <div style="flex: 1;">
-          <div style="font-size: 12px; font-weight: 600; color: #721C24;">저장 용량이 부족합니다</div>
-          <div style="font-size: 10px; color: #9B3B42;">${state.storageUsed.toFixed(1)}MB / ${state.storageLimit}MB (${usagePercent.toFixed(0)}%)</div>
+      <div class="imsmassi-dashboard-banner imsmassi-dashboard-banner-storage">
+        <span class="imsmassi-dashboard-banner-icon">⚠️</span>
+        <div class="imsmassi-dashboard-banner-body">
+          <div class="imsmassi-dashboard-banner-title imsmassi-dashboard-banner-title-storage">저장 용량이 부족합니다</div>
+          <div class="imsmassi-dashboard-banner-desc imsmassi-dashboard-banner-desc-storage">${state.storageUsed.toFixed(1)}MB / ${state.storageLimit}MB (${usagePercent.toFixed(0)}%)</div>
         </div>
-        <button style="padding: 6px 12px; background: #E74C3C; color: #FFF; border: none; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="openSettingsModal()">관리</button>
+        <button class="imsmassi-dashboard-banner-btn imsmassi-dashboard-banner-btn-storage" onclick="openSettingsModal()">관리</button>
       </div>
     `;
   }
@@ -5785,15 +5858,14 @@ function renderDashboardTab() {
       if (!todo || !todo.id) return; // null 체크
       const areaName = getAreaName(todo.areaId, todo.areaId);
       todayTodosHtml += `
-        <div class="imsmassi-todo-item" style="background: ${state.isDarkMode ? '#252525' : '#F8F9FA'};">
-          <span class="imsmassi-todo-checkbox ${todo.done ? 'imsmassi-checked' : ''}"
-                style="${todo.done ? 'background: #5BA55B;' : `border-color: ${c.border};`}"
+        <div class="imsmassi-todo-item">
+          <span class="imsmassi-todo-checkbox ${todo.done ? 'imsmassi-checked imsmassi-checked-done' : ''}"
                 onclick="toggleTodo('${todo.id}')">
             ${todo.done ? '✓' : ''}
           </span>
-          <span class="imsmassi-todo-text ${todo.done ? 'imsmassi-done' : ''}" style="color: ${todo.done ? c.subText : c.text}; flex: 1;">${todo.title ? `<strong>${todo.title}</strong>` : ''}</span>
-          <span style="font-size: 10px; color: ${c.subText}; margin-right: 8px;">${areaName}</span>
-          <span class="imsmassi-todo-time" style="color: ${todo.done ? c.subText : '#E67E22'}; min-width: 60px; text-align: right;">${todo.reminder}</span>
+          <span class="imsmassi-todo-text ${todo.done ? 'imsmassi-done imsmassi-todo-text-done' : 'imsmassi-todo-text-pending'}">${todo.title ? `<strong>${todo.title}</strong>` : ''}</span>
+          <span class="imsmassi-todo-area-name">${areaName}</span>
+          <span class="imsmassi-todo-time ${todo.done ? 'imsmassi-todo-time-done' : 'imsmassi-todo-time-active'}">${todo.reminder}</span>
         </div>
       `;
     });
@@ -5805,22 +5877,21 @@ function renderDashboardTab() {
       if (!todo || !todo.id) return; // null 체크
       const areaName = getAreaName(todo.areaId, todo.areaId);
       pastTodosHtml += `
-        <div class="imsmassi-todo-item" style="background: ${state.isDarkMode ? '#252525' : '#F8F9FA'};">
-          <span class="imsmassi-todo-checkbox ${todo.done ? 'imsmassi-checked' : ''}"
-                style="${todo.done ? 'background: #5BA55B;' : `border-color: ${c.border};`}"
+        <div class="imsmassi-todo-item">
+          <span class="imsmassi-todo-checkbox ${todo.done ? 'imsmassi-checked imsmassi-checked-done' : ''}"
                 onclick="toggleTodo('${todo.id}')">
             ${todo.done ? '✓' : ''}
           </span>
-          <span class="imsmassi-todo-text ${todo.done ? 'imsmassi-done' : ''}" style="color: ${todo.done ? c.subText : c.text}; flex: 1;">${todo.title ? `<strong>${todo.title}</strong>` : ''}</span>
-          <span style="font-size: 10px; color: ${c.subText}; margin-right: 8px;">${areaName}</span>
-          <span style="font-size: 10px; color: #999; min-width: 75px; text-align: right;">${todo.reminderDate}</span>
+          <span class="imsmassi-todo-text ${todo.done ? 'imsmassi-done imsmassi-todo-text-done' : 'imsmassi-todo-text-pending'}">${todo.title ? `<strong>${todo.title}</strong>` : ''}</span>
+          <span class="imsmassi-todo-area-name">${areaName}</span>
+          <span class="imsmassi-todo-date">${todo.reminderDate}</span>
         </div>
       `;
     });
   }
 
-  const emptyTodayHtml = todayReminders.length === 0 ? `<div style="color: ${c.subText}; font-size: 12px; text-align: center; padding: 16px;">오늘 할 일이 없습니다</div>` : '';
-  const emptyPastHtml = pastReminders.length === 0 ? `<div style="color: ${c.subText}; font-size: 12px; text-align: center; padding: 16px;">지난 할 일이 없습니다</div>` : '';
+  const emptyTodayHtml = todayReminders.length === 0 ? `<div class="imsmassi-dashboard-empty">오늘 할 일이 없습니다</div>` : '';
+  const emptyPastHtml = pastReminders.length === 0 ? `<div class="imsmassi-dashboard-empty">지난 할 일이 없습니다</div>` : '';
 
   // 최근 메모
   let recentMemosHtml = '';
@@ -5841,9 +5912,9 @@ function renderDashboardTab() {
       const areaName = getAreaName(memo.createdAreaId, memo.createdAreaId);
       const memoPreview = getMemoPlainText(memo);
       recentMemosHtml += `
-      <div class="imsmassi-recent-memo-item" style="background: ${state.isDarkMode ? '#252525' : '#F8F9FA'};" onclick="setSelectedArea('${memo.createdAreaId}'); goToMemoTab();">
+      <div class="imsmassi-recent-memo-item" onclick="setSelectedArea('${memo.createdAreaId}'); goToMemoTab();">
         <div class="imsmassi-recent-memo-menu" style="color: ${area.color};">${areaName}</div>
-        <div class="imsmassi-recent-memo-text" style="color: ${c.text};">${memoPreview}</div>
+        <div class="imsmassi-recent-memo-text">${memoPreview}</div>
       </div>
     `;
     });
@@ -5866,7 +5937,7 @@ function renderDashboardTab() {
     <div>
       ${storageWarningHtml}
       <div class="imsmassi-dashboard-section">
-        <div class="imsmassi-dashboard-section-header" style="color: ${c.text};">
+        <div class="imsmassi-dashboard-section-header">
           <span> 오늘 할 일</span> 
         </div>
         ${todayTodosHtml}
@@ -5874,23 +5945,23 @@ function renderDashboardTab() {
       </div>
       ${pastReminders && pastReminders.length > 0 ? `
       <div class="imsmassi-dashboard-section">
-        <div class="imsmassi-dashboard-section-header" style="color: ${c.text};">
+        <div class="imsmassi-dashboard-section-header">
           <span> 지난 일</span> 
         </div>
         ${pastTodosHtml}
       </div>
       ` : ''}
       <div class="imsmassi-dashboard-section">
-        <div class="imsmassi-dashboard-section-header" style="color: ${c.text};">
+        <div class="imsmassi-dashboard-section-header">
           <span> 최근 메모</span> 
         </div>
-        ${recentMemosHtml || `<div style="color: ${c.subText}; font-size: 12px;">메모가 없습니다</div>`}
+        ${recentMemosHtml || `<div class="imsmassi-dashboard-empty">메모가 없습니다</div>`}
       </div>
     </div>
 
     ${state.settings?.showAreaColorSection !== false ? `
     <div class="imsmassi-dashboard-section">
-      <div class="imsmassi-dashboard-section-header" style="color: ${c.text};">
+      <div class="imsmassi-dashboard-section-header">
         <span>🎨 업무 컬러 설정</span>
       </div>
       ${renderAreaColorSection()}
@@ -5899,7 +5970,7 @@ function renderDashboardTab() {
 
     ${state.settings?.showTimeTab !== false ? `
     <div class="imsmassi-dashboard-section dashboard-time-section">
-      <div class="imsmassi-dashboard-section-header" style="color: ${c.text};">
+      <div class="imsmassi-dashboard-section-header">
         <span> 시간 인사이트</span>
       </div>
       ${timeHtml}
