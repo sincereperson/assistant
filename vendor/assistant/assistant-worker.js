@@ -365,7 +365,7 @@ const COPY_THRESHOLD   = 5;              // 5회
 const _suggestedContents = new Set();
 
 const state = {
-  currentTheme: 'earthBrown',
+  currentTheme: 'earthbrown',
   isDarkMode: false,
   selectedArea: 'UW',
   selectedMenu: '',  // 클라이언트 CONTEXT_CHANGE 수신 전까지 빈 값 유지

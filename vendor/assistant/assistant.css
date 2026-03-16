@@ -46,7 +46,8 @@
 }
 
 /* ========== scoped overrides (웹스퀘어/외부 CSS 충돌 방지) ========== */
-#assistant-root .imsmassi-floating-btn { position: fixed; bottom: 30px; right: 30px; width: 56px; height: 56px; border-radius: 50%; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.25); cursor: pointer; font-size: 24px; z-index: 2001; }
+#assistant-root .imsmassi-floating-btn { position: fixed; bottom: 30px; right: 30px; width: 56px; height: 56px; border-radius: 50%; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.25); cursor: pointer; z-index: 2001; display: flex; align-items: center; justify-content: center; padding: 0; }
+#assistant-root .imsmassi-floating-btn-icon { width: 36px; height: 37px; display: block; pointer-events: none; flex-shrink: 0; }
 #assistant-root .imsmassi-assistant-badge { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: #E74C3C; top: 6px; right: 6px; box-shadow: 0 0 0 2px #FFF; display: none; }
 #assistant-root .imsmassi-floating-btn.imsmassi-show-badge .imsmassi-assistant-badge { display: block; }
 #assistant-root .imsmassi-floating-panel { position: fixed; top: 24px; right: 24px; width: 360px; height: calc(100vh - 48px); border-radius: 14px; box-shadow: 0 10px 32px rgba(0,0,0,0.18); display: flex; flex-direction: column; z-index: 2000; overflow: hidden; transition: width 0.25s cubic-bezier(.4,1,.4,1), box-shadow 0.25s, background 0.25s; will-change: width, box-shadow, background; }

@@ -751,9 +751,9 @@ let db;
 // ========================================
 const themes = {
   classic: { name: '클래식', primary: '#4A90A4', primaryLight: '#E8F4F8', primaryDark: '#2E5A6A' },
-  earthBrown: { name: '어스 브라운', primary: '#C9BEAA', primaryLight: '#E8E0D5', primaryDark: '#8B7355' },
-  oceanGreen: { name: '오션 그린', primary: '#7CE0D3', primaryLight: '#B8F0E8', primaryDark: '#4ABFB0' },
-  lightBeige: { name: '라이트 베이지', primary: '#FBF1E6', primaryLight: '#FDF8F3', primaryDark: '#D4C4B0' },
+  earthbrown: { name: '어스 브라운', primary: '#C9BEAA', primaryLight: '#E8E0D5', primaryDark: '#8B7355' },
+  oceangreen: { name: '오션 그린', primary: '#7CE0D3', primaryLight: '#B8F0E8', primaryDark: '#4ABFB0' },
+  lightbeige: { name: '라이트 베이지', primary: '#FBF1E6', primaryLight: '#FDF8F3', primaryDark: '#D4C4B0' },
 };
 
 const businessAreas = [
@@ -867,7 +867,7 @@ function ensureMenuIndex(menuId) {
 // 상태 관리
 // ========================================
 let state = {
-  currentTheme: 'earthBrown',
+  currentTheme: 'earthbrown',
   isDarkMode: false,
   selectedArea: 'UW',
   selectedMenu: '',  // imsmassi-lnb 선택 메뉴 (화면ID, setupStickyLayerObserver 초기화 시 getMenuId()로 설정됨)
@@ -1099,7 +1099,7 @@ function getAssistantStyleRoot() {
 // ========================================
 // 유틸리티 함수
 // ========================================
-function getTheme() { return themes[state.currentTheme]; }
+function getTheme() { return themes[state.currentTheme] || themes.classic; }
 
 /**
  * 특정 areaId의 기본(디폴트) 컬러 반환
@@ -2277,8 +2277,11 @@ function setupStickyLayerObserver(cfg = {}) {
     // relocateStickyLayer 실행 중 발생한 DOM 변경은 무시 (무한루프 방지)
     if (_stickyLayerRelocating) return;
 
+    const stickyLayer = document.getElementById('sticky-layer');
     const hasClassChange = mutations.some(
       (m) => m.type === 'attributes' && m.attributeName === 'class'
+             // sticky-layer 내부에서 발생한 클래스 변경은 이미지 실쿜 컨테이너 처리에 의한 부수효과 → 무시
+             && !(stickyLayer && stickyLayer.contains(m.target))
     );
     if (!hasClassChange) return;
 
@@ -4859,7 +4862,7 @@ function renderAssistant() {
   // 플로팅 버튼 — 가시성 + 테마 색상 항상 동기화
   const floatingBtn = document.getElementById('imsmassi-floating-btn');
   if (floatingBtn) {
-    floatingBtn.style.background = state.isDarkMode ? theme.primaryDark : theme.primary;
+    floatingBtn.style.backgroundColor = state.isDarkMode ? theme.primaryDark : theme.primary;
     floatingBtn.classList.toggle('imsmassi-hidden', !!state.assistantOpen);
   }
 

@@ -97,6 +97,20 @@
       const html = await response.text();
       mount.innerHTML = html;
 
+      // fragment 내 상대경로 img src를 fragment 파일 위치 기준 절대경로로 교체
+      // resolvedHtmlPath가 상대경로일 수 있으므로 document.baseURI 기준으로 절대 URL 정규화
+      const fragmentBaseUrl = (() => {
+        try { return new URL(resolvedHtmlPath, document.baseURI).href; } catch (_) { return document.baseURI; }
+      })();
+      mount.querySelectorAll('img[src]').forEach(img => {
+        const rawSrc = img.getAttribute('src');
+        if (rawSrc && !rawSrc.startsWith('data:') && !rawSrc.startsWith('http')) {
+          try {
+            img.src = new URL(rawSrc, fragmentBaseUrl).toString();
+          } catch (_) {}
+        }
+      });
+
       if (typeof window.bootstrapAssistant === 'function') {
         window.bootstrapAssistant(config);
       } else {
