@@ -2249,6 +2249,35 @@ let _stickyLayerConfig = {};
 /** @type {boolean} relocateStickyLayer 실행 중 재진입 방지 플래그 */
 let _stickyLayerRelocating = false;
 
+/** @type {Element|null} sticky-layer가 현재 추적 중인 타겟 컨테이너 */
+let _stickyLayerTargetEl = null;
+
+/** @type {ResizeObserver|null} 타겟 크기 변화 감지 */
+let _stickyLayerResizeObserver = null;
+
+/**
+ * #sticky-layer(position:fixed)의 top/left/width/height를
+ * 타겟의 parentElement 기준 getBoundingClientRect()으로 갱신합니다.
+ * parentElement가 없을 경우 타겟 자신의 rect를 사용합니다.
+ * 호스트 DOM 스타일 수정 없음.
+ */
+function _syncStickyLayerBounds() {
+  const layer = document.getElementById('sticky-layer');
+  if (!layer || !_stickyLayerTargetEl) return;
+  if (!_stickyLayerTargetEl.isConnected) {
+    layer.style.display = 'none';
+    return;
+  }
+  const boundsEl = _stickyLayerTargetEl.parentElement || _stickyLayerTargetEl;
+  const r = boundsEl.getBoundingClientRect();
+  if (r.width <= 0 || r.height <= 0) return;
+  layer.style.setProperty('top',    `${r.top}px`,    'important');
+  layer.style.setProperty('left',   `${r.left}px`,   'important');
+  layer.style.setProperty('width',  `${r.width}px`,  'important');
+  layer.style.setProperty('height', `${r.height}px`, 'important');
+  layer.style.removeProperty('display');
+}
+
 /**
  * MutationObserver를 설정하여 sticky-layer 재배치를 담당합니다.
  *
@@ -2266,6 +2295,8 @@ function setupStickyLayerObserver(cfg = {}) {
   _stickyLayerConfig = {
     windowContainerClass: cfg.windowContainerClass || 'w2windowContainer_selectedNameLayer',
     pgIdClass:            cfg.pgIdClass            || 'pg-id',
+    // pgEl.parentElement 기준으로 몇 단계 이동할지 (0=기본, 양수=더 내려감, 음수=더 올라감)
+    targetDepth:          cfg.targetDepth          ?? 0,
     // 앵커 클래스 변경 시 최신 menuId를 반환하는 함수 (호스트 측에서 주입)
     getMenuId:            cfg.getMenuId            || null,
     // menuId로부터 areaId를 파생하는 함수 (호스트 측에서 주입)
@@ -2390,13 +2421,34 @@ function _resolveTargetContainer() {
     return null;
   }
 
-  return pgEl.parentElement || null;
+  // depth=0 : pgEl.parentElement (기본)
+  // depth>0 : 그 안으로 더 내려감 (firstElementChild 반복)
+  // depth<0 : 더 위로 올라감 (parentElement 반복)
+  let el = pgEl.parentElement;
+  if (!el) return null;
+
+  const depth = cfg.targetDepth ?? 0;
+  if (depth > 0) {
+    for (let i = 0; i < depth; i++) {
+      el = el.firstElementChild || el;
+    }
+  } else if (depth < 0) {
+    for (let i = 0; i < -depth; i++) {
+      el = el.parentElement || el;
+    }
+  }
+
+  return el || null;
 }
 
 /**
- * #sticky-layer를 targetElement의 자식으로 직접 주입합니다.
- * CSS position:absolute + 100% 크기로 컨테이너를 자연스럽게 덮습니다.
- * JS 기반 좌표 계산 없이 스크롤/크기 변화가 자동으로 반영됩니다.
+ * #sticky-layer를 타겟의 positioned 조상에 appendChild하고 JS로 bounds를 동기화합니다.
+ *
+ * ▸ 타겟 컨테이너에 직접 append하지 않으므로 타겟 내부 레이아웃 영향 없음
+ * ▸ host DOM 스타일(position 등) 수정 없음
+ * ▸ document.body 직속 유지 — 호스트 DOM 수정 없음
+ * ▸ ResizeObserver + scroll 리스너로 bounds 자동 동기화
+ * ▸ rAF 2회 지연 렌더로 순간이동 깜빡임 방지
  */
 function relocateStickyLayer() {
   if (_stickyLayerRelocating) return;
@@ -2406,45 +2458,59 @@ function relocateStickyLayer() {
     layer = document.createElement('div');
     layer.id = 'sticky-layer';
   }
+  // 항상 body 직속 유지
+  if (layer.parentElement !== document.body) {
+    document.body.appendChild(layer);
+  }
 
   const targetElement = _resolveTargetContainer();
 
-  // 이미 같은 타겟의 자식이면 재렌더링만 수행 (불필요한 DOM 이동 방지)
-  if (layer.parentElement === targetElement && targetElement) {
+  // 이미 같은 타겟이면 bounds 재동기화 + 노트 재렌더링만
+  if (_stickyLayerTargetEl === targetElement && targetElement) {
+    _syncStickyLayerBounds();
     renderStickyNotes();
     return;
   }
 
   _stickyLayerRelocating = true;
 
-  try {
-    // ① 기존 포스트잇 즉시 초기화
-    layer.innerHTML = '';
+  // ① 이전 ResizeObserver 정리
+  if (_stickyLayerResizeObserver) {
+    _stickyLayerResizeObserver.disconnect();
+    _stickyLayerResizeObserver = null;
+  }
 
-    if (targetElement && targetElement.isConnected) {
-      // ② 타겟 컨테이너 position이 static이면 relative로 변경 (absolute 기준점 설정)
-      const targetPos = window.getComputedStyle(targetElement).position;
-      if (targetPos === 'static') {
-        targetElement.style.position = 'relative';
-      }
-      // ③ 레이어를 타겟 컨테이너의 자식으로 이동
-      targetElement.appendChild(layer);
-      layer.style.display = '';
-      console.log(`[Assistant] sticky-layer → ${targetElement.tagName}#${targetElement.id || ''}.${[...targetElement.classList].join('.') || ''}`);
-    } else {
-      // 타겟 없음 → body에 보관하되 숨김
-      if (layer.parentElement !== document.body) {
-        document.body.appendChild(layer);
-      }
-      layer.style.display = 'none';
-      console.log('[Assistant] sticky-layer 비활성화 (대상 없음)');
+  // ② 전환 중 포스트잇 즉시 숨김 (순간이동 방지)
+  layer.style.visibility = 'hidden';
+  layer.innerHTML = '';
+
+  _stickyLayerTargetEl = targetElement;
+
+  if (targetElement && targetElement.isConnected) {
+    // ③ ResizeObserver: 타겟 및 부모 컨테이너 크기 변화 → bounds 재계산
+    _stickyLayerResizeObserver = new ResizeObserver(() => _syncStickyLayerBounds());
+    _stickyLayerResizeObserver.observe(targetElement);
+    if (targetElement.parentElement) {
+      _stickyLayerResizeObserver.observe(targetElement.parentElement);
     }
 
-    // ④ 새 컨텍스트에 맞는 포스트잇 렌더링
-    renderStickyNotes();
-  } finally {
-    _stickyLayerRelocating = false;
+    // ③ rAF 2회: 레이아웃 확정 후 bounds 주입 → 렌더 → 표시
+    requestAnimationFrame(() => {
+      _syncStickyLayerBounds();
+      renderStickyNotes();
+      requestAnimationFrame(() => {
+        layer.style.visibility = '';
+      });
+    });
+
+    console.log(`[Assistant] sticky-layer fixed → 타겟: ${targetElement.tagName}#${targetElement.id || ''}`);
+  } else {
+    layer.style.display = 'none';
+    layer.style.visibility = '';
+    console.log('[Assistant] sticky-layer 비활성화 (대상 없음)');
   }
+
+  _stickyLayerRelocating = false;
 }
 
 // ========================================
@@ -6186,9 +6252,13 @@ window.addEventListener('beforeunload', () => {
     _contextObserver.disconnect();
     _contextObserver = null;
   }
-  // sticky-layer 옵저버 해제
+  // sticky-layer 옵저버 및 바운드 리소스 해제
   if (_stickyLayerObserver) {
     _stickyLayerObserver.disconnect();
     _stickyLayerObserver = null;
+  }
+  if (_stickyLayerResizeObserver) {
+    _stickyLayerResizeObserver.disconnect();
+    _stickyLayerResizeObserver = null;
   }
 });
