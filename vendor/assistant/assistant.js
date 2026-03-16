@@ -68,6 +68,12 @@ function downloadExportData(data) {
     link.click();
     getAssistantRoot().removeChild(link);
     URL.revokeObjectURL(url);
+
+    // 백업 일자 자동 갱신
+    const today = new Date().toISOString().split('T')[0];
+    state.settings.lastBackup = today;
+    saveSettings({ silent: true });
+
     showToast('데이터가 내보내졌습니다');
   } catch (error) {
     console.error('내보내기 실패:', error);
@@ -3928,6 +3934,12 @@ async function addMemo() {
     return;
   }
 
+  // 앱 전체 용량 제한 검사 (50MB)
+  if (state.storageUsed >= state.storageLimit) {
+    showToast('⚠️ 저장 용량이 초과되었습니다. 오래된 메모를 삭제하거나 자동 정리를 실행하세요.');
+    return;
+  }
+
   // 용량 초과 체크 (2MB 제한)
   const MEMO_LIMIT = 2 * 1024 * 1024; // 2MB in bytes
   const useRichText = !!memoQuill;
@@ -4338,6 +4350,10 @@ function openEditTemplateModal(templateId) {
 }
 
 function confirmAddSuggestedTemplate(suggestedText) {
+  if (state.storageUsed >= state.storageLimit) {
+    showToast('⚠️ 저장 용량이 초과되었습니다. 오래된 데이터를 삭제하고 다시 시도하세요.');
+    return;
+  }
   const safeContent = decodeURIComponent(suggestedText);
   const title = document.getElementById('modal-suggested-template-title')?.value.trim();
   const category = document.getElementById('modal-suggested-template-category')?.value;
@@ -4348,6 +4364,10 @@ function confirmAddSuggestedTemplate(suggestedText) {
 }
 
 function confirmAddTemplate() {
+  if (state.storageUsed >= state.storageLimit) {
+    showToast('⚠️ 저장 용량이 초과되었습니다. 오래된 데이터를 삭제하고 다시 시도하세요.');
+    return;
+  }
   const title = document.getElementById('modal-template-title')?.value.trim();
   const content = document.getElementById('modal-template-content')?.value.trim();
   if (!title) { showToast('템플릿 제목을 입력하세요'); return; }
@@ -4937,27 +4957,36 @@ function updateFooterStorageInfo(colors) {
   storageInfo.textContent = statusText;
 }
 
-async function updateStorageEstimate() {
-  if (!navigator.storage || typeof navigator.storage.estimate !== 'function') return;
-
+/**
+ * 앱 실제 데이터를 JSON으로 직렬화하여 Blob 크기를 측정하고,
+ * IndexedDB 오버헤드 1.5배 보정한 추정 용량(MB)를 반환합니다.
+ */
+function calculateAppUsageMB() {
   try {
-    const { usage, quota } = await navigator.storage.estimate();
-    if (typeof usage !== 'number' || typeof quota !== 'number' || quota <= 0) return;
-
-    const usageMB = usage / (1024 * 1024);
-    const quotaMB = quota / (1024 * 1024);
-    const limitMB = Math.min(50, quotaMB);
-    const timeDataMB = estimateTimeDataMB();
-    const nonTimeUsageMB = Math.max(0, usageMB - timeDataMB);
-
-    state.storageUsed = nonTimeUsageMB;
-    state.storageLimit = limitMB;
-
-    const c = getColors();
-    updateFooterStorageInfo(c);
-  } catch (error) {
-    console.warn('스토리지 용량 추정 실패:', error);
+    const payload = {
+      memos:         state.memos,
+      stickyNotes:   state.stickyNotes,
+      clipboard:     state.clipboard,
+      templates:     state.templates,
+      menuTimeStats: state.menuTimeStats,
+      timeBuckets:   state.timeBuckets,
+    };
+    const bytes = new Blob([JSON.stringify(payload)]).size;
+    return (bytes * 1.5) / (1024 * 1024);
+  } catch (_) {
+    return 0;
   }
+}
+
+async function updateStorageEstimate() {
+  const limitMB = 50;
+  const usedMB  = calculateAppUsageMB();
+
+  state.storageUsed  = usedMB;
+  state.storageLimit = limitMB;
+
+  const c = getColors();
+  updateFooterStorageInfo(c);
 }
 
 function estimateTimeDataMB() {
@@ -6107,6 +6136,13 @@ async function bootstrapAssistant(config = {}) {
   if (config.stickyLayerSelectors !== false) {
     setupStickyLayerObserver(config.stickyLayerSelectors || {});
   }
+
+  // 5단계: 앱 구동 5초 후 백그라운드 자동 정리 (오래된 데이터 제거)
+  setTimeout(() => {
+    if (typeof runAutoCleanup === 'function') {
+      runAutoCleanup({ silent: true, refreshUI: true, reason: 'startup' });
+    }
+  }, 5000);
 
   console.log('[Assistant] 초기화 완료 (Shared Worker 연결 중)');
 }
