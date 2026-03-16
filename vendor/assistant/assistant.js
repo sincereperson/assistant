@@ -1808,7 +1808,7 @@ function enableStickyNoteDrag(wrapperEl, note) {
     // UI 즉각 반영
     wrapperEl.style.left = `${nextX}px`;
     wrapperEl.style.top  = `${nextY}px`;
-  }, { signal });
+  }, { signal, capture: true });
 
   document.addEventListener('mouseup', () => {
     if (isDragging) {
@@ -1816,7 +1816,7 @@ function enableStickyNoteDrag(wrapperEl, note) {
       state.stickyDragActive = false;
       saveStickyNotes();
     }
-  }, { signal });
+  }, { signal, capture: true });
 }
 
 // 4. 포스트잇 렌더링 로직 (초기화 방지)
@@ -1855,32 +1855,13 @@ function isStickyNoteOutOfViewport(note) {
   if (!note) return false;
   const layer = document.getElementById('sticky-layer');
   if (!layer || layer.style.display === 'none') return false;
-  if (!_stickyLayerTarget || !_stickyLayerTarget.isConnected) return false;
 
-  const rect    = _stickyLayerTarget.getBoundingClientRect();
-  const layerW  = _stickyLayerTarget.offsetWidth;
-  const layerH  = _stickyLayerTarget.offsetHeight;
+  // 레이어가 컨테이너와 동일한 크기(position:absolute 100%)이므로
+  // 단순히 포스트잇 좌표가 레이어 범위를 벗어났는지만 검사합니다.
+  const layerW = layer.offsetWidth;
+  const layerH = layer.offsetHeight;
   if (layerW <= 0 || layerH <= 0) return false;
 
-  const zoomX = layerW > 0 ? rect.width  / layerW : 1;
-  const zoomY = layerH > 0 ? rect.height / layerH : 1;
-
-  // 가시 clip 영역 계산 (layer-local offset px 기준, _syncStickyLayerPosition과 동일 로직)
-  const clip       = _getClipRect(_stickyLayerTarget);
-  const clipTop    = Math.max(0, (clip.top    - rect.top)    / zoomY);
-  const clipLeft   = Math.max(0, (clip.left   - rect.left)   / zoomX);
-  const clipBottom = Math.max(0, (rect.bottom - clip.bottom) / zoomY);
-  const clipRight  = Math.max(0, (rect.right  - clip.right)  / zoomX);
-
-  // 레이어 전체가 가려진 경우 → 모든 포스트잇이 화면 밖
-  if (clipTop + clipBottom >= layerH || clipLeft + clipRight >= layerW) return true;
-
-  const visLeft   = clipLeft;
-  const visTop    = clipTop;
-  const visRight  = layerW - clipRight;
-  const visBottom = layerH - clipBottom;
-
-  // 포스트잇의 layer-local bounds
   const renderWidth  = note.width  ? Math.max(150, note.width)  : 220;
   const renderHeight = note.isCollapsed ? 22 : (note.height ? Math.max(150, note.height) : 150);
   const noteLeft   = note.x || 0;
@@ -1888,9 +1869,8 @@ function isStickyNoteOutOfViewport(note) {
   const noteRight  = noteLeft + renderWidth;
   const noteBottom = noteTop  + renderHeight;
 
-  // 포스트잇이 가시 영역과 전혀 겹치지 않으면 → 화면 밖
-  return noteRight <= visLeft || noteLeft >= visRight ||
-         noteBottom <= visTop || noteTop  >= visBottom;
+  return noteRight <= 0 || noteLeft >= layerW ||
+         noteBottom <= 0 || noteTop  >= layerH;
 }
 
 function renderStickyNotes() {
@@ -2047,7 +2027,7 @@ function enableStickyNoteResize(wrapperEl, note) {
     wrapperEl.style.setProperty('--sticky-width',  `${nextW}px`);
     wrapperEl.style.setProperty('--sticky-height', `${nextH}px`);
     upsertStickyNote(memoId, { width: nextW, height: nextH, menuId });
-  }, { signal });
+  }, { signal, capture: true });
 
   document.addEventListener('mouseup', () => {
     if (isResizing) {
@@ -2058,7 +2038,7 @@ function enableStickyNoteResize(wrapperEl, note) {
         saveStickyNotes();
       }, 300);
     }
-  }, { signal });
+  }, { signal, capture: true });
 }
 
 let stickyNoteQuillMap = {};
@@ -2188,23 +2168,8 @@ function initStickyNoteDrop() {
     const layerEl = document.getElementById('sticky-layer');
     if (!layerEl || layerEl.style.display === 'none') return false;
     const lr = layerEl.getBoundingClientRect();
-    // getBoundingClientRect는 clip-path를 무시하므로 표시 영역 체크 추가
-    if (event.clientX < lr.left || event.clientX > lr.right) return false;
-    if (event.clientY < lr.top  || event.clientY > lr.bottom) return false;
-    // sticky-layer 상의 실제 좌표 (레이어 내부 기준)
-    const nx = event.clientX - lr.left;
-    const ny = event.clientY - lr.top;
-    // clip-path inset 값 체크 (클리핑 영역 밖은 드롭 제외)
-    const cp = layerEl.style.clipPath || layerEl.style.getPropertyValue('clip-path') || '';
-    const m = cp.match(/inset\(([\d.]+)px\s+([\d.]+)px\s+([\d.]+)px\s+([\d.]+)px\)/);
-    if (m) {
-      const [, ct, cr, cb, cl] = m.map(Number);
-      const lw = parseFloat(layerEl.style.width)  || lr.width;
-      const lh = parseFloat(layerEl.style.height) || lr.height;
-      if (ny < ct || ny > lh - cb) return false;
-      if (nx < cl || nx > lw - cr) return false;
-    }
-    return true;
+    return event.clientX >= lr.left && event.clientX <= lr.right &&
+           event.clientY >= lr.top  && event.clientY <= lr.bottom;
   }
 
   /** clientX/Y → sticky-layer 기준 상대좌표 변환 */
@@ -2278,12 +2243,6 @@ let _stickyLayerConfig = {};
 /** @type {boolean} relocateStickyLayer 실행 중 재진입 방지 플래그 */
 let _stickyLayerRelocating = false;
 
-/** @type {Element|null} sticky-layer가 fixed 위치로 추적 중인 타겟 요소 */
-let _stickyLayerTarget = null;
-
-/** @type {ResizeObserver|null} 타겟 요소 크기 변경 감지 */
-let _stickyTargetResizeObserver = null;
-
 /**
  * MutationObserver를 설정하여 sticky-layer 재배치를 담당합니다.
  *
@@ -2297,7 +2256,6 @@ function setupStickyLayerObserver(cfg = {}) {
     _stickyLayerObserver.disconnect();
     _stickyLayerObserver = null;
   }
-  _detachStickyPositionSync();
 
   _stickyLayerConfig = {
     windowContainerClass: cfg.windowContainerClass || 'w2windowContainer_selectedNameLayer',
@@ -2392,112 +2350,6 @@ function setupStickyLayerObserver(cfg = {}) {
 }
 
 /**
- * sticky-layer(position:fixed)의 top/left/width/height를 _stickyLayerTarget에 동기화합니다.
- * ResizeObserver, scroll, resize 이벤트에서 호출됩니다.
- */
-/**
- * 요소의 조상 중 overflow 클리핑 컨테이너를 모두 타고 올라가
- * 실제 가시 영역(뷰포트 교차 포함)을 반환합니다.
- * → 시스템 고정 헤더/GNB 등이 차지하는 영역까지 자동으로 제외됩니다.
- */
-function _getClipRect(el) {
-  // 기본값: 전체 뷰포트
-  let top    = 0;
-  let left   = 0;
-  let bottom = window.innerHeight;
-  let right  = window.innerWidth;
-
-  let node = el.parentElement;
-  while (node && node !== document.documentElement) {
-    const style = window.getComputedStyle(node);
-    const ov = style.overflow + ' ' + style.overflowX + ' ' + style.overflowY;
-    // overflow: hidden / clip 만 클리핑 기준으로 사용
-    // overflow: auto / scroll 은 스크롤 가능 영역이므로 제외
-    // → 부모 컨테이너가 스크롤되더라도 뷰포트 안에 있으면 포스트잇이 잘리지 않음
-    if (/\bhidden\b|\bclip\b/.test(ov)) {
-      const r = node.getBoundingClientRect();
-      // [Fix] 실제 가시 크기가 1px 미만인 요소(숨겨진/off-screen 요소)는 제외
-      // — zero/negative 크기 요소가 clip rect에 포함되면 top > bottom 또는
-      //   left > right 가 되어 sticky-layer 전체가 보이지 않는 버그 발생
-      if (r.width > 1 && r.height > 1) {
-        // 각 조상 클리핑 영역과 교차(intersection) → 더 좁은 쪽으로 좁혀 나감
-        top    = Math.max(top,    r.top);
-        left   = Math.max(left,   r.left);
-        bottom = Math.min(bottom, r.bottom);
-        right  = Math.min(right,  r.right);
-      }
-    }
-    node = node.parentElement;
-  }
-  // [Fix] clip rect 유효성 검사: 교차 결과가 역전된 경우(완전히 가려진 요소)
-  // 잘못된 clip 값으로 전체 레이어가 숨겨지는 것을 방지 → 전체 뷰포트 반환
-  if (top >= bottom || left >= right) {
-    return { top: 0, left: 0, bottom: window.innerHeight, right: window.innerWidth };
-  }
-  return { top, left, bottom, right };
-}
-
-function _syncStickyLayerPosition() {
-  const layer = document.getElementById('sticky-layer');
-  if (!layer || !_stickyLayerTarget || !_stickyLayerTarget.isConnected) return;
-
-  const rect = _stickyLayerTarget.getBoundingClientRect();
-
-  // zoom 보정 비율: getBoundingClientRect(zoom 영향) / offset*(zoom 무관)
-  // 브라우저 배율이 100%가 아닌 경우 두 좌표계가 달라지므로 비율로 변환
-  const zoomX = _stickyLayerTarget.offsetWidth  > 0 ? rect.width  / _stickyLayerTarget.offsetWidth  : 1;
-  const zoomY = _stickyLayerTarget.offsetHeight > 0 ? rect.height / _stickyLayerTarget.offsetHeight : 1;
-
-  // top/left: fixed 위치 기준 → getBoundingClientRect() (뷰포트 기준 CSS px)
-  // width/height: 브라우저 배율(zoom)에 무관한 CSS 레이아웃 크기 → offsetWidth/offsetHeight
-  layer.style.setProperty('top',    rect.top    + 'px', 'important');
-  layer.style.setProperty('left',   rect.left   + 'px', 'important');
-  layer.style.setProperty('width',  _stickyLayerTarget.offsetWidth  + 'px', 'important');
-  layer.style.setProperty('height', _stickyLayerTarget.offsetHeight + 'px', 'important');
-
-  // clip 계산: _getClipRect는 getBoundingClientRect 좌표계이므로 zoomX/Y로 나눠 offset 좌표계로 변환
-  const clip = _getClipRect(_stickyLayerTarget);
-  const clipTop    = Math.max(0, (clip.top    - rect.top)    / zoomY);
-  const clipLeft   = Math.max(0, (clip.left   - rect.left)   / zoomX);
-  const clipBottom = Math.max(0, (rect.bottom - clip.bottom) / zoomY);
-  const clipRight  = Math.max(0, (rect.right  - clip.right)  / zoomX);
-
-  // [Fix] clip inset 합이 레이어 전체 크기 이상이면 전체가 가려지는 상황
-  // (잘못된 clip rect로 포스트잇이 완전히 사라지는 버그 방지)
-  const layerW = _stickyLayerTarget.offsetWidth;
-  const layerH = _stickyLayerTarget.offsetHeight;
-  if (clipTop + clipBottom >= layerH || clipLeft + clipRight >= layerW) {
-    layer.style.removeProperty('clip-path');
-  } else if (clipTop > 0 || clipLeft > 0 || clipBottom > 0 || clipRight > 0) {
-    layer.style.setProperty('clip-path',
-      `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px)`, 'important');
-  } else {
-    // 클리핑 불필요 → 이전에 적용된 clip-path 제거
-    layer.style.removeProperty('clip-path');
-  }
-}
-
-/** 타겟 추적(ResizeObserver + scroll/resize 리스너) 시작 */
-function _attachStickyPositionSync(targetEl) {
-  _detachStickyPositionSync();
-  _stickyLayerTarget = targetEl;
-  _stickyTargetResizeObserver = new ResizeObserver(_syncStickyLayerPosition);
-  _stickyTargetResizeObserver.observe(targetEl);
-  window.addEventListener('scroll', _syncStickyLayerPosition, { passive: true, capture: true });
-  window.addEventListener('resize', _syncStickyLayerPosition, { passive: true });
-}
-
-/** 타겟 추적 해제 */
-function _detachStickyPositionSync() {
-  if (_stickyTargetResizeObserver) {
-    _stickyTargetResizeObserver.disconnect();
-    _stickyTargetResizeObserver = null;
-  }
-  window.removeEventListener('scroll', _syncStickyLayerPosition, { capture: true });
-  window.removeEventListener('resize', _syncStickyLayerPosition);
-  _stickyLayerTarget = null;
-}
-
 /**
  * sticky-layer 주입 타겟 탐색
  *
@@ -2533,11 +2385,9 @@ function _resolveTargetContainer() {
 }
 
 /**
- * #sticky-layer를 document.body에 position:fixed로 유지하면서
- * 현재 활성 화면 컨테이너의 영역에 맞춰 위치를 동기화합니다.
- *
- * ※ targetElement를 직접 수정(position, appendChild)하지 않으므로
- *    같은 레벨 요소들의 레이아웃·스태킹에 전혀 영향을 주지 않습니다.
+ * #sticky-layer를 targetElement의 자식으로 직접 주입합니다.
+ * CSS position:absolute + 100% 크기로 컨테이너를 자연스럽게 덮습니다.
+ * JS 기반 좌표 계산 없이 스크롤/크기 변화가 자동으로 반영됩니다.
  */
 function relocateStickyLayer() {
   if (_stickyLayerRelocating) return;
@@ -2550,58 +2400,42 @@ function relocateStickyLayer() {
 
   const targetElement = _resolveTargetContainer();
 
-  // 이미 body에 있고 동일한 타겟을 추적 중이면 위치만 재동기화하고 종료
-  if (layer.parentElement === document.body && _stickyLayerTarget === targetElement) {
-    if (targetElement) _syncStickyLayerPosition();
+  // 이미 같은 타겟의 자식이면 재렌더링만 수행 (불필요한 DOM 이동 방지)
+  if (layer.parentElement === targetElement && targetElement) {
+    renderStickyNotes();
     return;
   }
 
   _stickyLayerRelocating = true;
 
-  // 1단계: 전환 애니메이션 즉시 비활성화 후 숨김 (플리커링 방지)
-  layer.style.transition = 'none';
-  layer.classList.add('imsmassi-relocating');
-
-  // 2단계: 숨겨진 상태에서 DOM 재배치 및 렌더링 즉시 실행 (동기 처리)
   try {
-    // 기존 타겟 추적 해제 (이전 ResizeObserver / scroll 리스너 정리)
-    _detachStickyPositionSync();
-
-    // sticky-layer는 항상 document.body 직속 자식으로 유지
-    if (layer.parentElement !== document.body) {
-      document.body.appendChild(layer);
-    }
+    // ① 기존 포스트잇 즉시 초기화
+    layer.innerHTML = '';
 
     if (targetElement && targetElement.isConnected) {
+      // ② 타겟 컨테이너 position이 static이면 relative로 변경 (absolute 기준점 설정)
+      const targetPos = window.getComputedStyle(targetElement).position;
+      if (targetPos === 'static') {
+        targetElement.style.position = 'relative';
+      }
+      // ③ 레이어를 타겟 컨테이너의 자식으로 이동
+      targetElement.appendChild(layer);
       layer.style.display = '';
-      // 타겟 위치에 fixed 레이어 동기화 시작
-      _attachStickyPositionSync(targetElement);
-      _syncStickyLayerPosition();
-      console.log(`[Assistant] sticky-layer 동기화 → ${targetElement.tagName}#${targetElement.id || ''}.${targetElement.className || ''}`);
+      console.log(`[Assistant] sticky-layer → ${targetElement.tagName}#${targetElement.id || ''}.${[...targetElement.classList].join('.') || ''}`);
     } else {
+      // 타겟 없음 → body에 보관하되 숨김
+      if (layer.parentElement !== document.body) {
+        document.body.appendChild(layer);
+      }
       layer.style.display = 'none';
       console.log('[Assistant] sticky-layer 비활성화 (대상 없음)');
     }
 
+    // ④ 새 컨텍스트에 맞는 포스트잇 렌더링
     renderStickyNotes();
   } finally {
     _stickyLayerRelocating = false;
   }
-
-  // 3단계: 브라우저 렌더링 사이클에 맞춰 부드러운 페이드인 복구
-  requestAnimationFrame(() => {
-    // 강제 리플로우로 즉시 숨김 상태 확정
-    void layer.offsetHeight;
-    // 전환 애니메이션 복구
-    layer.style.transition = '';
-    const wrappers = layer.querySelectorAll('.imsmassi-sticky-note-wrapper');
-    wrappers.forEach(w => w.classList.add('imsmassi-entering'));
-    requestAnimationFrame(() => {
-      // 페이드인 완료
-      layer.classList.remove('imsmassi-relocating');
-      wrappers.forEach(w => w.classList.remove('imsmassi-entering'));
-    });
-  });
 }
 
 // ========================================
