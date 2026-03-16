@@ -1845,6 +1845,54 @@ function _doScrollToMemoItem(memoId) {
   setTimeout(() => target.classList.remove('imsmassi-memo-item-highlight'), 1800);
 }
 
+/**
+ * 포스트잇이 현재 sticky-layer 가시 영역(뷰포트 클립 영역) 밖에 위치하는지 확인합니다.
+ * clip-path 기반 클리핑 기능에 영향을 주지 않으며 읽기(read-only) 전용입니다.
+ * @param {Object} note - stickyNote 객체 (x, y, width, height, isCollapsed)
+ * @returns {boolean} true이면 뷰포트 밖
+ */
+function isStickyNoteOutOfViewport(note) {
+  if (!note) return false;
+  const layer = document.getElementById('sticky-layer');
+  if (!layer || layer.style.display === 'none') return false;
+  if (!_stickyLayerTarget || !_stickyLayerTarget.isConnected) return false;
+
+  const rect    = _stickyLayerTarget.getBoundingClientRect();
+  const layerW  = _stickyLayerTarget.offsetWidth;
+  const layerH  = _stickyLayerTarget.offsetHeight;
+  if (layerW <= 0 || layerH <= 0) return false;
+
+  const zoomX = layerW > 0 ? rect.width  / layerW : 1;
+  const zoomY = layerH > 0 ? rect.height / layerH : 1;
+
+  // 가시 clip 영역 계산 (layer-local offset px 기준, _syncStickyLayerPosition과 동일 로직)
+  const clip       = _getClipRect(_stickyLayerTarget);
+  const clipTop    = Math.max(0, (clip.top    - rect.top)    / zoomY);
+  const clipLeft   = Math.max(0, (clip.left   - rect.left)   / zoomX);
+  const clipBottom = Math.max(0, (rect.bottom - clip.bottom) / zoomY);
+  const clipRight  = Math.max(0, (rect.right  - clip.right)  / zoomX);
+
+  // 레이어 전체가 가려진 경우 → 모든 포스트잇이 화면 밖
+  if (clipTop + clipBottom >= layerH || clipLeft + clipRight >= layerW) return true;
+
+  const visLeft   = clipLeft;
+  const visTop    = clipTop;
+  const visRight  = layerW - clipRight;
+  const visBottom = layerH - clipBottom;
+
+  // 포스트잇의 layer-local bounds
+  const renderWidth  = note.width  ? Math.max(150, note.width)  : 220;
+  const renderHeight = note.isCollapsed ? 22 : (note.height ? Math.max(150, note.height) : 150);
+  const noteLeft   = note.x || 0;
+  const noteTop    = note.y || 0;
+  const noteRight  = noteLeft + renderWidth;
+  const noteBottom = noteTop  + renderHeight;
+
+  // 포스트잇이 가시 영역과 전혀 겹치지 않으면 → 화면 밖
+  return noteRight <= visLeft || noteLeft >= visRight ||
+         noteBottom <= visTop || noteTop  >= visBottom;
+}
+
 function renderStickyNotes() {
   const layer = document.getElementById('sticky-layer');
   if (!layer) return;
@@ -2510,50 +2558,50 @@ function relocateStickyLayer() {
 
   _stickyLayerRelocating = true;
 
-  // 1단계: 페이드아웃
+  // 1단계: 전환 애니메이션 즉시 비활성화 후 숨김 (플리커링 방지)
+  layer.style.transition = 'none';
   layer.classList.add('imsmassi-relocating');
 
-  // 2단계: transition 완료 후 위치 동기화 + 페이드인
-  const doRelocate = () => {
-    try {
-      // 기존 타겟 추적 해제 (이전 ResizeObserver / scroll 리스너 정리)
-      _detachStickyPositionSync();
+  // 2단계: 숨겨진 상태에서 DOM 재배치 및 렌더링 즉시 실행 (동기 처리)
+  try {
+    // 기존 타겟 추적 해제 (이전 ResizeObserver / scroll 리스너 정리)
+    _detachStickyPositionSync();
 
-      // sticky-layer는 항상 document.body 직속 자식으로 유지
-      if (layer.parentElement !== document.body) {
-        document.body.appendChild(layer);
-      }
-
-      if (targetElement && targetElement.isConnected) {
-        layer.style.display = '';
-        // 타겟 위치에 fixed 레이어 동기화 시작
-        _attachStickyPositionSync(targetElement);
-        _syncStickyLayerPosition();
-        console.log(`[Assistant] sticky-layer 동기화 → ${targetElement.tagName}#${targetElement.id || ''}.${targetElement.className || ''}`);
-      } else {
-        layer.style.display = 'none';
-        console.log('[Assistant] sticky-layer 비활성화 (대상 없음)');
-      }
-
-      renderStickyNotes();
-
-      // 포스트잇 wrapper에 entering 클래스 부여 후 즉시 제거 → 등장 애니메이션 트리거
-      requestAnimationFrame(() => {
-        const wrappers = layer.querySelectorAll('.imsmassi-sticky-note-wrapper');
-        wrappers.forEach(w => w.classList.add('imsmassi-entering'));
-        requestAnimationFrame(() => {
-          // 3단계: 페이드인
-          layer.classList.remove('imsmassi-relocating');
-          wrappers.forEach(w => w.classList.remove('imsmassi-entering'));
-        });
-      });
-    } finally {
-      _stickyLayerRelocating = false;
+    // sticky-layer는 항상 document.body 직속 자식으로 유지
+    if (layer.parentElement !== document.body) {
+      document.body.appendChild(layer);
     }
-  };
 
-  // transition duration(0.18s)만큼 대기 후 이동
-  setTimeout(doRelocate, 180);
+    if (targetElement && targetElement.isConnected) {
+      layer.style.display = '';
+      // 타겟 위치에 fixed 레이어 동기화 시작
+      _attachStickyPositionSync(targetElement);
+      _syncStickyLayerPosition();
+      console.log(`[Assistant] sticky-layer 동기화 → ${targetElement.tagName}#${targetElement.id || ''}.${targetElement.className || ''}`);
+    } else {
+      layer.style.display = 'none';
+      console.log('[Assistant] sticky-layer 비활성화 (대상 없음)');
+    }
+
+    renderStickyNotes();
+  } finally {
+    _stickyLayerRelocating = false;
+  }
+
+  // 3단계: 브라우저 렌더링 사이클에 맞춰 부드러운 페이드인 복구
+  requestAnimationFrame(() => {
+    // 강제 리플로우로 즉시 숨김 상태 확정
+    void layer.offsetHeight;
+    // 전환 애니메이션 복구
+    layer.style.transition = '';
+    const wrappers = layer.querySelectorAll('.imsmassi-sticky-note-wrapper');
+    wrappers.forEach(w => w.classList.add('imsmassi-entering'));
+    requestAnimationFrame(() => {
+      // 페이드인 완료
+      layer.classList.remove('imsmassi-relocating');
+      wrappers.forEach(w => w.classList.remove('imsmassi-entering'));
+    });
+  });
 }
 
 // ========================================
@@ -5285,7 +5333,10 @@ function renderMemoItemDOM(memo) {
   dateSpan.textContent = memo.date;
 
   const currentMenu = state.selectedMenu;
-  const hasStickyNote = (state.stickyNotes || []).some(n => n.memoId === memo.id && (!currentMenu || n.menuId === currentMenu));
+  const currentStickyNote = (state.stickyNotes || []).find(n => n.memoId === memo.id && (!currentMenu || n.menuId === currentMenu));
+  const hasStickyNote = !!currentStickyNote;
+  // 뷰포트 밖 여부 (현재 메뉴에 포스트잇이 있을 때만 체크)
+  const isStickyOutOfView = hasStickyNote && isStickyNoteOutOfViewport(currentStickyNote);
   const actionsDiv = createElement('div', { className: 'imsmassi-memo-actions' });
 
   const screenBtn = createElement('button', { className: `imsmassi-memo-action-btn imsmassi-toggle-label imsmassi-screen-btn${hasStickyNote ? ' imsmassi-screen-btn-active' : ''}`, draggable: 'false', title: `포스트잇 ${hasStickyNote ? '제거' : '추가'}` });
@@ -5304,6 +5355,17 @@ function renderMemoItemDOM(memo) {
   reminderBtn.addEventListener('mousedown', (e) => e.stopPropagation());
 
   actionsDiv.append(screenBtn, reminderBtn);
+
+  // 포스트잇이 현재 화면 밖에 위치한 경우 → 화면 밖 표시 뱃지
+  if (isStickyOutOfView) {
+    const outBadge = createElement('span', {
+      className: 'imsmassi-sticky-outofview-badge',
+      title: '포스트잇이 현재 화면 밖에 위치합니다'
+    });
+    outBadge.textContent = '📍 화면 밖';
+    actionsDiv.appendChild(outBadge);
+  }
+
   footer.append(originBadge, dateSpan, actionsDiv);
   item.append(header, contentDiv, footer);
   return item;

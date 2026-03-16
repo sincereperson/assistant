@@ -645,6 +645,29 @@
 #assistant-root .imsmassi-reminder-btn-active {
   color: #E67E22;
 }
+/* 포스트잇이 뷰포트 밖에 위치할 때 메모 리스트에 표시하는 뱃지 */
+#assistant-root .imsmassi-sticky-outofview-badge {
+  font-size: 9px;
+  color: #E67E22;
+  background: #FFF3E0;
+  border: 1px solid #FFCC80;
+  border-radius: 999px;
+  padding: 2px 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  cursor: default;
+  flex-shrink: 0;
+  animation: imsmassi-outofview-pulse 2.4s ease-in-out infinite;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-sticky-outofview-badge {
+  background: #3D2B00;
+  border-color: #7A4900;
+  color: #FFA726;
+}
+@keyframes imsmassi-outofview-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
 
 /* ================================================
    buildReminderModal 클래스
