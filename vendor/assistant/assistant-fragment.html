@@ -105,41 +105,89 @@
 
       ====== 배포시 제거 끝 ======
       -->
-  </div>
+    </div>
 
     <!-- ========== 플로팅 어시스턴트 ========== -->
-    <button class="imsmassi-floating-btn" id="imsmassi-floating-btn" onclick="openAssistant()"><img src="../asset/assi_icon.svg" class="imsmassi-floating-btn-icon" alt="어시스턴트" draggable="false"><span class="imsmassi-assistant-badge"></span></button>
+    <button
+      class="imsmassi-floating-btn"
+      id="imsmassi-floating-btn"
+      onclick="openAssistant()"
+    >
+      <img
+        src="../asset/assi_icon.svg"
+        class="imsmassi-floating-btn-icon"
+        alt="어시스턴트"
+        draggable="false"
+      /><span class="imsmassi-assistant-badge"></span>
+    </button>
 
-    <div class="imsmassi-floating-panel imsmassi-hidden" id="imsmassi-floating-panel">
-    <!-- 헤더 -->
-    <div class="imsmassi-assistant-header" id="imsmassi-assistant-header">
-      <div class="imsmassi-assistant-title">
-        <!-- <span>💼</span> -->
-        <span>어시스턴트</span>
+    <div
+      class="imsmassi-floating-panel imsmassi-hidden"
+      id="imsmassi-floating-panel"
+    >
+      <!-- 헤더 -->
+      <div class="imsmassi-assistant-header" id="imsmassi-assistant-header">
+        <div class="imsmassi-assistant-title">
+          <!-- <span>💼</span> -->
+          <span>어시스턴트</span>
+        </div>
+        <div class="imsmassi-assistant-header-actions">
+          <button
+            class="imsmassi-assistant-header-btn"
+            id="assistant-dashboard-btn"
+            onclick="toggleDashboardView()"
+            title="대시보드"
+          >
+            📊 대시보드
+          </button>
+          <button
+            class="imsmassi-assistant-close"
+            onclick="closeAssistant()"
+            title="닫기"
+          >
+            ✕
+          </button>
+        </div>
       </div>
-      <div class="imsmassi-assistant-header-actions">
-        <button class="imsmassi-assistant-header-btn" id="assistant-dashboard-btn" onclick="toggleDashboardView()" title="대시보드">📊 대시보드</button>
-        <button class="imsmassi-assistant-close" onclick="closeAssistant()" title="닫기">✕</button>
+
+      <!-- 콘텐츠 -->
+      <div
+        class="imsmassi-assistant-content"
+        id="imsmassi-assistant-content"
+      ></div>
+
+      <!-- 푸터 -->
+      <div class="imsmassi-assistant-footer" id="imsmassi-assistant-footer">
+        <span id="footer-storage-info">로컬 저장 (IndexedDB)</span>
+        <div class="imsmassi-assistant-footer-controls">
+          <div
+            class="imsmassi-assistant-footer-modes imsmassi-assistant-footer-group"
+            id="imsmassi-assistant-footer-modes"
+          ></div>
+          <div
+            class="imsmassi-assistant-footer-themes imsmassi-assistant-footer-group"
+            id="imsmassi-assistant-footer-themes"
+          ></div>
+          <button
+            class="imsmassi-assistant-footer-btn"
+            onclick="openSettingsModal()"
+          >
+            설정
+          </button>
+        </div>
       </div>
     </div>
-
-    <!-- 콘텐츠 -->
-    <div class="imsmassi-assistant-content" id="imsmassi-assistant-content"></div>
-
-    <!-- 푸터 -->
-    <div class="imsmassi-assistant-footer" id="imsmassi-assistant-footer">
-      <span id="footer-storage-info">로컬 저장 (IndexedDB)</span>
-      <div class="imsmassi-assistant-footer-controls">
-        <div class="imsmassi-assistant-footer-modes imsmassi-assistant-footer-group" id="imsmassi-assistant-footer-modes"></div>
-        <div class="imsmassi-assistant-footer-themes imsmassi-assistant-footer-group" id="imsmassi-assistant-footer-themes"></div>
-        <button class="imsmassi-assistant-footer-btn" onclick="openSettingsModal()">⚙️</button>
-      </div>
-    </div>
-  </div>
 
     <!-- ========== 모달 ========== -->
-    <div class="imsmassi-modal-overlay imsmassi-hidden" id="imsmassi-modal-overlay">
-      <div class="imsmassi-modal" id="modal-content" onclick="event.stopPropagation()">
+    <div
+      class="imsmassi-modal-overlay imsmassi-hidden"
+      id="imsmassi-modal-overlay"
+    >
+      <div
+        class="imsmassi-modal"
+        id="modal-content"
+        onclick="event.stopPropagation()"
+      >
         <!-- 모달 내용은 동적으로 생성됨 -->
       </div>
     </div>

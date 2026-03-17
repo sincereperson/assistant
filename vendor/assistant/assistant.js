@@ -1,9 +1,8 @@
-﻿if (typeof Quill !== 'undefined') {
-  console.log('✅ Quill 라이브러리 로드 성공!');
+﻿if (typeof Quill !== "undefined") {
+  console.log("✅ Quill 라이브러리 로드 성공!");
 } else {
-  alert('❌ Quill 라이브러리를 찾을 수 없습니다. 경로를 확인해주세요.');
+  alert("❌ Quill 라이브러리를 찾을 수 없습니다. 경로를 확인해주세요.");
 }
-
 
 // ========================================
 // Shared Worker 연결 (Tier 2 중계 서버)
@@ -23,7 +22,10 @@ let workerPort = null;
  */
 function workerSend(type, payload) {
   if (!workerPort) {
-    console.warn('[Assistant] Worker가 연결되지 않았습니다. 메시지 무시:', type);
+    console.warn(
+      "[Assistant] Worker가 연결되지 않았습니다. 메시지 무시:",
+      type,
+    );
     return;
   }
   workerPort.postMessage({ type, payload });
@@ -59,25 +61,25 @@ function handleStateUpdate(newState) {
 function downloadExportData(data) {
   try {
     const dataStr = JSON.stringify(data, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
+    const blob = new Blob([dataStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
-    link.download = `assistant-backup-${new Date().toISOString().split('T')[0]}.json`;
+    link.download = `assistant-backup-${new Date().toISOString().split("T")[0]}.json`;
     getAssistantRoot().appendChild(link);
     link.click();
     getAssistantRoot().removeChild(link);
     URL.revokeObjectURL(url);
 
     // 백업 일자 자동 갱신
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
     state.settings.lastBackup = today;
     saveSettings({ silent: true });
 
-    showToast('데이터가 내보내졌습니다');
+    showToast("데이터가 내보내졌습니다");
   } catch (error) {
-    console.error('내보내기 실패:', error);
-    showToast('데이터 내보내기에 실패했습니다');
+    console.error("내보내기 실패:", error);
+    showToast("데이터 내보내기에 실패했습니다");
   }
 }
 
@@ -94,8 +96,8 @@ function downloadExportData(data) {
  * 'SOLOMON_ASSISTAN'의 ASCII 코드값
  */
 const USER_CRYPTO_SALT = new Uint8Array([
-  0x53, 0x4F, 0x4C, 0x4F, 0x4D, 0x4F, 0x4E, 0x5F,
-  0x41, 0x53, 0x53, 0x49, 0x53, 0x54, 0x41, 0x4E,
+  0x53, 0x4f, 0x4c, 0x4f, 0x4d, 0x4f, 0x4e, 0x5f, 0x41, 0x53, 0x53, 0x49, 0x53,
+  0x54, 0x41, 0x4e,
 ]);
 
 /**
@@ -104,7 +106,7 @@ const USER_CRYPTO_SALT = new Uint8Array([
  * - userNm, userEnglNm: 성명
  * - userJoinYd: 입사정보
  */
-const USER_SENSITIVE_FIELDS = ['userId', 'userEmpNo', 'userNm', 'userEnglNm'];
+const USER_SENSITIVE_FIELDS = ["userId", "userEmpNo", "userNm", "userEnglNm"];
 
 /** 파생된 AES 키 캐시 (페이지 수명 동안 재파생 방지) */
 let _userCryptoKey = null;
@@ -119,14 +121,23 @@ async function deriveUserCryptoKey(loginId) {
   if (_userCryptoKey && _userCryptoKeyId === loginId) return _userCryptoKey;
   const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
-    'raw', enc.encode(String(loginId)), 'PBKDF2', false, ['deriveKey']
+    "raw",
+    enc.encode(String(loginId)),
+    "PBKDF2",
+    false,
+    ["deriveKey"],
   );
   _userCryptoKey = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: USER_CRYPTO_SALT, iterations: 100000, hash: 'SHA-256' },
+    {
+      name: "PBKDF2",
+      salt: USER_CRYPTO_SALT,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
     keyMaterial,
-    { name: 'AES-GCM', length: 256 },
+    { name: "AES-GCM", length: 256 },
     false,
-    ['encrypt', 'decrypt']
+    ["encrypt", "decrypt"],
   );
   _userCryptoKeyId = loginId;
   return _userCryptoKey;
@@ -139,13 +150,13 @@ async function deriveUserCryptoKey(loginId) {
  * @returns {Promise<string>} base64 인코딩된 암호문
  */
 async function encryptUserField(plainText, key) {
-  if (plainText == null || plainText === '') return plainText;
+  if (plainText == null || plainText === "") return plainText;
   const enc = new TextEncoder();
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const cipher = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
+    { name: "AES-GCM", iv },
     key,
-    enc.encode(String(plainText))
+    enc.encode(String(plainText)),
   );
   const combined = new Uint8Array(12 + cipher.byteLength);
   combined.set(iv, 0);
@@ -160,17 +171,17 @@ async function encryptUserField(plainText, key) {
  * @returns {Promise<string|null>}
  */
 async function decryptUserField(b64, key) {
-  if (b64 == null || b64 === '') return b64;
+  if (b64 == null || b64 === "") return b64;
   try {
-    const combined = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const combined = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
     const plain = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: combined.slice(0, 12) },
+      { name: "AES-GCM", iv: combined.slice(0, 12) },
       key,
-      combined.slice(12)
+      combined.slice(12),
     );
     return new TextDecoder().decode(plain);
   } catch {
-    console.warn('[Assistant] 필드 복호화 실패 (키 불일치 또는 손상)');
+    console.warn("[Assistant] 필드 복호화 실패 (키 불일치 또는 손상)");
     return null;
   }
 }
@@ -191,33 +202,41 @@ async function saveUserInfoToWorker(loginId, userInfoSource) {
   if (!userInfoSource) return;
   let raw;
   try {
-    if (typeof userInfoSource === 'function') {
+    if (typeof userInfoSource === "function") {
       raw = await userInfoSource();
-    } else if (typeof userInfoSource === 'object') {
+    } else if (typeof userInfoSource === "object") {
       raw = userInfoSource;
     }
   } catch (e) {
-    console.warn('[Assistant] UserInfo 소스 실행 실패:', e);
+    console.warn("[Assistant] UserInfo 소스 실행 실패:", e);
     raw = null;
   }
 
   if (!raw || !Object.keys(raw).length) {
-    console.warn('[Assistant] UserInfo 없음 — 저장 건너뜀');
+    console.warn("[Assistant] UserInfo 없음 — 저장 건너뜀");
     return;
   }
   try {
     const key = await deriveUserCryptoKey(loginId);
-    const encrypted = { ...raw, _encrypted: [], _savedAt: new Date().toISOString() };
+    const encrypted = {
+      ...raw,
+      _encrypted: [],
+      _savedAt: new Date().toISOString(),
+    };
     for (const field of USER_SENSITIVE_FIELDS) {
-      if (field in raw && raw[field] !== '') {
+      if (field in raw && raw[field] !== "") {
         encrypted[field] = await encryptUserField(raw[field], key);
         encrypted._encrypted.push(field);
       }
     }
-    workerSend('SAVE_USER_INFO', { userInfo: encrypted });
-    console.log('[Assistant] UserInfo 암호화 저장 완료 (loginId:', loginId, ')');
+    workerSend("SAVE_USER_INFO", { userInfo: encrypted });
+    console.log(
+      "[Assistant] UserInfo 암호화 저장 완료 (loginId:",
+      loginId,
+      ")",
+    );
   } catch (e) {
-    console.error('[Assistant] UserInfo 암호화/저장 실패:', e);
+    console.error("[Assistant] UserInfo 암호화/저장 실패:", e);
   }
 }
 
@@ -229,7 +248,11 @@ async function saveUserInfoToWorker(loginId, userInfoSource) {
  */
 async function decryptUserInfo(loginId) {
   const encrypted = state.userInfo;
-  if (!encrypted || !Array.isArray(encrypted._encrypted) || !encrypted._encrypted.length) {
+  if (
+    !encrypted ||
+    !Array.isArray(encrypted._encrypted) ||
+    !encrypted._encrypted.length
+  ) {
     return encrypted || null;
   }
   try {
@@ -242,18 +265,18 @@ async function decryptUserInfo(loginId) {
     delete result._savedAt;
     return result;
   } catch (e) {
-    console.error('[Assistant] UserInfo 복호화 실패:', e);
+    console.error("[Assistant] UserInfo 복호화 실패:", e);
     return null;
   }
 }
 
 // ────────────────────────────────────────────────────────────
 class AssistantDB {
-  constructor(dbName = 'AssistantDB', dbVersion = 4) {
+  constructor(dbName = "AssistantDB", dbVersion = 4) {
     this.dbName = dbName;
     this.dbVersion = dbVersion;
     this.db = null;
-    this.stores = ['memos', 'clipboard', 'templates', 'settings', 'metadata'];
+    this.stores = ["memos", "clipboard", "templates", "settings", "metadata"];
   }
 
   // DB 초기화
@@ -262,9 +285,12 @@ class AssistantDB {
     if (navigator.storage && navigator.storage.persist) {
       try {
         const persisted = await navigator.storage.persist();
-        console.log('Persistent Storage 상태:', persisted ? '활성화' : '비활성화');
+        console.log(
+          "Persistent Storage 상태:",
+          persisted ? "활성화" : "비활성화",
+        );
       } catch (error) {
-        console.warn('Persistent Storage 요청 실패:', error);
+        console.warn("Persistent Storage 요청 실패:", error);
       }
     }
 
@@ -272,50 +298,55 @@ class AssistantDB {
       const request = indexedDB.open(this.dbName, this.dbVersion);
 
       request.onerror = () => {
-        console.error('IndexedDB 오픈 실패:', request.error);
+        console.error("IndexedDB 오픈 실패:", request.error);
         reject(request.error);
       };
 
       request.onsuccess = () => {
         this.db = request.result;
-        console.log('IndexedDB 초기화 완료:', this.dbName);
+        console.log("IndexedDB 초기화 완료:", this.dbName);
         resolve(this.db);
       };
 
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
-        console.log('IndexedDB 스토어 생성 중...');
+        console.log("IndexedDB 스토어 생성 중...");
 
         // 메모 스토어 (areaId 인덱스)
-        if (!db.objectStoreNames.contains('memos')) {
-          const memoStore = db.createObjectStore('memos', { keyPath: 'id' });
-          memoStore.createIndex('areaId', 'areaId', { unique: false });
-          memoStore.createIndex('date', 'date', { unique: false });
-          memoStore.createIndex('pinned', 'pinned', { unique: false });
+        if (!db.objectStoreNames.contains("memos")) {
+          const memoStore = db.createObjectStore("memos", { keyPath: "id" });
+          memoStore.createIndex("areaId", "areaId", { unique: false });
+          memoStore.createIndex("date", "date", { unique: false });
+          memoStore.createIndex("pinned", "pinned", { unique: false });
         }
 
         // 클립보드 스토어
-        if (!db.objectStoreNames.contains('clipboard')) {
-          const clipStore = db.createObjectStore('clipboard', { keyPath: 'id', autoIncrement: true });
-          clipStore.createIndex('menu', 'menu', { unique: false });
-          clipStore.createIndex('timestamp', 'timestamp', { unique: false });
+        if (!db.objectStoreNames.contains("clipboard")) {
+          const clipStore = db.createObjectStore("clipboard", {
+            keyPath: "id",
+            autoIncrement: true,
+          });
+          clipStore.createIndex("menu", "menu", { unique: false });
+          clipStore.createIndex("timestamp", "timestamp", { unique: false });
         }
 
         // 템플릿 스토어
-        if (!db.objectStoreNames.contains('templates')) {
-          db.createObjectStore('templates', { keyPath: 'id', autoIncrement: true });
+        if (!db.objectStoreNames.contains("templates")) {
+          db.createObjectStore("templates", {
+            keyPath: "id",
+            autoIncrement: true,
+          });
         }
 
         // 설정 스토어 (싱글톤)
-        if (!db.objectStoreNames.contains('settings')) {
-          db.createObjectStore('settings');
+        if (!db.objectStoreNames.contains("settings")) {
+          db.createObjectStore("settings");
         }
 
         // 메타데이터 스토어 (마지막 수정 시간 등)
-        if (!db.objectStoreNames.contains('metadata')) {
-          db.createObjectStore('metadata');
+        if (!db.objectStoreNames.contains("metadata")) {
+          db.createObjectStore("metadata");
         }
-
       };
     });
   }
@@ -335,12 +366,15 @@ class AssistantDB {
         callbackResult = callback(store);
 
         // IDBRequest인 경우 (delete, put, add, get 등)
-        if (callbackResult && typeof callbackResult.onsuccess === 'function') {
+        if (callbackResult && typeof callbackResult.onsuccess === "function") {
           callbackResult.onsuccess = () => {
             console.log(`[transaction] ${storeName} IDBRequest 성공`);
           };
           callbackResult.onerror = () => {
-            console.error(`[transaction] ${storeName} IDBRequest 실패:`, callbackResult.error);
+            console.error(
+              `[transaction] ${storeName} IDBRequest 실패:`,
+              callbackResult.error,
+            );
             hasError = true;
           };
         }
@@ -348,7 +382,7 @@ class AssistantDB {
         // 트랜잭션 완료 대기
         tx.oncomplete = () => {
           if (hasError) {
-            reject(new Error('Transaction request failed'));
+            reject(new Error("Transaction request failed"));
           } else {
             console.log(`[transaction] ${storeName} 트랜잭션 완료 (${mode})`);
             resolve(callbackResult);
@@ -362,7 +396,7 @@ class AssistantDB {
 
         tx.onabort = () => {
           console.error(`[transaction] ${storeName} 트랜잭션 중단`);
-          reject(new Error('Transaction aborted'));
+          reject(new Error("Transaction aborted"));
         };
       } catch (error) {
         console.error(`[transaction] ${storeName} 콜백 에러:`, error);
@@ -376,12 +410,12 @@ class AssistantDB {
   // 메모 추가 (memoId를 키로 사용)
   async addMemo(memoId, memo) {
     if (!memoId) {
-      throw new Error('[addMemo] memoId가 없습니다');
+      throw new Error("[addMemo] memoId가 없습니다");
     }
     memo.id = memoId; // memoId를 메모 객체에 저장
     memo.timestamp = Date.now();
-    console.log('[db.addMemo] 메모 추가:', memoId);
-    return this.transaction('memos', 'readwrite', (store) => {
+    console.log("[db.addMemo] 메모 추가:", memoId);
+    return this.transaction("memos", "readwrite", (store) => {
       // 기존 메모가 있으면 덮어쓰기, 없으면 추가
       return store.put(memo);
     });
@@ -389,8 +423,8 @@ class AssistantDB {
 
   // 특정 영역 메모 조회
   async getMemosByArea(areaId) {
-    return this.transaction('memos', 'readonly', (store) => {
-      const index = store.index('areaId');
+    return this.transaction("memos", "readonly", (store) => {
+      const index = store.index("areaId");
       return new Promise((resolve) => {
         const request = index.getAll(areaId);
         request.onsuccess = () => {
@@ -411,7 +445,7 @@ class AssistantDB {
       memo.id = memoId;
     }
     memo.updatedAt = memo.updatedAt || Date.now();
-    return this.transaction('memos', 'readwrite', (store) => {
+    return this.transaction("memos", "readwrite", (store) => {
       return store.put(memo);
     });
   }
@@ -419,40 +453,40 @@ class AssistantDB {
   // 메모 삭제
   async deleteMemo(memoId) {
     if (!memoId) {
-      throw new Error('[deleteMemo] memoId가 없습니다');
+      throw new Error("[deleteMemo] memoId가 없습니다");
     }
 
     if (!this.db) await this.init();
 
     return new Promise((resolve, reject) => {
-      console.log('[db.deleteMemo] 메모 삭제 시도:', memoId);
+      console.log("[db.deleteMemo] 메모 삭제 시도:", memoId);
 
-      const tx = this.db.transaction('memos', 'readwrite');
-      const store = tx.objectStore('memos');
+      const tx = this.db.transaction("memos", "readwrite");
+      const store = tx.objectStore("memos");
       const request = store.delete(memoId);
 
       request.onsuccess = () => {
-        console.log('[db.deleteMemo] 메모 삭제 성공:', memoId);
+        console.log("[db.deleteMemo] 메모 삭제 성공:", memoId);
       };
 
       request.onerror = () => {
-        console.error('[db.deleteMemo] 메모 삭제 요청 실패:', request.error);
+        console.error("[db.deleteMemo] 메모 삭제 요청 실패:", request.error);
         reject(request.error);
       };
 
       tx.oncomplete = () => {
-        console.log('[db.deleteMemo] 트랜잭션 완료:', memoId);
+        console.log("[db.deleteMemo] 트랜잭션 완료:", memoId);
         resolve(true);
       };
 
       tx.onerror = () => {
-        console.error('[db.deleteMemo] 트랜잭션 에러:', tx.error);
+        console.error("[db.deleteMemo] 트랜잭션 에러:", tx.error);
         reject(tx.error);
       };
 
       tx.onabort = () => {
-        console.error('[db.deleteMemo] 트랜잭션 중단:', memoId);
-        reject(new Error('Transaction aborted'));
+        console.error("[db.deleteMemo] 트랜잭션 중단:", memoId);
+        reject(new Error("Transaction aborted"));
       };
     });
   }
@@ -462,23 +496,23 @@ class AssistantDB {
     if (!this.db) await this.init();
 
     return new Promise((resolve, reject) => {
-      const tx = this.db.transaction('memos', 'readonly');
-      const store = tx.objectStore('memos');
+      const tx = this.db.transaction("memos", "readonly");
+      const store = tx.objectStore("memos");
       const request = store.getAll();
 
       request.onsuccess = () => {
         const memos = request.result;
-        console.log('[db.getAllMemos] 메모 로드 완료:', memos.length, '개');
+        console.log("[db.getAllMemos] 메모 로드 완료:", memos.length, "개");
         resolve(memos);
       };
 
       request.onerror = () => {
-        console.error('[db.getAllMemos] 메모 로드 실패:', request.error);
+        console.error("[db.getAllMemos] 메모 로드 실패:", request.error);
         reject(request.error);
       };
 
       tx.onerror = () => {
-        console.error('[db.getAllMemos] 트랜잭션 에러:', tx.error);
+        console.error("[db.getAllMemos] 트랜잭션 에러:", tx.error);
         reject(tx.error);
       };
     });
@@ -488,7 +522,7 @@ class AssistantDB {
   async addClipboardItem(item) {
     item.timestamp = Date.now();
     console.log(item);
-    return this.transaction('clipboard', 'readwrite', (store) => {
+    return this.transaction("clipboard", "readwrite", (store) => {
       return new Promise((resolve, reject) => {
         const request = store.add(item);
         request.onsuccess = () => resolve(request.result);
@@ -499,14 +533,14 @@ class AssistantDB {
 
   // 클립보드 아이템 업데이트 (카운트 증가 시 사용)
   async updateClipboardItem(item) {
-    return this.transaction('clipboard', 'readwrite', (store) => {
+    return this.transaction("clipboard", "readwrite", (store) => {
       return store.put(item); // id가 같으면 덮어쓰기(업데이트) 됨
     });
   }
 
   // 클립보드 조회
   async getClipboardItems(limit = 50) {
-    return this.transaction('clipboard', 'readonly', (store) => {
+    return this.transaction("clipboard", "readonly", (store) => {
       return new Promise((resolve) => {
         const request = store.getAll();
         request.onsuccess = () => {
@@ -521,13 +555,15 @@ class AssistantDB {
 
   // 클립보드 삭제 (오래된 항목)
   async deleteOldClipboardItems(daysBefore = 7) {
-    const cutoffTime = Date.now() - (daysBefore * 24 * 60 * 60 * 1000);
-    return this.transaction('clipboard', 'readwrite', (store) => {
+    const cutoffTime = Date.now() - daysBefore * 24 * 60 * 60 * 1000;
+    return this.transaction("clipboard", "readwrite", (store) => {
       return new Promise((resolve) => {
         const request = store.getAll();
         request.onsuccess = () => {
-          const oldItems = request.result.filter(item => item.timestamp < cutoffTime);
-          oldItems.forEach(item => store.delete(item.id));
+          const oldItems = request.result.filter(
+            (item) => item.timestamp < cutoffTime,
+          );
+          oldItems.forEach((item) => store.delete(item.id));
           resolve(oldItems.length);
         };
       });
@@ -537,16 +573,17 @@ class AssistantDB {
   // 메모 삭제 (오래된 항목)
   async deleteOldMemos(daysBefore = 90) {
     if (!daysBefore || daysBefore <= 0) return [];
-    const cutoffTime = Date.now() - (daysBefore * 24 * 60 * 60 * 1000);
-    return this.transaction('memos', 'readwrite', (store) => {
+    const cutoffTime = Date.now() - daysBefore * 24 * 60 * 60 * 1000;
+    return this.transaction("memos", "readwrite", (store) => {
       return new Promise((resolve) => {
         const request = store.getAll();
         request.onsuccess = () => {
           const deletedIds = [];
-          request.result.forEach(memo => {
-            const createdAt = memo?.createdAt
-              || memo?.timestamp
-              || (memo?.date ? new Date(memo.date).getTime() : null);
+          request.result.forEach((memo) => {
+            const createdAt =
+              memo?.createdAt ||
+              memo?.timestamp ||
+              (memo?.date ? new Date(memo.date).getTime() : null);
             if (createdAt && createdAt < cutoffTime) {
               deletedIds.push(memo.id);
               store.delete(memo.id);
@@ -561,14 +598,14 @@ class AssistantDB {
   // 템플릿 추가
   async addTemplate(template) {
     template.createdAt = Date.now();
-    return this.transaction('templates', 'readwrite', (store) => {
+    return this.transaction("templates", "readwrite", (store) => {
       return store.add(template);
     });
   }
 
   // 모든 템플릿 조회
   async getAllTemplates() {
-    return this.transaction('templates', 'readonly', (store) => {
+    return this.transaction("templates", "readonly", (store) => {
       return new Promise((resolve) => {
         const request = store.getAll();
         request.onsuccess = () => {
@@ -581,28 +618,28 @@ class AssistantDB {
 
   // 템플릿 업데이트
   async updateTemplate(template) {
-    return this.transaction('templates', 'readwrite', (store) => {
+    return this.transaction("templates", "readwrite", (store) => {
       return store.put(template);
     });
   }
 
   // 템플릿 삭제
   async deleteTemplate(templateId) {
-    return this.transaction('templates', 'readwrite', (store) => {
+    return this.transaction("templates", "readwrite", (store) => {
       return store.delete(templateId);
     });
   }
 
   // 설정 저장
   async saveSetting(key, value) {
-    return this.transaction('settings', 'readwrite', (store) => {
+    return this.transaction("settings", "readwrite", (store) => {
       return store.put(value, key);
     });
   }
 
   // 설정 조회
   async getSetting(key) {
-    return this.transaction('settings', 'readonly', (store) => {
+    return this.transaction("settings", "readonly", (store) => {
       return new Promise((resolve) => {
         const request = store.get(key);
         request.onsuccess = () => resolve(request.result);
@@ -612,7 +649,7 @@ class AssistantDB {
 
   // 모든 설정 조회
   async getAllSettings() {
-    return this.transaction('settings', 'readonly', (store) => {
+    return this.transaction("settings", "readonly", (store) => {
       return new Promise((resolve) => {
         const valuesRequest = store.getAll();
         const keysRequest = store.getAllKeys();
@@ -622,7 +659,10 @@ class AssistantDB {
 
         const tryResolve = () => {
           if (!values || !keys) return;
-          const entries = keys.map((key, index) => ({ key, value: values[index] }));
+          const entries = keys.map((key, index) => ({
+            key,
+            value: values[index],
+          }));
           resolve(entries);
         };
 
@@ -640,14 +680,14 @@ class AssistantDB {
 
   // 메타데이터 저장
   async saveMetadata(key, value) {
-    return this.transaction('metadata', 'readwrite', (store) => {
+    return this.transaction("metadata", "readwrite", (store) => {
       return store.put({ ...value, timestamp: Date.now() }, key);
     });
   }
 
   // 메타데이터 조회
   async getMetadata(key) {
-    return this.transaction('metadata', 'readonly', (store) => {
+    return this.transaction("metadata", "readonly", (store) => {
       return new Promise((resolve) => {
         const request = store.get(key);
         request.onsuccess = () => resolve(request.result);
@@ -660,10 +700,12 @@ class AssistantDB {
     const memos = await this.getAllMemos();
     const templates = await this.getAllTemplates();
     const settings = await this.getAllSettings();
-    const filteredSettings = settings.filter(setting => !['menu_time_stats', 'time_buckets'].includes(setting.key));
+    const filteredSettings = settings.filter(
+      (setting) => !["menu_time_stats", "time_buckets"].includes(setting.key),
+    );
 
     return {
-      version: '1.0',
+      version: "1.0",
       exportDate: new Date().toISOString(),
       data: {
         memos,
@@ -675,58 +717,78 @@ class AssistantDB {
 
   // 데이터 가져오기
   async importData(importedData) {
-    if (!importedData.data) throw new Error('잘못된 데이터 형식');
+    if (!importedData.data) throw new Error("잘못된 데이터 형식");
 
     const { memos = [], templates = [], settings = [] } = importedData.data;
 
-    const normalizedMemos = Array.isArray(memos) ? memos : Object.values(memos || {});
-    const normalizedTemplates = Array.isArray(templates) ? templates : Object.values(templates || {});
+    const normalizedMemos = Array.isArray(memos)
+      ? memos
+      : Object.values(memos || {});
+    const normalizedTemplates = Array.isArray(templates)
+      ? templates
+      : Object.values(templates || {});
 
     const normalizedSettings = (() => {
       if (!settings) return [];
       if (Array.isArray(settings)) {
-        return settings.map((item) => {
-          if (!item || typeof item !== 'object') return null;
-          if ('key' in item) return { key: item.key, value: item.value };
-          const keys = Object.keys(item);
-          if (keys.length === 1) return { key: keys[0], value: item[keys[0]] };
-          return null;
-        }).filter(Boolean);
+        return settings
+          .map((item) => {
+            if (!item || typeof item !== "object") return null;
+            if ("key" in item) return { key: item.key, value: item.value };
+            const keys = Object.keys(item);
+            if (keys.length === 1)
+              return { key: keys[0], value: item[keys[0]] };
+            return null;
+          })
+          .filter(Boolean);
       }
-      if (typeof settings === 'object') {
-        return Object.keys(settings).map((key) => ({ key, value: settings[key] }));
+      if (typeof settings === "object") {
+        return Object.keys(settings).map((key) => ({
+          key,
+          value: settings[key],
+        }));
       }
       return [];
     })();
 
     // 메모 가져오기
     for (const memo of normalizedMemos) {
-      if (!memo || typeof memo !== 'object') continue;
-      const memoId = memo.id || memo.memoId || memo.areaId || memo.createdAreaId;
+      if (!memo || typeof memo !== "object") continue;
+      const memoId =
+        memo.id || memo.memoId || memo.areaId || memo.createdAreaId;
       await this.addMemo(memoId, memo);
     }
 
     // 템플릿 가져오기
     for (const template of normalizedTemplates) {
-      if (!template || typeof template !== 'object') continue;
+      if (!template || typeof template !== "object") continue;
       await this.addTemplate(template);
     }
 
     // 설정 가져오기
     for (const setting of normalizedSettings) {
       if (!setting || !setting.key) continue;
-      if (['menu_time_stats', 'time_buckets'].includes(setting.key)) continue;
+      if (["menu_time_stats", "time_buckets"].includes(setting.key)) continue;
       await this.saveSetting(setting.key, setting.value);
     }
 
-    return { success: true, imported: normalizedMemos.length + normalizedTemplates.length };
+    return {
+      success: true,
+      imported: normalizedMemos.length + normalizedTemplates.length,
+    };
   }
 
   // DB 클리어
   async clearAll() {
-    const storeNames = ['memos', 'clipboard', 'templates', 'settings', 'metadata'];
+    const storeNames = [
+      "memos",
+      "clipboard",
+      "templates",
+      "settings",
+      "metadata",
+    ];
     for (const storeName of storeNames) {
-      await this.transaction(storeName, 'readwrite', (store) => {
+      await this.transaction(storeName, "readwrite", (store) => {
         return store.clear();
       });
     }
@@ -750,20 +812,40 @@ let db;
 // 데이터 정의
 // ========================================
 const themes = {
-  classic: { name: '클래식', primary: '#4A90A4', primaryLight: '#E8F4F8', primaryDark: '#2E5A6A' },
-  earthbrown: { name: '어스 브라운', primary: '#C9BEAA', primaryLight: '#E8E0D5', primaryDark: '#8B7355' },
-  oceangreen: { name: '오션 그린', primary: '#7CE0D3', primaryLight: '#B8F0E8', primaryDark: '#4ABFB0' },
-  lightbeige: { name: '라이트 베이지', primary: '#FBF1E6', primaryLight: '#FDF8F3', primaryDark: '#D4C4B0' },
+  classic: {
+    name: "클래식",
+    primary: "#4A90A4",
+    primaryLight: "#E8F4F8",
+    primaryDark: "#2E5A6A",
+  },
+  earthbrown: {
+    name: "어스 브라운",
+    primary: "#C9BEAA",
+    primaryLight: "#D6CEC0",
+    primaryDark: "#9A9387",
+  },
+  oceangreen: {
+    name: "오션 그린",
+    primary: "#7CE0D3",
+    primaryLight: "#A9E9E1",
+    primaryDark: "#44A79E",
+  },
+  lightbeige: {
+    name: "라이트 베이지",
+    primary: "#FBF1E6",
+    primaryLight: "#FAF3EB",
+    primaryDark: "#D6CEC5",
+  },
 };
 
 const businessAreas = [
-  { id: 'UW', name: '언더라이팅', color: '#4A90D9', bgColor: '#E8F1FB' },
-  { id: 'CT', name: '계약',     color: '#5BA55B', bgColor: '#E8F5E8' },
-  { id: 'CL', name: '손사',     color: '#E67E22', bgColor: '#FEF3E8' },
-  { id: 'AC', name: '계수',     color: '#9B59B6', bgColor: '#F5EBF9' },
-  { id: 'PF', name: '실적',     color: '#1ABC9C', bgColor: '#E8F8F5' },
-  { id: 'ST', name: '정청산',   color: '#E74C3C', bgColor: '#FDECEB' },
-  { id: 'FN', name: '회계',     color: '#34495E', bgColor: '#EBF0F5' },
+  { id: "UW", name: "언더라이팅", color: "#333d4b", bgColor: "#E8F1FB" },
+  { id: "CT", name: "계약", color: "#5BA55B", bgColor: "#E8F5E8" },
+  { id: "CL", name: "손사", color: "#E67E22", bgColor: "#FEF3E8" },
+  { id: "AC", name: "계수", color: "#9B59B6", bgColor: "#F5EBF9" },
+  { id: "PF", name: "실적", color: "#1ABC9C", bgColor: "#E8F8F5" },
+  { id: "ST", name: "정청산", color: "#E74C3C", bgColor: "#FDECEB" },
+  { id: "FN", name: "회계", color: "#34495E", bgColor: "#EBF0F5" },
 ];
 
 /**
@@ -776,26 +858,38 @@ const businessAreas = [
  *   name: 'menuNm',  // → area.name (화면 표시명)
  * };
  * window.ASSISTANT_AREAS = [
- *   { areaCode: 'UW', areaName: '언더라이팅', mainColor: '#4A90D9', subColor: '#E8F1FB' },
+ *   { areaCode: 'UW', areaName: '언더라이팅', mainColor: '#191F28', subColor: '#E8F1FB' },
  *   ...
  * ];
  */
 function getBusinessAreas() {
-  if (!Array.isArray(window.ASSISTANT_AREAS) || !window.ASSISTANT_AREAS.length) {
+  if (
+    !Array.isArray(window.ASSISTANT_AREAS) ||
+    !window.ASSISTANT_AREAS.length
+  ) {
     return businessAreas;
   }
   const keys = window.ASSISTANT_AREA_KEYS || {};
   // 키 매핑이 없으면 그대로 반환
   if (!Object.keys(keys).length) return window.ASSISTANT_AREAS;
 
-  const defaultColors = ['#4A90D9','#5BA55B','#E67E22','#9B59B6','#1ABC9C','#E74C3C','#34495E'];
+  const defaultColors = [
+    "#191F28",
+    "#5BA55B",
+    "#E67E22",
+    "#9B59B6",
+    "#1ABC9C",
+    "#E74C3C",
+    "#34495E",
+  ];
   return window.ASSISTANT_AREAS.map((item, i) => {
-    const color   = item[keys.color   || 'color']   || defaultColors[i % defaultColors.length];
-    const bgColor = item[keys.bgColor || 'bgColor'] || color + '22'; // 투명도 fallback
+    const color =
+      item[keys.color || "color"] || defaultColors[i % defaultColors.length];
+    const bgColor = item[keys.bgColor || "bgColor"] || color + "22"; // 투명도 fallback
     return {
-      ...item,                                          // 원본 필드 보존
-      id:      item[keys.id   || 'id'],
-      name:    item[keys.name || 'name'],
+      ...item, // 원본 필드 보존
+      id: item[keys.id || "id"],
+      name: item[keys.name || "name"],
       color,
       bgColor,
     };
@@ -817,11 +911,13 @@ function createElement(tag, props = {}) {
   const el = document.createElement(tag);
   const { className, style, ...attrs } = props;
   if (className) el.className = className;
-  if (style && typeof style === 'object') {
-    Object.entries(style).forEach(([k, v]) => { el.style[k] = v; });
+  if (style && typeof style === "object") {
+    Object.entries(style).forEach(([k, v]) => {
+      el.style[k] = v;
+    });
   }
   Object.entries(attrs).forEach(([key, val]) => {
-    if (key.startsWith('on') && typeof val === 'function') {
+    if (key.startsWith("on") && typeof val === "function") {
       el.addEventListener(key.slice(2).toLowerCase(), val);
     } else if (val !== null && val !== undefined) {
       el.setAttribute(key, String(val));
@@ -839,9 +935,24 @@ function createElement(tag, props = {}) {
  * 해당 render 함수만 작성하면 됩니다.
  */
 const ASSISTANT_TABS = {
-  'memo':      { id: 'memo',      icon: '📝', label: '메모',      render: () => renderMemoTab() },
-  'dashboard': { id: 'dashboard', icon: '📊', label: '대시보드',  render: () => renderDashboardTab() },
-  'settings':  { id: 'settings',  icon: '⚙️', label: '설정',      render: () => renderSettingsTab() },
+  memo: {
+    id: "memo",
+    icon: "📝",
+    label: "메모",
+    render: () => renderMemoTab(),
+  },
+  dashboard: {
+    id: "dashboard",
+    icon: "📊",
+    label: "대시보드",
+    render: () => renderDashboardTab(),
+  },
+  settings: {
+    id: "settings",
+    icon: "⚙️",
+    label: "설정",
+    render: () => renderSettingsTab(),
+  },
 };
 
 /**
@@ -849,8 +960,9 @@ const ASSISTANT_TABS = {
  */
 function rebuildAssistantTabs() {
   assistantTabs.length = 0;
-  ['memo', 'dashboard', 'settings']
-    .forEach(id => { if (ASSISTANT_TABS[id]) assistantTabs.push(ASSISTANT_TABS[id]); });
+  ["memo", "dashboard", "settings"].forEach((id) => {
+    if (ASSISTANT_TABS[id]) assistantTabs.push(ASSISTANT_TABS[id]);
+  });
 }
 
 // ========================================
@@ -867,23 +979,23 @@ function ensureMenuIndex(menuId) {
 // 상태 관리
 // ========================================
 let state = {
-  currentTheme: 'earthbrown',
+  currentTheme: "earthbrown",
   isDarkMode: false,
-  selectedArea: 'UW',
-  selectedMenu: '',  // imsmassi-lnb 선택 메뉴 (화면ID, setupStickyLayerObserver 초기화 시 getMenuId()로 설정됨)
+  selectedArea: "UW",
+  selectedMenu: "", // imsmassi-lnb 선택 메뉴 (화면ID, setupStickyLayerObserver 초기화 시 getMenuId()로 설정됨)
   assistantOpen: false,
-  activeTab: 'memo',
-  lastNonSettingsTab: 'memo',
-  timePeriod: 'today',
+  activeTab: "memo",
+  lastNonSettingsTab: "memo",
+  timePeriod: "today",
   lastMenuChangeTime: Date.now(), // 메뉴 변경 시간 추적
   menuTimeStats: {}, // 메뉴별 누적 머문시간 (밀리초 단위)
   isInternalCopy: false, // 앱 내부에서 복사 중인지 확인하는 플래그
   lastCopySource: null, // 마지막 복사 소스 (template 등)
-  memoDraftHtml: '', // 메모 입력 임시 HTML (Quill)
-  memoDraftText: '', // 메모 입력 임시 텍스트 (Quill)
+  memoDraftHtml: "", // 메모 입력 임시 HTML (Quill)
+  memoDraftText: "", // 메모 입력 임시 텍스트 (Quill)
   autoNavigateToDashboard: true, // 알림 설정 후 대시보드 자동 이동 설정
   isMemoPanelExpanded: false, // 메모 사이드 패널 펼침 상태
-  memoFilter: 'menu',        // 메모 필터: 'menu' | 'area' | 'all'
+  memoFilter: "menu", // 메모 필터: 'menu' | 'area' | 'all'
 
   // 메모 데이터 (전역 저장소 - IndexedDB에서 로드됨)
   /**
@@ -906,7 +1018,7 @@ let state = {
    *   }
    * }
    */
-  memos: {}, 
+  memos: {},
 
   // 포스트잇 메모 (화면에 띄운 메모)
   /**
@@ -915,16 +1027,16 @@ let state = {
    *   id: string,              // Unique sticky note ID
    *   memoId: string,          // Linked memo ID
    *   areaId: string,          // 업무영역 코드 (예: 'underwriting')
-  *   menuId: string,          // 메뉴 코드 (예: '조회')
+   *   menuId: string,          // 메뉴 코드 (예: '조회')
    *   x: number,               // X 좌표 (px)
    *   y: number,               // Y 좌표 (px)
    *   width: number,           // 너비 (px)
    *   height: number,          // 높이 (px)
    *   color: string,           // 배경색 (hex)
    *   zIndex: number,          // z-index
-  *   createdAt: number,       // 생성시각 (timestamp)
-  *   updatedAt: number,       // 수정시각 (timestamp)
-  *   isCollapsed: boolean     // 접힘 상태
+   *   createdAt: number,       // 생성시각 (timestamp)
+   *   updatedAt: number,       // 수정시각 (timestamp)
+   *   isCollapsed: boolean     // 접힘 상태
    * }
    */
   stickyNotes: [],
@@ -959,7 +1071,6 @@ let state = {
    */
   clipboard: [],
 
-
   /**
    * templates: 템플릿 객체 배열
    * {
@@ -970,7 +1081,6 @@ let state = {
    * }
    */
   templates: [],
-
 
   /**
    * todos: 리마인더용 할 일 객체 배열
@@ -986,8 +1096,8 @@ let state = {
   // 설정 데이터
   settings: {
     autoCleanup: {
-      clipboard: 7,    // 일
-      oldMemos: 90,    // 일
+      clipboard: 7, // 일
+      oldMemos: 90, // 일
     },
     // 저사양 모드
     lowSpecMode: false,
@@ -996,30 +1106,29 @@ let state = {
     // 백업 알림 설정
     backupReminder: false,
     // 최종 백업 날짜
-    lastBackup: '2026-01-03',
+    lastBackup: "2026-01-03",
 
     enableClipboardCapture: false,
     // 마크다운 단축키 활성화
-    markdownEnabled: false,  
+    markdownEnabled: false,
     // 알림 설정 후 대시보드 자동 이동
-    autoNavigateToDashboard: false, 
+    autoNavigateToDashboard: false,
     // 브라우저 알림 on/off
-    browserNotificationEnabled: false, 
+    browserNotificationEnabled: false,
     // 토스트 알림 on/off
     toastEnabled: false,
   },
 
   // 저장 용량 (시뮬레이션)
-  storageUsed: 2.5,    // MB
-  storageLimit: 50,    // MB
+  storageUsed: 2.5, // MB
+  storageLimit: 50, // MB
 
   // 시간 데이터 (기간별 버킷화된 저장)
   timeBuckets: {
-    daily: {},      // YYYY-MM-DD 형식 키로 일별 데이터 저장
-    weekly: {},     // YYYY-Www 형식 키로 주별 데이터 저장
-    monthly: {},    // YYYY-MM 형식 키로 월별 데이터 저장
+    daily: {}, // YYYY-MM-DD 형식 키로 일별 데이터 저장
+    weekly: {}, // YYYY-Www 형식 키로 주별 데이터 저장
+    monthly: {}, // YYYY-MM 형식 키로 월별 데이터 저장
   },
-
 
   nextMemoId: 10,
   editingMemoId: null,
@@ -1037,14 +1146,12 @@ let memoQuill = null;
 
 //타겟 컨테이너 설정
 const ASSISTANT_DOM_TARGET = window.ASSISTANT_DOM_TARGET || {
-  rootId: 'mf_VFrames_Root',
-  fallbackIds: ['assistant-root'],
+  rootId: "mf_VFrames_Root",
+  fallbackIds: ["assistant-root"],
   useBodyFallback: true,
 };
 
 window.ASSISTANT_DOM_TARGET = ASSISTANT_DOM_TARGET;
-
-
 
 //디버그 온오프설정
 const CONSOLE_ORIGINAL = {
@@ -1079,27 +1186,32 @@ function getAssistantRoot() {
     if (root) return root;
   }
 
-  const fallbackIds = ASSISTANT_DOM_TARGET && Array.isArray(ASSISTANT_DOM_TARGET.fallbackIds)
-    ? ASSISTANT_DOM_TARGET.fallbackIds
-    : [];
+  const fallbackIds =
+    ASSISTANT_DOM_TARGET && Array.isArray(ASSISTANT_DOM_TARGET.fallbackIds)
+      ? ASSISTANT_DOM_TARGET.fallbackIds
+      : [];
 
   for (const id of fallbackIds) {
     const fallback = document.getElementById(id);
     if (fallback) return fallback;
   }
 
-  return ASSISTANT_DOM_TARGET && ASSISTANT_DOM_TARGET.useBodyFallback ? document.body : null;
+  return ASSISTANT_DOM_TARGET && ASSISTANT_DOM_TARGET.useBodyFallback
+    ? document.body
+    : null;
 }
 
 function getAssistantStyleRoot() {
-  const styleRoot = document.getElementById('assistant-root');
+  const styleRoot = document.getElementById("assistant-root");
   return styleRoot || getAssistantRoot() || document.body;
 }
 
 // ========================================
 // 유틸리티 함수
 // ========================================
-function getTheme() { return themes[state.currentTheme] || themes.classic; }
+function getTheme() {
+  return themes[state.currentTheme] || themes.classic;
+}
 
 /**
  * 특정 areaId의 기본(디폴트) 컬러 반환
@@ -1107,7 +1219,7 @@ function getTheme() { return themes[state.currentTheme] || themes.classic; }
  * @param {string} areaId
  * @returns {{ primary: string, sub1: string, sub2: string }}
  */
-const STICKY_DEFAULT_COLOR = '#FFF9C4'; // 포스트잇 기본 배경색 (노란색)
+const STICKY_DEFAULT_COLOR = "#FFF9C4"; // 포스트잇 기본 배경색 (노란색)
 
 /**
  * areaId → 표시명(menuNm) 반환 유틸리티
@@ -1118,15 +1230,15 @@ const STICKY_DEFAULT_COLOR = '#FFF9C4'; // 포스트잇 기본 배경색 (노란
  * @returns {string}
  */
 function getAreaName(areaId, fallback) {
-  if (!areaId) return fallback || '';
-  const area = getBusinessAreas().find(a => a.id === areaId);
+  if (!areaId) return fallback || "";
+  const area = getBusinessAreas().find((a) => a.id === areaId);
   if (area?.name) return area.name;
   // ASSISTANT_AREAS가 주입됐지만 매핑 전인 경우: menuNm 직접 탐색
   if (Array.isArray(window.ASSISTANT_AREAS)) {
     const keys = window.ASSISTANT_AREA_KEYS || {};
-    const nameKey = keys.name || 'name';
-    const idKey   = keys.id   || 'id';
-    const raw = window.ASSISTANT_AREAS.find(m => m[idKey] === areaId);
+    const nameKey = keys.name || "name";
+    const idKey = keys.id || "id";
+    const raw = window.ASSISTANT_AREAS.find((m) => m[idKey] === areaId);
     if (raw?.[nameKey]) return raw[nameKey];
   }
   return fallback !== undefined ? fallback : areaId;
@@ -1134,12 +1246,17 @@ function getAreaName(areaId, fallback) {
 
 function getDefaultAreaColors(areaId) {
   const areas = getBusinessAreas();
-  const base = areas.find(a => a.id === areaId) || areas[0];
-  if (!base) return { primary: '#4A90D9', sub1: '#E8F1FB', sub2: STICKY_DEFAULT_COLOR };
+  const base = areas.find((a) => a.id === areaId) || areas[0];
+  if (!base)
+    return {
+      primary: "#191F28",
+      sub1: "#E8F1FB",
+      sub2: STICKY_DEFAULT_COLOR,
+    };
   return {
-    primary: base.color   || '#4A90D9',
-    sub1:    base.bgColor || (base.color + '22'),
-    sub2:    base.sub2    || STICKY_DEFAULT_COLOR,
+    primary: base.color || "#191F28",
+    sub1: base.bgColor || base.color + "22",
+    sub2: base.sub2 || STICKY_DEFAULT_COLOR,
   };
 }
 
@@ -1151,56 +1268,61 @@ function getDefaultAreaColors(areaId) {
  */
 function getAreaWithColors(areaId) {
   const areas = getBusinessAreas();
-  const base = areas.find(a => a.id === (areaId || state.selectedArea)) || areas[0] || { id: '', name: '', color: '#4A90D9', bgColor: '#E8F1FB' };
+  const base = areas.find((a) => a.id === (areaId || state.selectedArea)) ||
+    areas[0] || { id: "", name: "", color: "#191F28", bgColor: "#E8F1FB" };
   const def = getDefaultAreaColors(base.id);
   const custom = state.areaColors?.[base.id] || {};
   return {
     ...base,
-    color:   custom.primary ?? def.primary,
-    bgColor: custom.sub1    ?? def.sub1,
-    sub2:    custom.sub2    ?? def.sub2,
+    color: custom.primary ?? def.primary,
+    bgColor: custom.sub1 ?? def.sub1,
+    sub2: custom.sub2 ?? def.sub2,
   };
 }
 
-function getArea() { return getAreaWithColors(state.selectedArea); }
+function getArea() {
+  return getAreaWithColors(state.selectedArea);
+}
 
 function getColors() {
   const theme = getTheme();
   const isDark = state.isDarkMode;
   return {
-    bg: isDark ? '#1E1E1E' : '#FFFFFF',
-    subBg: isDark ? '#2D2D2D' : '#F8F9FA',
-    text: isDark ? '#E0E0E0' : '#333333',
-    subText: isDark ? '#A0A0A0' : '#666666',
-    border: isDark ? '#404040' : '#E0E0E0',
-    headerText: state.currentTheme === 'lightBeige' ? '#333' : '#FFF',
-    headerSubText: state.currentTheme === 'lightBeige' ? '#666' : 'rgba(255,255,255,0.8)',
+    bg: isDark ? "#2B2F35" : "#FFFFFF",
+    subBg: isDark ? "#191F28" : "#F8F9FA",
+    text: isDark ? "#E0E0E0" : "#191F28",
+    subText: isDark ? "#A0A0A0" : "#666666",
+    border: isDark ? "#404040" : "#E0E0E0",
+    headerText: state.currentTheme === "lightBeige" ? "#191F28" : "#FFF",
+    headerSubText:
+      state.currentTheme === "lightBeige" ? "#666" : "rgba(255,255,255,0.8)",
   };
 }
 
 function applyLowSpecMode() {
-  const root = document.getElementById('assistant-root') || getAssistantStyleRoot();
+  const root =
+    document.getElementById("assistant-root") || getAssistantStyleRoot();
   if (!root) return;
-  root.classList.toggle('imsmassi-low-spec', !!state.settings?.lowSpecMode);
+  root.classList.toggle("imsmassi-low-spec", !!state.settings?.lowSpecMode);
 }
 
 function showToast(message) {
   if (state.settings && state.settings.toastEnabled === false) return;
-  let toast = document.getElementById('imsmassi-toast');
-  const panel = document.getElementById('imsmassi-floating-panel');
+  let toast = document.getElementById("imsmassi-toast");
+  const panel = document.getElementById("imsmassi-floating-panel");
   const root = getAssistantStyleRoot();
   const target = panel || root;
   if (!toast) {
-    toast = document.createElement('div');
-    toast.id = 'imsmassi-toast';
-    toast.className = 'imsmassi-toast';
+    toast = document.createElement("div");
+    toast.id = "imsmassi-toast";
+    toast.className = "imsmassi-toast";
     target.appendChild(toast);
   } else if (toast.parentElement !== target) {
     target.appendChild(toast);
   }
   toast.textContent = message;
-  toast.classList.add('imsmassi-show');
-  setTimeout(() => toast.classList.remove('imsmassi-show'), 2000);
+  toast.classList.add("imsmassi-show");
+  setTimeout(() => toast.classList.remove("imsmassi-show"), 2000);
 }
 
 // ========================================
@@ -1214,14 +1336,14 @@ let memoIdSequence = 0;
 function generateMemoId() {
   const timestamp = Date.now();
   const sequence = ++memoIdSequence;
-  return `mdi-${timestamp}-${String(sequence).padStart(6, '0')}`;
+  return `mdi-${timestamp}-${String(sequence).padStart(6, "0")}`;
 }
 
 // areaId 기준으로 메모 조회 (라벨 기반 다중 영역 지원)
 function getMemosByArea(areaId) {
   const memoIds = state.memosByArea[areaId] || [];
   return memoIds
-    .map(memoId => {
+    .map((memoId) => {
       const memo = state.memos[memoId];
       if (memo) {
         // 메모 ID를 메모 객체에 추가 (렌더링에서 사용)
@@ -1229,7 +1351,7 @@ function getMemosByArea(areaId) {
       }
       return null;
     })
-    .filter(memo => memo) // 삭제된 메모 필터링
+    .filter((memo) => memo) // 삭제된 메모 필터링
     .sort((a, b) => {
       // pinned > date 순서로 정렬
       if (a.pinned !== b.pinned) return b.pinned ? 1 : -1;
@@ -1239,44 +1361,45 @@ function getMemosByArea(areaId) {
 
 // 메모에 라벨(menuId) 추가 (Worker 경유)
 function addLabelToMemo(memoId, menuId) {
-  workerSend('TOGGLE_LABEL', { memoId, menuId, force: true });
+  workerSend("TOGGLE_LABEL", { memoId, menuId, force: true });
 }
 
 // 메모에서 라벨(menuId) 제거 (Worker 경유)
 function removeLabelFromMemo(memoId, menuId) {
-  workerSend('TOGGLE_LABEL', { memoId, menuId, force: false });
+  workerSend("TOGGLE_LABEL", { memoId, menuId, force: false });
 }
 
 // ========================================
 // Quill 메모 에디터 유틸리티
 // ========================================
 function isQuillAvailable() {
-  return typeof Quill !== 'undefined';
+  return typeof Quill !== "undefined";
 }
 
 function sanitizeHtml(input) {
-  if (!input) return '';
-  if (typeof DOMPurify === 'undefined') return input;
+  if (!input) return "";
+  if (typeof DOMPurify === "undefined") return input;
   return DOMPurify.sanitize(input, { USE_PROFILES: { html: true } });
 }
 
 function getMemoEditorSnapshot(quillInstance, fallbackElement) {
   if (quillInstance) {
     const text = quillInstance.getText();
-    const trimmedText = text.replace(/\s+/g, '').trim();
-    const html = quillInstance.root.innerHTML || '';
+    const trimmedText = text.replace(/\s+/g, "").trim();
+    const html = quillInstance.root.innerHTML || "";
     const hasImage = /<img\b/i.test(html);
-    const isEmpty = (quillInstance.getLength() <= 1 || trimmedText.length === 0) && !hasImage;
+    const isEmpty =
+      (quillInstance.getLength() <= 1 || trimmedText.length === 0) && !hasImage;
     return { text, html, isEmpty };
   }
 
   if (fallbackElement) {
-    const text = fallbackElement.innerText || '';
+    const text = fallbackElement.innerText || "";
     const trimmedText = text.trim();
     return { text, html: trimmedText, isEmpty: trimmedText.length === 0 };
   }
 
-  return { text: '', html: '', isEmpty: true };
+  return { text: "", html: "", isEmpty: true };
 }
 
 function normalizeEmptyMemoEditor(quillInstance, fallbackElement) {
@@ -1287,17 +1410,17 @@ function normalizeEmptyMemoEditor(quillInstance, fallbackElement) {
     const length = quillInstance.getLength();
     if (length <= 1) return false;
 
-    quillInstance.setContents([{ insert: '\n' }], 'silent');
-    state.memoDraftHtml = '';
-    state.memoDraftText = '';
+    quillInstance.setContents([{ insert: "\n" }], "silent");
+    state.memoDraftHtml = "";
+    state.memoDraftText = "";
     return true;
   }
 
   if (fallbackElement) {
-    const text = fallbackElement.innerText || '';
-    if (text.replace(/\s+/g, '').length > 0) return false;
-    if (fallbackElement.innerHTML && fallbackElement.innerHTML.trim() !== '') {
-      fallbackElement.innerHTML = '';
+    const text = fallbackElement.innerText || "";
+    if (text.replace(/\s+/g, "").length > 0) return false;
+    if (fallbackElement.innerHTML && fallbackElement.innerHTML.trim() !== "") {
+      fallbackElement.innerHTML = "";
       return true;
     }
   }
@@ -1307,7 +1430,7 @@ function normalizeEmptyMemoEditor(quillInstance, fallbackElement) {
 
 function setQuillContent(quillInstance, content, isRichText) {
   if (!quillInstance) return;
-  const safeContent = content || '';
+  const safeContent = content || "";
 
   if (isRichText) {
     quillInstance.clipboard.dangerouslyPasteHTML(sanitizeHtml(safeContent));
@@ -1318,22 +1441,25 @@ function setQuillContent(quillInstance, content, isRichText) {
 
 function initMemoEditor() {
   if (!isQuillAvailable()) return;
-  const editor = document.getElementById('imsmassi-memo-editor');
-  const wrapper = document.getElementById('memo-editor-wrapper');
+  const editor = document.getElementById("imsmassi-memo-editor");
+  const wrapper = document.getElementById("memo-editor-wrapper");
 
   if (!editor || !wrapper) return;
 
   // 이미 이 엘리먼트에 살아있는 Quill이 있으면 중복 초기화 방지
   // (saveSettings → renderAssistant 순으로 두 번 호출될 때 이중 인스턴스 생성 차단)
-  if (memoQuill && memoQuill.root && document.body.contains(memoQuill.root)) return;
+  if (memoQuill && memoQuill.root && document.body.contains(memoQuill.root))
+    return;
 
   // quill-table-better 모듈 등록 (로드되어 있을 때만)
   // 전역: window.QuillTableBetter, 모듈명: 'modules/table-better'
-  const hasBetterTable = typeof window.QuillTableBetter !== 'undefined';
+  const hasBetterTable = typeof window.QuillTableBetter !== "undefined";
   if (hasBetterTable) {
     try {
-      Quill.register({ 'modules/table-better': window.QuillTableBetter }, true);
-    } catch (_) { /* 이미 등록된 경우 무시 */ }
+      Quill.register({ "modules/table-better": window.QuillTableBetter }, true);
+    } catch (_) {
+      /* 이미 등록된 경우 무시 */
+    }
   }
 
   const modules = {
@@ -1342,61 +1468,73 @@ function initMemoEditor() {
 
   if (hasBetterTable) {
     modules.table = false; // 기본 table 모듈 비활성화
-    modules['table-better'] = {
-      language: 'en_US',
-      menus: ['column', 'row', 'merge', 'table', 'cell', 'wrap', 'delete'],
+    modules["table-better"] = {
+      language: "en_US",
+      menus: ["column", "row", "merge", "table", "cell", "wrap", "delete"],
     };
     modules.keyboard = {
       bindings: window.QuillTableBetter.keyboardBindings,
     };
   }
 
-  if (typeof MarkdownShortcuts !== 'undefined' && state.settings.markdownEnabled) {
+  if (
+    typeof MarkdownShortcuts !== "undefined" &&
+    state.settings.markdownEnabled
+  ) {
     modules.markdownShortcuts = {};
   }
 
   memoQuill = new Quill(editor, {
-    theme: 'bubble',
+    theme: "bubble",
     modules: modules,
   });
 
   (function installPasteHandler(quillInst) {
-    const cb          = quillInst.clipboard;
+    const cb = quillInst.clipboard;
     const origOnPaste = cb.onPaste.bind(cb);
     function buildTableHtml(parsedRows) {
       let html = '<table style="border-collapse:collapse;width:100%;">';
-      parsedRows.forEach(cells => {
-        html += '<tr>';
-        cells.forEach(cell => {
-          const safe = String(cell != null ? cell : '')
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      parsedRows.forEach((cells) => {
+        html += "<tr>";
+        cells.forEach((cell) => {
+          const safe = String(cell != null ? cell : "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
           html += `<td style="border:1px solid #ccc;padding:4px 8px;">${safe}</td>`;
         });
-        html += '</tr>';
+        html += "</tr>";
       });
-      return html + '</table>';
+      return html + "</table>";
     }
 
-    cb.onPaste = function(range, { html = '', text = '' } = {}) {
+    cb.onPaste = function (range, { html = "", text = "" } = {}) {
       // ① HTML 테이블: table-better 또는 기본 Quill에 위임
-      if (html && html.includes('<table')) {
+      if (html && html.includes("<table")) {
         return origOnPaste(range, { html, text });
       }
 
       // ② TSV (탭 포함 텍스트, html에 테이블 없는 경우)
-      if (text && text.includes('\t')) {
-        const norm = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+      if (text && text.includes("\t")) {
+        const norm = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
         if (norm) {
-          const rows = norm.split('\n')
-            .filter(r => r.trim() !== '')
-            .map(l => l.split('\t'));
+          const rows = norm
+            .split("\n")
+            .filter((r) => r.trim() !== "")
+            .map((l) => l.split("\t"));
           if (rows.length > 0) {
-            const sel = (range && range.index != null)
-              ? range
-              : (quillInst.getSelection() || { index: 0, length: 0 });
-            if (sel.length > 0) quillInst.deleteText(sel.index, sel.length, 'user');
-            quillInst.clipboard.dangerouslyPasteHTML(sel.index, buildTableHtml(rows), 'user');
+            const sel =
+              range && range.index != null
+                ? range
+                : quillInst.getSelection() || { index: 0, length: 0 };
+            if (sel.length > 0)
+              quillInst.deleteText(sel.index, sel.length, "user");
+            quillInst.clipboard.dangerouslyPasteHTML(
+              sel.index,
+              buildTableHtml(rows),
+              "user",
+            );
             return;
           }
         }
@@ -1413,9 +1551,9 @@ function initMemoEditor() {
 
   let previousContent = null;
 
-  memoQuill.on('text-change', (delta, oldDelta, source) => {
+  memoQuill.on("text-change", (delta, oldDelta, source) => {
     const MEMO_LIMIT = 2 * 1024 * 1024; // 2MB
-    const html = memoQuill.root.innerHTML || '';
+    const html = memoQuill.root.innerHTML || "";
     const currentSize = new Blob([html]).size;
 
     if (currentSize > MEMO_LIMIT) {
@@ -1423,14 +1561,14 @@ function initMemoEditor() {
       if (previousContent) {
         memoQuill.setContents(previousContent);
       }
-      showToast('⚠️ 메모 용량 초과 (최대 2MB)');
+      showToast("⚠️ 메모 용량 초과 (최대 2MB)");
       return;
     }
 
     // 정상 범위 내일 때만 상태 저장
     previousContent = memoQuill.getContents();
     state.memoDraftHtml = html;
-    state.memoDraftText = memoQuill.getText() || '';
+    state.memoDraftText = memoQuill.getText() || "";
     updateMemoCapacity();
 
     if (normalizeEmptyMemoEditor(memoQuill)) {
@@ -1438,8 +1576,8 @@ function initMemoEditor() {
     }
   });
 
-  memoQuill.on('selection-change', (range) => {
-    wrapper.classList.toggle('imsmassi-focused', !!range);
+  memoQuill.on("selection-change", (range) => {
+    wrapper.classList.toggle("imsmassi-focused", !!range);
   });
 
   memoQuill.keyboard.addBinding({ key: 13, shortKey: true }, () => {
@@ -1455,49 +1593,54 @@ let inlineMemoDirtyMap = {};
 let inlineMemoSavingMap = {};
 
 function initInlineMemoEditors() {
-  const nodes = document.querySelectorAll('.imsmassi-memo-inline-editor');
+  const nodes = document.querySelectorAll(".imsmassi-memo-inline-editor");
   inlineMemoDirtyMap = {};
 
   // table-better 등록 (미등록 시)
-  const hasBetterTable = typeof window.QuillTableBetter !== 'undefined';
+  const hasBetterTable = typeof window.QuillTableBetter !== "undefined";
   if (hasBetterTable) {
-    try { Quill.register({ 'modules/table-better': window.QuillTableBetter }, true); } catch (_) {}
+    try {
+      Quill.register({ "modules/table-better": window.QuillTableBetter }, true);
+    } catch (_) {}
   }
 
-  nodes.forEach(node => {
-    if (node.dataset.quillInit === 'true') return;
+  nodes.forEach((node) => {
+    if (node.dataset.quillInit === "true") return;
     const memoId = node.dataset.memoId;
-    const encoded = node.dataset.content || '';
+    const encoded = node.dataset.content || "";
     const html = sanitizeHtml(decodeURIComponent(encoded));
     const modules = { toolbar: true };
     if (hasBetterTable) {
       modules.table = false;
-      modules['table-better'] = {
-        language: 'en_US',
-        menus: ['column', 'row', 'merge', 'table', 'cell', 'wrap', 'delete'],
+      modules["table-better"] = {
+        language: "en_US",
+        menus: ["column", "row", "merge", "table", "cell", "wrap", "delete"],
       };
       modules.keyboard = { bindings: window.QuillTableBetter.keyboardBindings };
     }
-    if (typeof MarkdownShortcuts !== 'undefined' && state.settings.markdownEnabled) {
+    if (
+      typeof MarkdownShortcuts !== "undefined" &&
+      state.settings.markdownEnabled
+    ) {
       modules.markdownShortcuts = {};
     }
     const quill = new Quill(node, {
-      theme: 'bubble',
+      theme: "bubble",
       modules,
     });
     // table-better matchers가 등록된 상태에서 convert가 동작하도록
     // dangerouslyPasteHTML 대신 root.innerHTML 직접 주입 후 history 초기화
     quill.root.innerHTML = html;
     quill.history.clear();
-    quill.on('text-change', () => {
+    quill.on("text-change", () => {
       if (memoId) inlineMemoDirtyMap[memoId] = true;
     });
-    quill.on('selection-change', (range, oldRange, source) => {
-      if (!range && source === 'user' && memoId && inlineMemoDirtyMap[memoId]) {
+    quill.on("selection-change", (range, oldRange, source) => {
+      if (!range && source === "user" && memoId && inlineMemoDirtyMap[memoId]) {
         saveInlineMemoEdit(memoId);
       }
     });
-    node.dataset.quillInit = 'true';
+    node.dataset.quillInit = "true";
     if (memoId) inlineMemoQuillMap[memoId] = quill;
   });
 }
@@ -1519,20 +1662,22 @@ async function saveInlineMemoEdit(memoId) {
   if (!memo) return;
   inlineMemoSavingMap[memoId] = true;
 
-  let newContent = '';
+  let newContent = "";
   let isRichText = memo.isRichText;
 
   if (inlineMemoQuillMap[memoId]) {
-    newContent = sanitizeHtml(inlineMemoQuillMap[memoId].root.innerHTML || '');
+    newContent = sanitizeHtml(inlineMemoQuillMap[memoId].root.innerHTML || "");
     isRichText = true;
   } else {
-    const el = document.querySelector(`.imsmassi-memo-inline-text[data-memo-id="${memoId}"]`);
-    newContent = (el?.innerText || '').trim();
+    const el = document.querySelector(
+      `.imsmassi-memo-inline-text[data-memo-id="${memoId}"]`,
+    );
+    newContent = (el?.innerText || "").trim();
     isRichText = false;
   }
 
   // Worker에 SAVE_INLINE_EDIT 전송
-  workerSend('SAVE_INLINE_EDIT', { memoId, content: newContent, isRichText });
+  workerSend("SAVE_INLINE_EDIT", { memoId, content: newContent, isRichText });
 
   inlineMemoDirtyMap[memoId] = false;
   inlineMemoSavingMap[memoId] = false;
@@ -1545,65 +1690,71 @@ function saveMemoTitle(memoId, newTitle) {
   if (!memoId) return;
   const memo = state.memos?.[memoId];
   if (!memo || memo.title === newTitle) return;
-  workerSend('SAVE_MEMO_TITLE', { memoId, title: newTitle });
+  workerSend("SAVE_MEMO_TITLE", { memoId, title: newTitle });
   // 제목 span 즉각 동기화 (STATE_UPDATE 대기 없이)
-  document.querySelectorAll(`.imsmassi-memo-title-editable[data-memo-id="${memoId}"]`).forEach(el => {
-    if (document.activeElement !== el) el.innerText = newTitle;
-  });
-  document.querySelectorAll(`.imsmassi-sticky-title-editable[data-memo-id="${memoId}"]`).forEach(el => {
-    if (document.activeElement !== el) el.innerText = newTitle;
-  });
+  document
+    .querySelectorAll(`.imsmassi-memo-title-editable[data-memo-id="${memoId}"]`)
+    .forEach((el) => {
+      if (document.activeElement !== el) el.innerText = newTitle;
+    });
+  document
+    .querySelectorAll(
+      `.imsmassi-sticky-title-editable[data-memo-id="${memoId}"]`,
+    )
+    .forEach((el) => {
+      if (document.activeElement !== el) el.innerText = newTitle;
+    });
 }
 
 function initMemoListEditors() {
   if (!isQuillAvailable()) return;
-  const nodes = document.querySelectorAll('.imsmassi-memo-richtext');
-  nodes.forEach(node => {
-    if (node.dataset.quillInit === 'true') return;
-    const encoded = node.dataset.content || '';
+  const nodes = document.querySelectorAll(".imsmassi-memo-richtext");
+  nodes.forEach((node) => {
+    if (node.dataset.quillInit === "true") return;
+    const encoded = node.dataset.content || "";
     const html = sanitizeHtml(decodeURIComponent(encoded));
     const quill = new Quill(node, {
-      theme: 'bubble',
+      theme: "bubble",
       readOnly: true,
       modules: { toolbar: false },
     });
     // dangerouslyPasteHTML은 내부 convert()를 통해 table HTML을 손실시킬 수 있음.
     // 읽기 전용 표시이므로 root.innerHTML 직접 주입으로 table 구조를 보존.
     quill.root.innerHTML = html;
-    node.dataset.quillInit = 'true';
+    node.dataset.quillInit = "true";
   });
 }
 
 function getMemoPlainText(memo) {
-  if (!memo) return '';
-  if (!memo.isRichText) return memo.content || '';
+  if (!memo) return "";
+  if (!memo.isRichText) return memo.content || "";
 
-  const temp = document.createElement('div');
-  temp.innerHTML = memo.content || '';
-  return temp.innerText || temp.textContent || '';
+  const temp = document.createElement("div");
+  temp.innerHTML = memo.content || "";
+  return temp.innerText || temp.textContent || "";
 }
 
 function escapeHtml(text) {
-  return String(text || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function handleMemoDragStart(event, memoId) {
   if (!memoId) return;
   if (!event.dataTransfer) return;
-  event.dataTransfer.setData('text/memo-id', memoId);
-  event.dataTransfer.setData('text/plain', memoId);
-  event.dataTransfer.setData('text/menu-id', state.selectedMenu || '');
-  event.dataTransfer.setData('text/area-id', state.selectedArea || '');
-  event.dataTransfer.effectAllowed = 'copy';
+  event.dataTransfer.setData("text/memo-id", memoId);
+  event.dataTransfer.setData("text/plain", memoId);
+  event.dataTransfer.setData("text/menu-id", state.selectedMenu || "");
+  event.dataTransfer.setData("text/area-id", state.selectedArea || "");
+  event.dataTransfer.effectAllowed = "copy";
 }
 
 function saveStickyNotes() {
-  workerSend('SAVE_STICKY_NOTES', { stickyNotes: state.stickyNotes || [] });
+  workerSend("SAVE_STICKY_NOTES", { stickyNotes: state.stickyNotes || [] });
 }
 
 // 1. 상태 업데이트 헬퍼 (배열 전체를 매번 복사하지 않고 해당 객체만 수정)
@@ -1616,8 +1767,8 @@ function upsertStickyNote(memoId, patch) {
   // 다른 화면 포스트잇을 덮어쓰는 버그를 방지합니다.
   const menuId = patch?.menuId;
   let note = menuId
-    ? state.stickyNotes.find(n => n.memoId === memoId && n.menuId === menuId)
-    : state.stickyNotes.find(n => n.memoId === memoId);
+    ? state.stickyNotes.find((n) => n.memoId === memoId && n.menuId === menuId)
+    : state.stickyNotes.find((n) => n.memoId === memoId);
 
   if (!note) {
     note = { memoId, x: 0, y: 0, width: 220, height: 150 };
@@ -1630,7 +1781,7 @@ function upsertStickyNote(memoId, patch) {
 
 function getStickyNote(memoId) {
   if (!memoId || !state.stickyNotes) return null;
-  return state.stickyNotes.find(note => note.memoId === memoId) || null;
+  return state.stickyNotes.find((note) => note.memoId === memoId) || null;
 }
 
 function setStickyNotePosition(memoId, x, y) {
@@ -1644,22 +1795,29 @@ function setStickyNoteSize(memoId, width, height) {
   const nextWidth = Number(width);
   const nextHeight = Number(height);
   // 최소 150, 최대 1200/900 제한
-  if (Number.isFinite(nextWidth) && nextWidth > 50)  patch.width  = Math.min(1200, Math.max(150, nextWidth));
-  if (Number.isFinite(nextHeight) && nextHeight > 50) patch.height = Math.min(900,  Math.max(150, nextHeight));
+  if (Number.isFinite(nextWidth) && nextWidth > 50)
+    patch.width = Math.min(1200, Math.max(150, nextWidth));
+  if (Number.isFinite(nextHeight) && nextHeight > 50)
+    patch.height = Math.min(900, Math.max(150, nextHeight));
 
   return upsertStickyNote(memoId, patch);
 }
 
 // 2. 포스트잇 생성 위치 계산 로직 개선
 function getDefaultStickyPlacement(memoId) {
-  const layer = document.getElementById('sticky-layer');
-  const panel = document.getElementById('imsmassi-floating-panel');
+  const layer = document.getElementById("sticky-layer");
+  const panel = document.getElementById("imsmassi-floating-panel");
   const margin = 16;
   const defaultWidth = 220;
   const defaultHeight = 150;
 
   // sticky-layer 컨테이너 기준 상대좌표 계산
-  const layerRect = layer?.getBoundingClientRect() || { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+  const layerRect = layer?.getBoundingClientRect() || {
+    left: 0,
+    top: 0,
+    width: window.innerWidth,
+    height: window.innerHeight,
+  };
   const panelRect = panel?.getBoundingClientRect();
 
   // 어시스턴트 패널 왼쪽 공간에 배치, 없으면 좌측 상단
@@ -1673,16 +1831,32 @@ function getDefaultStickyPlacement(memoId) {
   let y = baseY;
 
   // 기존 포스트잇들과 겹치지 않도록 Y 좌표 조정
-  const notes = (state.stickyNotes || []).filter(n => n.memoId !== memoId);
+  const notes = (state.stickyNotes || []).filter((n) => n.memoId !== memoId);
   const isOverlapping = (ax, ay, aw, ah, bx, by, bw, bh) =>
     ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 
   const sorted = notes
-    .map(n => ({ x: Number(n.x) || 0, y: Number(n.y) || 0, width: Number(n.width) || defaultWidth, height: Number(n.height) || defaultHeight }))
+    .map((n) => ({
+      x: Number(n.x) || 0,
+      y: Number(n.y) || 0,
+      width: Number(n.width) || defaultWidth,
+      height: Number(n.height) || defaultHeight,
+    }))
     .sort((a, b) => a.y - b.y);
 
-  sorted.forEach(n => {
-    if (isOverlapping(x, y, defaultWidth, defaultHeight, n.x, n.y, n.width, n.height)) {
+  sorted.forEach((n) => {
+    if (
+      isOverlapping(
+        x,
+        y,
+        defaultWidth,
+        defaultHeight,
+        n.x,
+        n.y,
+        n.width,
+        n.height,
+      )
+    ) {
       y = n.y + n.height + margin;
     }
   });
@@ -1697,22 +1871,30 @@ function addStickyNote(memoId, x, y) {
   if (!memo) return;
   const currentMenu = state.selectedMenu;
   if (!currentMenu) {
-    console.warn('[Assistant] addStickyNote: 화면 ID(menuId) 미확인 — 포스트잇 생성 취소');
+    console.warn(
+      "[Assistant] addStickyNote: 화면 ID(menuId) 미확인 — 포스트잇 생성 취소",
+    );
     return;
   }
-  const hasDropPosition = Number.isFinite(Number(x)) && Number.isFinite(Number(y));
+  const hasDropPosition =
+    Number.isFinite(Number(x)) && Number.isFinite(Number(y));
   // 현재 화면(currentMenu) 기준으로만 기존 노트 확인 — memoId만 비교하면
   // 다른 화면의 포스트잇을 "이미 존재"로 잘못 인식해 생성을 건너뜁니다.
-  const existing = (state.stickyNotes || []).find(n => n.memoId === memoId && n.menuId === currentMenu) || null;
+  const existing =
+    (state.stickyNotes || []).find(
+      (n) => n.memoId === memoId && n.menuId === currentMenu,
+    ) || null;
   let placement;
   if (existing) {
     if (hasDropPosition) setStickyNotePosition(memoId, x, y);
     placement = null; // 이미 존재, 위치만 변경
   } else {
-    placement = hasDropPosition ? { x, y, width: 220, height: 150 } : getDefaultStickyPlacement(memoId);
+    placement = hasDropPosition
+      ? { x, y, width: 220, height: 150 }
+      : getDefaultStickyPlacement(memoId);
     upsertStickyNote(memoId, { ...placement, menuId: currentMenu });
   }
-  workerSend('ADD_STICKY_NOTE', { memoId, placement, menuId: currentMenu });
+  workerSend("ADD_STICKY_NOTE", { memoId, placement, menuId: currentMenu });
   renderStickyNotes();
   renderAssistantContent();
 }
@@ -1721,9 +1903,11 @@ function removeStickyNote(memoId) {
   const memo = state.memos?.[memoId];
   if (!memo) return;
   const currentMenu = state.selectedMenu;
-  workerSend('REMOVE_STICKY_NOTE', { memoId, menuId: currentMenu });
+  workerSend("REMOVE_STICKY_NOTE", { memoId, menuId: currentMenu });
   // 로컬 상태 즉각 반영 — 현재 화면(currentMenu)의 노트만 제거 (다른 화면 포스트잇 보존)
-  state.stickyNotes = (state.stickyNotes || []).filter(n => !(n.memoId === memoId && n.menuId === currentMenu));
+  state.stickyNotes = (state.stickyNotes || []).filter(
+    (n) => !(n.memoId === memoId && n.menuId === currentMenu),
+  );
   renderStickyNotes();
   renderAssistantContent();
 }
@@ -1732,8 +1916,10 @@ function toggleStickyNoteCollapse(memoId) {
   if (!memoId || !state.stickyNotes) return;
   const currentMenu = state.selectedMenu;
   // menuId+memoId 기준으로 현재 화면의 포스트잇만 토글 (다른 화면 포스트잇 오동작 방지)
-  const note = state.stickyNotes.find(n => n.memoId === memoId && (!currentMenu || n.menuId === currentMenu))
-            || state.stickyNotes.find(n => n.memoId === memoId);
+  const note =
+    state.stickyNotes.find(
+      (n) => n.memoId === memoId && (!currentMenu || n.menuId === currentMenu),
+    ) || state.stickyNotes.find((n) => n.memoId === memoId);
   if (!note) return;
   note.isCollapsed = !note.isCollapsed;
   saveStickyNotes();
@@ -1743,16 +1929,17 @@ function toggleStickyNoteCollapse(memoId) {
 // 6. 드래그 로직 (기존과 동일하게 유지하되 약간의 방어코드 추가)
 function enableStickyNoteDrag(wrapperEl, note) {
   const memoId = wrapperEl.dataset.memoId || note?.memoId;
-  const menuId  = note?.menuId;  // 화면 ID — menuId 기반 정확한 노트 탐색에 사용
+  const menuId = note?.menuId; // 화면 ID — menuId 기반 정확한 노트 탐색에 사용
   if (!memoId) return;
-  const handle = wrapperEl.querySelector('.imsmassi-sticky-note-header');
+  const handle = wrapperEl.querySelector(".imsmassi-sticky-note-header");
   if (!handle) return;
   // 드래그 전용 핸들 (⠿ 아이콘) - 없으면 헤더 전체를 폴백으로 사용
-  const dragHandle = wrapperEl.querySelector('.imsmassi-sticky-drag-handle') || handle;
+  const dragHandle =
+    wrapperEl.querySelector(".imsmassi-sticky-drag-handle") || handle;
 
   // 포스트잇 어디를 클릭/터치해도 (접기·닫기 버튼 제외) 메모리스트 포커스
-  wrapperEl.addEventListener('mousedown', (e) => {
-    if (!e.target.closest('.imsmassi-sticky-note-btn')) {
+  wrapperEl.addEventListener("mousedown", (e) => {
+    if (!e.target.closest(".imsmassi-sticky-note-btn")) {
       scrollToMemoItem(memoId);
     }
   });
@@ -1778,51 +1965,65 @@ function enableStickyNoteDrag(wrapperEl, note) {
       cleanupObserver.disconnect();
     }
   });
-  cleanupObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
+  cleanupObserver.observe(document.body || document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 
-  dragHandle.addEventListener('mousedown', (event) => {
+  dragHandle.addEventListener("mousedown", (event) => {
     if (!document.contains(wrapperEl)) return; // stale 요소 방어
     isDragging = true;
     state.stickyDragActive = true;
     startX = event.pageX;
     startY = event.pageY;
     // menuId 포함 정확한 노트 탐색 (memoId 단독 탐색 시 다른 화면 노트를 잘못 참조하는 버그 방지)
-    const current = (state.stickyNotes || []).find(n => n.memoId === memoId && n.menuId === menuId)
-                 || (state.stickyNotes || []).find(n => n.memoId === memoId)
-                 || {};
+    const current =
+      (state.stickyNotes || []).find(
+        (n) => n.memoId === memoId && n.menuId === menuId,
+      ) ||
+      (state.stickyNotes || []).find((n) => n.memoId === memoId) ||
+      {};
     originX = current.x || 0;
     originY = current.y || 0;
     event.preventDefault(); // 텍스트 선택 방지
   });
 
-  document.addEventListener('mousemove', (event) => {
-    if (!isDragging) return;
-    // stale 요소 방어 — 이미 AbortController가 처리하지만 이중 보호
-    if (!document.contains(wrapperEl)) {
-      isDragging = false;
-      state.stickyDragActive = false;
-      return;
-    }
-    const dx = event.pageX - startX;
-    const dy = event.pageY - startY;
-    const nextX = Math.max(0, originX + dx);
-    const nextY = Math.max(0, originY + dy);
+  document.addEventListener(
+    "mousemove",
+    (event) => {
+      if (!isDragging) return;
+      // stale 요소 방어 — 이미 AbortController가 처리하지만 이중 보호
+      if (!document.contains(wrapperEl)) {
+        isDragging = false;
+        state.stickyDragActive = false;
+        return;
+      }
+      const dx = event.pageX - startX;
+      const dy = event.pageY - startY;
+      const nextX = Math.max(0, originX + dx);
+      const nextY = Math.max(0, originY + dy);
 
-    // menuId 포함 상태 업데이트 (다른 화면 노트를 건드리지 않음)
-    upsertStickyNote(memoId, { x: nextX, y: nextY, menuId });
+      // menuId 포함 상태 업데이트 (다른 화면 노트를 건드리지 않음)
+      upsertStickyNote(memoId, { x: nextX, y: nextY, menuId });
 
-    // UI 즉각 반영
-    wrapperEl.style.left = `${nextX}px`;
-    wrapperEl.style.top  = `${nextY}px`;
-  }, { signal, capture: true });
+      // UI 즉각 반영
+      wrapperEl.style.left = `${nextX}px`;
+      wrapperEl.style.top = `${nextY}px`;
+    },
+    { signal, capture: true },
+  );
 
-  document.addEventListener('mouseup', () => {
-    if (isDragging) {
-      isDragging = false;
-      state.stickyDragActive = false;
-      saveStickyNotes();
-    }
-  }, { signal, capture: true });
+  document.addEventListener(
+    "mouseup",
+    () => {
+      if (isDragging) {
+        isDragging = false;
+        state.stickyDragActive = false;
+        saveStickyNotes();
+      }
+    },
+    { signal, capture: true },
+  );
 }
 
 // 4. 포스트잇 렌더링 로직 (초기화 방지)
@@ -1831,8 +2032,8 @@ function scrollToMemoItem(memoId) {
   if (!memoId) return;
 
   // 메모 탭이 아니면 먼저 이동
-  if (state.activeTab !== 'memo') {
-    setActiveTab('memo');
+  if (state.activeTab !== "memo") {
+    setActiveTab("memo");
     // 탭 전환 후 DOM 렌더링 기다렸다가 스크롤
     setTimeout(() => _doScrollToMemoItem(memoId), 150);
   } else {
@@ -1841,14 +2042,19 @@ function scrollToMemoItem(memoId) {
 }
 
 function _doScrollToMemoItem(memoId) {
-  const target = document.querySelector(`.imsmassi-memo-item[data-id="${memoId}"]`);
+  const target = document.querySelector(
+    `.imsmassi-memo-item[data-id="${memoId}"]`,
+  );
   if (!target) return;
 
-  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
 
   // 하이라이트 효과
-  target.classList.add('imsmassi-memo-item-highlight');
-  setTimeout(() => target.classList.remove('imsmassi-memo-item-highlight'), 1800);
+  target.classList.add("imsmassi-memo-item-highlight");
+  setTimeout(
+    () => target.classList.remove("imsmassi-memo-item-highlight"),
+    1800,
+  );
 }
 
 /**
@@ -1859,8 +2065,8 @@ function _doScrollToMemoItem(memoId) {
  */
 function isStickyNoteOutOfViewport(note) {
   if (!note) return false;
-  const layer = document.getElementById('sticky-layer');
-  if (!layer || layer.style.display === 'none') return false;
+  const layer = document.getElementById("sticky-layer");
+  if (!layer || layer.style.display === "none") return false;
 
   // 레이어가 컨테이너와 동일한 크기(position:absolute 100%)이므로
   // 단순히 포스트잇 좌표가 레이어 범위를 벗어났는지만 검사합니다.
@@ -1868,31 +2074,38 @@ function isStickyNoteOutOfViewport(note) {
   const layerH = layer.offsetHeight;
   if (layerW <= 0 || layerH <= 0) return false;
 
-  const renderWidth  = note.width  ? Math.max(150, note.width)  : 220;
-  const renderHeight = note.isCollapsed ? 22 : (note.height ? Math.max(150, note.height) : 150);
-  const noteLeft   = note.x || 0;
-  const noteTop    = note.y || 0;
-  const noteRight  = noteLeft + renderWidth;
-  const noteBottom = noteTop  + renderHeight;
+  const renderWidth = note.width ? Math.max(150, note.width) : 220;
+  const renderHeight = note.isCollapsed
+    ? 22
+    : note.height
+      ? Math.max(150, note.height)
+      : 150;
+  const noteLeft = note.x || 0;
+  const noteTop = note.y || 0;
+  const noteRight = noteLeft + renderWidth;
+  const noteBottom = noteTop + renderHeight;
 
-  return noteRight <= 0 || noteLeft >= layerW ||
-         noteBottom <= 0 || noteTop  >= layerH;
+  return (
+    noteRight <= 0 || noteLeft >= layerW || noteBottom <= 0 || noteTop >= layerH
+  );
 }
 
 function renderStickyNotes() {
-  const layer = document.getElementById('sticky-layer');
+  const layer = document.getElementById("sticky-layer");
   if (!layer) return;
 
-  // [핵심] 여기서 syncStickyNoteSizesFromDOM()을 호출하지 않습니다. 
+  // [핵심] 여기서 syncStickyNoteSizesFromDOM()을 호출하지 않습니다.
   // 화면을 다시 그릴 때마다 DOM 크기를 읽어오면, 숨겨진 상태나 초기화 과정에서 0으로 덮어써집니다.
 
   // 기존 포스트잇 완전 제거
-  layer.innerHTML = '';
+  layer.innerHTML = "";
 
   const currentMenu = state.selectedMenu;
-  console.log(`[Assistant] renderStickyNotes: currentMenu=${currentMenu}, currentArea=${state.selectedArea}, notes=${(state.stickyNotes||[]).length}`);
+  console.log(
+    `[Assistant] renderStickyNotes: currentMenu=${currentMenu}, currentArea=${state.selectedArea}, notes=${(state.stickyNotes || []).length}`,
+  );
 
-  (state.stickyNotes || []).forEach(note => {
+  (state.stickyNotes || []).forEach((note) => {
     const memo = state.memos?.[note.memoId];
     if (!memo) return;
 
@@ -1902,43 +2115,53 @@ function renderStickyNotes() {
     const matchesMenu = !currentMenu || note.menuId === currentMenu;
     if (!matchesMenu) return;
 
-    const areaIdText = getAreaName(memo.createdAreaId || memo.areaId, '화면');
+    const areaIdText = getAreaName(memo.createdAreaId || memo.areaId, "화면");
     const content = getMemoPlainText(memo).trim();
-    const displayText = content.length > 140 ? `${content.substring(0, 140)}...` : content;
+    const displayText =
+      content.length > 140 ? `${content.substring(0, 140)}...` : content;
     const isRichText = !!memo.isRichText;
     const isCollapsed = !!note.isCollapsed;
-    const collapsedPreviewRaw = content || '내용 없음';
-    const collapsedPreview = collapsedPreviewRaw.length > 12
-      ? `${collapsedPreviewRaw.substring(0, 12)}...`
-      : collapsedPreviewRaw;
+    const collapsedPreviewRaw = content || "내용 없음";
+    const collapsedPreview =
+      collapsedPreviewRaw.length > 12
+        ? `${collapsedPreviewRaw.substring(0, 12)}...`
+        : collapsedPreviewRaw;
     const headerText = isCollapsed
-      ? (memo.title || collapsedPreview)
-      : (memo.title || areaIdText);
-    const collapseIcon = isCollapsed ? '▢' : '—';
-    const collapseTitle = isCollapsed ? '펼치기' : '최소화';
+      ? memo.title || collapsedPreview
+      : memo.title || areaIdText;
+    const collapseIcon = isCollapsed ? "▢" : "—";
+    const collapseTitle = isCollapsed ? "펼치기" : "최소화";
 
-    const wrapperEl = document.createElement('div');
-    wrapperEl.className = `imsmassi-sticky-note-wrapper${isCollapsed ? ' imsmassi-is-collapsed' : ''}`;
+    const wrapperEl = document.createElement("div");
+    wrapperEl.className = `imsmassi-sticky-note-wrapper${isCollapsed ? " imsmassi-is-collapsed" : ""}`;
     wrapperEl.dataset.memoId = note.memoId;
 
     // [핵심] 상태에 저장된 크기를 CSS 변수로 주입 (단위 px 확인)
     const renderWidth = note.width ? Math.max(150, note.width) : 220;
-    const renderHeight = isCollapsed ? 22 : (note.height ? Math.max(150, note.height) : 150);
+    const renderHeight = isCollapsed
+      ? 22
+      : note.height
+        ? Math.max(150, note.height)
+        : 150;
 
-    wrapperEl.style.setProperty('--sticky-width', `${renderWidth}px`);
-    wrapperEl.style.setProperty('--sticky-height', `${renderHeight}px`);
+    wrapperEl.style.setProperty("--sticky-width", `${renderWidth}px`);
+    wrapperEl.style.setProperty("--sticky-height", `${renderHeight}px`);
     wrapperEl.style.left = `${Math.max(0, note.x || 0)}px`;
     wrapperEl.style.top = `${Math.max(0, note.y || 0)}px`;
 
     // 업무 영역 컬러 CSS 변수 주입 (getAreaWithColors로 커스텀 컬러 병합)
-    const noteAreaId = memo.createdAreaId || note.menuId?.split('-')?.[0] || state.selectedArea;
+    const noteAreaId =
+      memo.createdAreaId || note.menuId?.split("-")?.[0] || state.selectedArea;
     const noteArea = getAreaWithColors(noteAreaId);
-    wrapperEl.style.setProperty('--area-primary', noteArea.color);
-    wrapperEl.style.setProperty('--area-sub1', noteArea.bgColor);
-    wrapperEl.style.setProperty('--area-sub2', noteArea.sub2 || noteArea.bgColor);
+    wrapperEl.style.setProperty("--area-primary", noteArea.color);
+    wrapperEl.style.setProperty("--area-sub1", noteArea.bgColor);
+    wrapperEl.style.setProperty(
+      "--area-sub2",
+      noteArea.sub2 || noteArea.bgColor,
+    );
 
-    const noteEl = document.createElement('div');
-    noteEl.className = `imsmassi-sticky-note${isCollapsed ? ' imsmassi-is-collapsed' : ''}`;
+    const noteEl = document.createElement("div");
+    noteEl.className = `imsmassi-sticky-note${isCollapsed ? " imsmassi-is-collapsed" : ""}`;
     noteEl.innerHTML = `
       <div class="imsmassi-sticky-note-header" data-memo-id="${note.memoId}">
         <span class="imsmassi-sticky-drag-handle" draggable="false" title="드래그하여 이동">⠿</span>
@@ -1951,18 +2174,20 @@ function renderStickyNotes() {
           onkeydown="if(event.key==='Enter'||event.key==='Escape'){event.preventDefault();this.blur();}"
           onmousedown="scrollToMemoItem('${note.memoId}')"
           style="outline:none; cursor:text; flex:1; min-width:0; overflow:hidden; white-space:nowrap;"
-        >${memo.title || ''}</span>
+        >${memo.title || ""}</span>
         <div class="imsmassi-sticky-note-actions">
           <button class="imsmassi-sticky-note-btn" onclick="toggleStickyNoteCollapse('${note.memoId}')" title="${collapseTitle}">${collapseIcon}</button>
           <button class="imsmassi-sticky-note-btn" onclick="removeStickyNote('${note.memoId}')" title="닫기">✕</button>
         </div>
       </div>
-      ${isCollapsed
-        ? ''
-        : (isRichText
-          ? `<div class="imsmassi-sticky-note-body imsmassi-sticky-note-richtext" data-memo-id="${note.memoId}" data-content="${encodeURIComponent(sanitizeHtml(memo.content || ''))}"></div>`
-          : `<div class="imsmassi-sticky-note-body" contenteditable="true" data-memo-id="${note.memoId}" onfocus="state.isStickyNoteEditing = true; scrollToMemoItem('${note.memoId}')" onblur="saveStickyNoteEdit('${note.memoId}', this)" style="outline: none;">${displayText || '내용 없음'}</div>`)}
-      ${isCollapsed ? '' : '<div class="imsmassi-sticky-resize-handle" title="크기 조절"></div>'}
+      ${
+        isCollapsed
+          ? ""
+          : isRichText
+            ? `<div class="imsmassi-sticky-note-body imsmassi-sticky-note-richtext" data-memo-id="${note.memoId}" data-content="${encodeURIComponent(sanitizeHtml(memo.content || ""))}"></div>`
+            : `<div class="imsmassi-sticky-note-body" contenteditable="true" data-memo-id="${note.memoId}" onfocus="state.isStickyNoteEditing = true; scrollToMemoItem('${note.memoId}')" onblur="saveStickyNoteEdit('${note.memoId}', this)" style="outline: none;">${displayText || "내용 없음"}</div>`
+      }
+      ${isCollapsed ? "" : '<div class="imsmassi-sticky-resize-handle" title="크기 조절"></div>'}
     `;
     wrapperEl.appendChild(noteEl);
     layer.appendChild(wrapperEl);
@@ -1979,15 +2204,17 @@ function renderStickyNotes() {
 // 5. 크기 조절 (커스텀 핸들 드래그) 로직
 function enableStickyNoteResize(wrapperEl, note) {
   const memoId = wrapperEl.dataset.memoId || note?.memoId;
-  const menuId  = note?.menuId;
+  const menuId = note?.menuId;
   if (!memoId) return;
 
-  const handle = wrapperEl.querySelector('.imsmassi-sticky-resize-handle');
+  const handle = wrapperEl.querySelector(".imsmassi-sticky-resize-handle");
   if (!handle) return;
 
   let isResizing = false;
-  let startX = 0, startY = 0;
-  let startW = 0, startH = 0;
+  let startX = 0,
+    startY = 0;
+  let startW = 0,
+    startH = 0;
   let saveTimer = null;
 
   const ac = new AbortController();
@@ -2004,47 +2231,61 @@ function enableStickyNoteResize(wrapperEl, note) {
       cleanupObserver.disconnect();
     }
   });
-  cleanupObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
+  cleanupObserver.observe(document.body || document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 
-  handle.addEventListener('mousedown', (e) => {
+  handle.addEventListener("mousedown", (e) => {
     if (!document.contains(wrapperEl)) return;
     isResizing = true;
     state.stickyResizeActive = true;
     startX = e.pageX;
     startY = e.pageY;
-    const curr = (state.stickyNotes || []).find(n => n.memoId === memoId && n.menuId === menuId)
-              || (state.stickyNotes || []).find(n => n.memoId === memoId)
-              || {};
-    startW = curr.width  || 220;
+    const curr =
+      (state.stickyNotes || []).find(
+        (n) => n.memoId === memoId && n.menuId === menuId,
+      ) ||
+      (state.stickyNotes || []).find((n) => n.memoId === memoId) ||
+      {};
+    startW = curr.width || 220;
     startH = curr.height || 150;
     e.preventDefault();
     e.stopPropagation();
   });
 
-  document.addEventListener('mousemove', (e) => {
-    if (!isResizing) return;
-    if (!document.contains(wrapperEl)) {
-      isResizing = false;
-      state.stickyResizeActive = false;
-      return;
-    }
-    const nextW = Math.max(150, Math.min(1200, startW + (e.pageX - startX)));
-    const nextH = Math.max(150, Math.min(900,  startH + (e.pageY - startY)));
-    wrapperEl.style.setProperty('--sticky-width',  `${nextW}px`);
-    wrapperEl.style.setProperty('--sticky-height', `${nextH}px`);
-    upsertStickyNote(memoId, { width: nextW, height: nextH, menuId });
-  }, { signal, capture: true });
-
-  document.addEventListener('mouseup', () => {
-    if (isResizing) {
-      isResizing = false;
-      if (saveTimer) clearTimeout(saveTimer);
-      saveTimer = setTimeout(() => {
+  document.addEventListener(
+    "mousemove",
+    (e) => {
+      if (!isResizing) return;
+      if (!document.contains(wrapperEl)) {
+        isResizing = false;
         state.stickyResizeActive = false;
-        saveStickyNotes();
-      }, 300);
-    }
-  }, { signal, capture: true });
+        return;
+      }
+      const nextW = Math.max(150, Math.min(1200, startW + (e.pageX - startX)));
+      const nextH = Math.max(150, Math.min(900, startH + (e.pageY - startY)));
+      wrapperEl.style.setProperty("--sticky-width", `${nextW}px`);
+      wrapperEl.style.setProperty("--sticky-height", `${nextH}px`);
+      upsertStickyNote(memoId, { width: nextW, height: nextH, menuId });
+    },
+    { signal, capture: true },
+  );
+
+  document.addEventListener(
+    "mouseup",
+    () => {
+      if (isResizing) {
+        isResizing = false;
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+          state.stickyResizeActive = false;
+          saveStickyNotes();
+        }, 300);
+      }
+    },
+    { signal, capture: true },
+  );
 }
 
 let stickyNoteQuillMap = {};
@@ -2056,16 +2297,18 @@ function initStickyNoteRichText() {
   stickyNoteDirtyMap = {};
 
   // table-better 등록 (미등록 시)
-  const hasBetterTable = typeof window.QuillTableBetter !== 'undefined';
+  const hasBetterTable = typeof window.QuillTableBetter !== "undefined";
   if (hasBetterTable) {
-    try { Quill.register({ 'modules/table-better': window.QuillTableBetter }, true); } catch (_) {}
+    try {
+      Quill.register({ "modules/table-better": window.QuillTableBetter }, true);
+    } catch (_) {}
   }
 
-  const nodes = document.querySelectorAll('.imsmassi-sticky-note-richtext');
-  nodes.forEach(node => {
-    if (node.dataset.quillInit === 'true') return;
+  const nodes = document.querySelectorAll(".imsmassi-sticky-note-richtext");
+  nodes.forEach((node) => {
+    if (node.dataset.quillInit === "true") return;
     const memoId = node.dataset.memoId;
-    const encoded = node.dataset.content || '';
+    const encoded = node.dataset.content || "";
     const html = sanitizeHtml(decodeURIComponent(encoded));
     // toolbar: [] → 빈 툴바 컨테이너를 생성해 table-better의 initWhiteList가
     // toolbar.imsmassi-container에 접근할 수 있도록 함 (toolbar: false 시 null 오류 발생)
@@ -2073,30 +2316,33 @@ function initStickyNoteRichText() {
     const modules = { toolbar: [] };
     if (hasBetterTable) {
       modules.table = false;
-      modules['table-better'] = {
-        language: 'en_US',
-        menus: ['column', 'row', 'merge', 'table', 'cell', 'wrap', 'delete'],
+      modules["table-better"] = {
+        language: "en_US",
+        menus: ["column", "row", "merge", "table", "cell", "wrap", "delete"],
       };
       modules.keyboard = { bindings: window.QuillTableBetter.keyboardBindings };
     }
-    if (typeof MarkdownShortcuts !== 'undefined' && state.settings.markdownEnabled) {
+    if (
+      typeof MarkdownShortcuts !== "undefined" &&
+      state.settings.markdownEnabled
+    ) {
       modules.markdownShortcuts = {};
     }
     const quill = new Quill(node, {
-      theme: 'bubble',
+      theme: "bubble",
       modules,
     });
     quill.root.innerHTML = html;
     quill.history.clear();
-    node.dataset.quillInit = 'true';
+    node.dataset.quillInit = "true";
     if (memoId) stickyNoteQuillMap[memoId] = quill;
     if (memoId) stickyNoteDirtyMap[memoId] = false;
 
-    quill.on('text-change', () => {
+    quill.on("text-change", () => {
       if (memoId) stickyNoteDirtyMap[memoId] = true;
     });
 
-    quill.on('selection-change', (range) => {
+    quill.on("selection-change", (range) => {
       if (range) {
         state.isStickyNoteEditing = true;
         scrollToMemoItem(memoId);
@@ -2116,9 +2362,9 @@ async function saveStickyNoteRichText(memoId) {
   const quill = stickyNoteQuillMap[memoId];
   if (!memo || !quill) return;
 
-  const content = sanitizeHtml(quill.root.innerHTML || '');
+  const content = sanitizeHtml(quill.root.innerHTML || "");
   state.suppressInlineFocus = true;
-  workerSend('SAVE_INLINE_EDIT', { memoId, content, isRichText: true });
+  workerSend("SAVE_INLINE_EDIT", { memoId, content, isRichText: true });
   if (memoId) stickyNoteDirtyMap[memoId] = false;
   state.isStickyNoteEditing = false;
   state.suppressInlineFocus = false;
@@ -2129,9 +2375,9 @@ async function saveStickyNoteRichText(memoId) {
 function saveStickyNoteEdit(memoId, element) {
   const memo = state.memos?.[memoId];
   if (!memo || !element) return;
-  const content = (element.innerText || '').trim();
+  const content = (element.innerText || "").trim();
   state.suppressInlineFocus = true;
-  workerSend('SAVE_INLINE_EDIT', { memoId, content, isRichText: false });
+  workerSend("SAVE_INLINE_EDIT", { memoId, content, isRichText: false });
   state.isStickyNoteEditing = false;
   state.suppressInlineFocus = false;
   renderAssistantContent();
@@ -2141,29 +2387,35 @@ function saveStickyNoteEdit(memoId, element) {
 function focusInlineMemoEditor() {
   if (state.isStickyNoteEditing || state.suppressInlineFocus) return;
   if (!state.editingMemoId) return;
-  const inlineText = document.querySelector(`.imsmassi-memo-inline-text[data-memo-id="${state.editingMemoId}"]`);
+  const inlineText = document.querySelector(
+    `.imsmassi-memo-inline-text[data-memo-id="${state.editingMemoId}"]`,
+  );
   if (inlineText) {
     inlineText.focus();
     return;
   }
-  const inlineEditor = document.querySelector(`.imsmassi-memo-inline-editor[data-memo-id="${state.editingMemoId}"]`);
+  const inlineEditor = document.querySelector(
+    `.imsmassi-memo-inline-editor[data-memo-id="${state.editingMemoId}"]`,
+  );
   if (inlineEditor && inlineMemoQuillMap[state.editingMemoId]) {
     inlineMemoQuillMap[state.editingMemoId].focus();
   }
 }
 
 function initStickyNoteDrop() {
-  const layer = document.getElementById('sticky-layer');
-  if (!layer || layer.dataset.stickyDropBound === 'true') return;
-  layer.dataset.stickyDropBound = 'true';
+  const layer = document.getElementById("sticky-layer");
+  if (!layer || layer.dataset.stickyDropBound === "true") return;
+  layer.dataset.stickyDropBound = "true";
 
   const root = getAssistantRoot();
 
   // ── 헬퍼 ──────────────────────────────────────────────────────────────────
   /** drag 데이터에 memo-id 포함 여부 확인 */
   function _isMemoIdDrag(event) {
-    return event.dataTransfer?.types?.includes('text/memo-id') ||
-           event.dataTransfer?.types?.includes('text/plain');
+    return (
+      event.dataTransfer?.types?.includes("text/memo-id") ||
+      event.dataTransfer?.types?.includes("text/plain")
+    );
   }
 
   /**
@@ -2171,16 +2423,20 @@ function initStickyNoteDrop() {
    * clip-path 로 가려진 영역은 드롭 대상에서 제외합니다.
    */
   function _isInsideStickyLayer(event) {
-    const layerEl = document.getElementById('sticky-layer');
-    if (!layerEl || layerEl.style.display === 'none') return false;
+    const layerEl = document.getElementById("sticky-layer");
+    if (!layerEl || layerEl.style.display === "none") return false;
     const lr = layerEl.getBoundingClientRect();
-    return event.clientX >= lr.left && event.clientX <= lr.right &&
-           event.clientY >= lr.top  && event.clientY <= lr.bottom;
+    return (
+      event.clientX >= lr.left &&
+      event.clientX <= lr.right &&
+      event.clientY >= lr.top &&
+      event.clientY <= lr.bottom
+    );
   }
 
   /** clientX/Y → sticky-layer 기준 상대좌표 변환 */
   function _toLayerCoords(event) {
-    const layerEl = document.getElementById('sticky-layer');
+    const layerEl = document.getElementById("sticky-layer");
     if (!layerEl) return { x: 0, y: 0 };
     const lr = layerEl.getBoundingClientRect();
     return {
@@ -2190,15 +2446,17 @@ function initStickyNoteDrop() {
   }
 
   // ── 1. 어시스턴트 패널 내 dragover/drop ──────────────────────────────────
-  root.addEventListener('dragover', (event) => {
+  root.addEventListener("dragover", (event) => {
     if (_isMemoIdDrag(event)) {
       event.preventDefault();
-      event.dataTransfer.dropEffect = 'copy';
+      event.dataTransfer.dropEffect = "copy";
     }
   });
 
-  root.addEventListener('drop', (event) => {
-    const memoId = event.dataTransfer?.getData('text/memo-id') || event.dataTransfer?.getData('text/plain');
+  root.addEventListener("drop", (event) => {
+    const memoId =
+      event.dataTransfer?.getData("text/memo-id") ||
+      event.dataTransfer?.getData("text/plain");
     if (!memoId) return;
     event.preventDefault();
     // 패널 내 드롭: 기본 위치 배치 (패널과 sticky-layer 좌표계가 다름)
@@ -2208,29 +2466,39 @@ function initStickyNoteDrop() {
   // ── 2. sticky-layer 오버레이 영역 dragover/drop (내부시스템 오버레이 대응) ─
   // sticky-layer 는 pointer-events: none 이므로 HTML5 DnD 이벤트를 직접 받지 못합니다.
   // 따라서 document 캡처 단계에서 커서 위치를 체크하여 드롭을 처리합니다.
-  document.addEventListener('dragover', (event) => {
-    if (!_isMemoIdDrag(event)) return;
-    if (_isInsideStickyLayer(event)) {
+  document.addEventListener(
+    "dragover",
+    (event) => {
+      if (!_isMemoIdDrag(event)) return;
+      if (_isInsideStickyLayer(event)) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }
+    },
+    true /* capture */,
+  );
+
+  document.addEventListener(
+    "drop",
+    (event) => {
+      if (!_isMemoIdDrag(event)) return;
+      // 패널 내 드롭은 위의 root 핸들러에서 처리
+      if (root.contains(event.target)) return;
+      if (!_isInsideStickyLayer(event)) return;
+
       event.preventDefault();
-      event.dataTransfer.dropEffect = 'copy';
-    }
-  }, true /* capture */);
+      event.stopPropagation(); // 호스트 시스템의 drop 처리 방지
 
-  document.addEventListener('drop', (event) => {
-    if (!_isMemoIdDrag(event)) return;
-    // 패널 내 드롭은 위의 root 핸들러에서 처리
-    if (root.contains(event.target)) return;
-    if (!_isInsideStickyLayer(event)) return;
+      const memoId =
+        event.dataTransfer?.getData("text/memo-id") ||
+        event.dataTransfer?.getData("text/plain");
+      if (!memoId) return;
 
-    event.preventDefault();
-    event.stopPropagation(); // 호스트 시스템의 drop 처리 방지
-
-    const memoId = event.dataTransfer?.getData('text/memo-id') || event.dataTransfer?.getData('text/plain');
-    if (!memoId) return;
-
-    const { x, y } = _toLayerCoords(event);
-    addStickyNote(memoId, x, y);
-  }, true /* capture */);
+      const { x, y } = _toLayerCoords(event);
+      addStickyNote(memoId, x, y);
+    },
+    true /* capture */,
+  );
 }
 
 // ========================================
@@ -2262,20 +2530,20 @@ let _stickyLayerResizeObserver = null;
  * 호스트 DOM 스타일 수정 없음.
  */
 function _syncStickyLayerBounds() {
-  const layer = document.getElementById('sticky-layer');
+  const layer = document.getElementById("sticky-layer");
   if (!layer || !_stickyLayerTargetEl) return;
   if (!_stickyLayerTargetEl.isConnected) {
-    layer.style.display = 'none';
+    layer.style.display = "none";
     return;
   }
   const boundsEl = _stickyLayerTargetEl.parentElement || _stickyLayerTargetEl;
   const r = boundsEl.getBoundingClientRect();
   if (r.width <= 0 || r.height <= 0) return;
-  layer.style.setProperty('top',    `${r.top}px`,    'important');
-  layer.style.setProperty('left',   `${r.left}px`,   'important');
-  layer.style.setProperty('width',  `${r.width}px`,  'important');
-  layer.style.setProperty('height', `${r.height}px`, 'important');
-  layer.style.removeProperty('display');
+  layer.style.setProperty("top", `${r.top}px`, "important");
+  layer.style.setProperty("left", `${r.left}px`, "important");
+  layer.style.setProperty("width", `${r.width}px`, "important");
+  layer.style.setProperty("height", `${r.height}px`, "important");
+  layer.style.removeProperty("display");
 }
 
 /**
@@ -2293,44 +2561,53 @@ function setupStickyLayerObserver(cfg = {}) {
   }
 
   _stickyLayerConfig = {
-    windowContainerClass: cfg.windowContainerClass || 'w2windowContainer_selectedNameLayer',
-    pgIdClass:            cfg.pgIdClass            || 'pg-id',
+    windowContainerClass:
+      cfg.windowContainerClass || "w2windowContainer_selectedNameLayer",
+    pgIdClass: cfg.pgIdClass || "pg-id",
     // pgEl.parentElement 기준으로 몇 단계 이동할지 (0=기본, 양수=더 내려감, 음수=더 올라감)
-    targetDepth:          cfg.targetDepth          ?? 0,
+    targetDepth: cfg.targetDepth ?? 0,
     // 앵커 클래스 변경 시 최신 menuId를 반환하는 함수 (호스트 측에서 주입)
-    getMenuId:            cfg.getMenuId            || null,
+    getMenuId: cfg.getMenuId || null,
     // menuId로부터 areaId를 파생하는 함수 (호스트 측에서 주입)
     // 예: getAreaId: (menuId) => menuId.split('-')[0]
-    getAreaId:            cfg.getAreaId            || null,
+    getAreaId: cfg.getAreaId || null,
   };
 
   _stickyLayerObserver = new MutationObserver((mutations) => {
     // relocateStickyLayer 실행 중 발생한 DOM 변경은 무시 (무한루프 방지)
     if (_stickyLayerRelocating) return;
 
-    const stickyLayer = document.getElementById('sticky-layer');
+    const stickyLayer = document.getElementById("sticky-layer");
     const hasClassChange = mutations.some(
-      (m) => m.type === 'attributes' && m.attributeName === 'class'
-             // sticky-layer 내부에서 발생한 클래스 변경은 이미지 실쿜 컨테이너 처리에 의한 부수효과 → 무시
-             && !(stickyLayer && stickyLayer.contains(m.target))
+      (m) =>
+        m.type === "attributes" &&
+        m.attributeName === "class" &&
+        // sticky-layer 내부에서 발생한 클래스 변경은 이미지 실쿜 컨테이너 처리에 의한 부수효과 → 무시
+        !(stickyLayer && stickyLayer.contains(m.target)),
     );
     if (!hasClassChange) return;
 
     // 윈도우 컨테이너 범위 내 클래스 변경 → getMenuId()로 현재 화면 확인
     // menuId + areaId를 한 번에 전송 → Worker가 STATE_UPDATE 1회만 응답
     // (분리 전송 시 첫 STATE_UPDATE에서 menuId는 신규·areaId는 구값인 채로 리렌더링되는 문제 방지)
-    if (typeof _stickyLayerConfig.getMenuId === 'function') {
+    if (typeof _stickyLayerConfig.getMenuId === "function") {
       const newMenuId = _stickyLayerConfig.getMenuId();
       if (newMenuId && newMenuId !== state.selectedMenu) {
-        const newAreaId = typeof _stickyLayerConfig.getAreaId === 'function'
-          ? _stickyLayerConfig.getAreaId(newMenuId)
-          : null;
+        const newAreaId =
+          typeof _stickyLayerConfig.getAreaId === "function"
+            ? _stickyLayerConfig.getAreaId(newMenuId)
+            : null;
         // 로컬 state 먼저 동기 업데이트 (렌더 함수가 즉시 올바른 값 읽도록)
         state.selectedMenu = newMenuId;
         if (newAreaId) state.selectedArea = newAreaId;
         // menuId + areaId 한 번에 전송
-        workerSend('CONTEXT_CHANGE', { menuId: newMenuId, ...(newAreaId ? { areaId: newAreaId } : {}) });
-        console.log(`[Assistant] 화면 전환 감지 → menuId: ${newMenuId}, areaId: ${state.selectedArea}`);
+        workerSend("CONTEXT_CHANGE", {
+          menuId: newMenuId,
+          ...(newAreaId ? { areaId: newAreaId } : {}),
+        });
+        console.log(
+          `[Assistant] 화면 전환 감지 → menuId: ${newMenuId}, areaId: ${state.selectedArea}`,
+        );
       }
     }
 
@@ -2344,42 +2621,52 @@ function setupStickyLayerObserver(cfg = {}) {
   // 앵커 요소 탐색 후 옵저버 활성화
   // 웹스퀘어 init() 이후 동적으로 DOM이 생성되는 경우를 위해 폴링으로 재시도
   function _attachObserver() {
-    const anchorEl = document.querySelector(`.${_stickyLayerConfig.windowContainerClass}`);
+    const anchorEl = document.querySelector(
+      `.${_stickyLayerConfig.windowContainerClass}`,
+    );
     if (!anchorEl) return false;
 
     // 앵커의 부모(윈도우 컨테이너)만 감시 — body 전체 감시보다 범위 최소화
     _stickyLayerObserver.observe(anchorEl.parentElement || document.body, {
       subtree: true,
       attributes: true,
-      attributeFilter: ['class'],
+      attributeFilter: ["class"],
     });
 
     // 초기 menuId/areaId 즉시 설정 (옵저버 발화 전에 state를 올바른 값으로)
     // 앵커가 즉시 발견된 경우: INIT 페이로드에 이미 포함됨 (bootstrapAssistant에서 수집)
     // 앵커가 지연 발견된 경우(DOM watcher 경유): Worker가 이미 초기화된 후이므로 CONTEXT_CHANGE 필요
-    if (typeof _stickyLayerConfig.getMenuId === 'function') {
+    if (typeof _stickyLayerConfig.getMenuId === "function") {
       const initMenuId = _stickyLayerConfig.getMenuId();
       if (initMenuId) {
         state.selectedMenu = initMenuId;
-        const initAreaId = typeof _stickyLayerConfig.getAreaId === 'function'
-          ? _stickyLayerConfig.getAreaId(initMenuId)
-          : null;
+        const initAreaId =
+          typeof _stickyLayerConfig.getAreaId === "function"
+            ? _stickyLayerConfig.getAreaId(initMenuId)
+            : null;
         if (initAreaId) state.selectedArea = initAreaId;
         // menuId + areaId를 한 번에 전송 (STATE_UPDATE 1회로 감소)
-        workerSend('CONTEXT_CHANGE', { menuId: initMenuId, ...(initAreaId ? { areaId: initAreaId } : {}) });
-        console.log(`[Assistant] 초기 컨텍스트 설정 → menuId: ${initMenuId}, areaId: ${state.selectedArea}`);
+        workerSend("CONTEXT_CHANGE", {
+          menuId: initMenuId,
+          ...(initAreaId ? { areaId: initAreaId } : {}),
+        });
+        console.log(
+          `[Assistant] 초기 컨텍스트 설정 → menuId: ${initMenuId}, areaId: ${state.selectedArea}`,
+        );
       }
     }
 
     // 초기 배치
     relocateStickyLayer();
-    console.log('[Assistant] sticky-layer 옵저버 활성화:', _stickyLayerConfig);
+    console.log("[Assistant] sticky-layer 옵저버 활성화:", _stickyLayerConfig);
     return true;
   }
 
   if (!_attachObserver()) {
     // 앵커 미발견 → DOM 추가 감지 옵저버로 대기 (웹스퀘어 init() 이후 동적 생성 대응)
-    console.warn(`[Assistant] .${_stickyLayerConfig.windowContainerClass} 미발견 → DOM 추가 감지 대기 중`);
+    console.warn(
+      `[Assistant] .${_stickyLayerConfig.windowContainerClass} 미발견 → DOM 추가 감지 대기 중`,
+    );
     const _domWatcher = new MutationObserver(() => {
       if (_attachObserver()) {
         _domWatcher.disconnect();
@@ -2399,10 +2686,10 @@ function setupStickyLayerObserver(cfg = {}) {
  *                   └── parentElement  ← 위치 기준 타겟
  */
 function _resolveTargetContainer() {
-  const cfg          = _stickyLayerConfig;
-  const anchorClass  = cfg.windowContainerClass;
-  const pgIdClass    = cfg.pgIdClass || 'pg-id';
-  const menuId       = state.selectedMenu;
+  const cfg = _stickyLayerConfig;
+  const anchorClass = cfg.windowContainerClass;
+  const pgIdClass = cfg.pgIdClass || "pg-id";
+  const menuId = state.selectedMenu;
 
   if (!anchorClass || !menuId) return null;
 
@@ -2415,9 +2702,11 @@ function _resolveTargetContainer() {
   if (!windowContainer) return null;
 
   const pgEls = windowContainer.querySelectorAll(`.${pgIdClass}`);
-  const pgEl  = Array.from(pgEls).find(el => el.textContent.trim() === menuId);
+  const pgEl = Array.from(pgEls).find((el) => el.textContent.trim() === menuId);
   if (!pgEl) {
-    console.warn(`[Assistant] _resolveTargetContainer: textContent="${menuId}" 인 .${pgIdClass} 미발견`);
+    console.warn(
+      `[Assistant] _resolveTargetContainer: textContent="${menuId}" 인 .${pgIdClass} 미발견`,
+    );
     return null;
   }
 
@@ -2453,10 +2742,10 @@ function _resolveTargetContainer() {
 function relocateStickyLayer() {
   if (_stickyLayerRelocating) return;
 
-  let layer = document.getElementById('sticky-layer');
+  let layer = document.getElementById("sticky-layer");
   if (!layer) {
-    layer = document.createElement('div');
-    layer.id = 'sticky-layer';
+    layer = document.createElement("div");
+    layer.id = "sticky-layer";
   }
   // 항상 body 직속 유지
   if (layer.parentElement !== document.body) {
@@ -2481,14 +2770,16 @@ function relocateStickyLayer() {
   }
 
   // ② 전환 중 포스트잇 즉시 숨김 (순간이동 방지)
-  layer.style.visibility = 'hidden';
-  layer.innerHTML = '';
+  layer.style.visibility = "hidden";
+  layer.innerHTML = "";
 
   _stickyLayerTargetEl = targetElement;
 
   if (targetElement && targetElement.isConnected) {
     // ③ ResizeObserver: 타겟 및 부모 컨테이너 크기 변화 → bounds 재계산
-    _stickyLayerResizeObserver = new ResizeObserver(() => _syncStickyLayerBounds());
+    _stickyLayerResizeObserver = new ResizeObserver(() =>
+      _syncStickyLayerBounds(),
+    );
     _stickyLayerResizeObserver.observe(targetElement);
     if (targetElement.parentElement) {
       _stickyLayerResizeObserver.observe(targetElement.parentElement);
@@ -2499,15 +2790,17 @@ function relocateStickyLayer() {
       _syncStickyLayerBounds();
       renderStickyNotes();
       requestAnimationFrame(() => {
-        layer.style.visibility = '';
+        layer.style.visibility = "";
       });
     });
 
-    console.log(`[Assistant] sticky-layer fixed → 타겟: ${targetElement.tagName}#${targetElement.id || ''}`);
+    console.log(
+      `[Assistant] sticky-layer fixed → 타겟: ${targetElement.tagName}#${targetElement.id || ""}`,
+    );
   } else {
-    layer.style.display = 'none';
-    layer.style.visibility = '';
-    console.log('[Assistant] sticky-layer 비활성화 (대상 없음)');
+    layer.style.display = "none";
+    layer.style.visibility = "";
+    console.log("[Assistant] sticky-layer 비활성화 (대상 없음)");
   }
 
   _stickyLayerRelocating = false;
@@ -2524,61 +2817,61 @@ function notifyThemeChange() {
     theme,
   };
 
-  if (typeof window.applyBaseTheme === 'function') {
+  if (typeof window.applyBaseTheme === "function") {
     window.applyBaseTheme(detail);
   }
 
-  if (typeof window.setBaseTheme === 'function') {
+  if (typeof window.setBaseTheme === "function") {
     window.setBaseTheme(detail);
   }
 
-  if (typeof window.onAssistantThemeChange === 'function') {
+  if (typeof window.onAssistantThemeChange === "function") {
     window.onAssistantThemeChange(detail);
   }
 
-  window.dispatchEvent(new CustomEvent('assistant:themechange', { detail }));
+  window.dispatchEvent(new CustomEvent("assistant:themechange", { detail }));
 }
 
 function setTheme(themeKey) {
   if (!themes[themeKey]) return;
-  workerSend('SET_THEME', { themeKey });
+  workerSend("SET_THEME", { themeKey });
   // 테마 변경 알림 (로컬 즉각 처리)
   state.currentTheme = themeKey;
   notifyThemeChange();
 }
 
 function setDarkMode(isDark) {
-  workerSend('SET_DARK_MODE', { isDark });
+  workerSend("SET_DARK_MODE", { isDark });
   // UI 즉각 반영 (STATE_UPDATE 수신 전까지 로컬 처리)
   state.isDarkMode = isDark;
   const root = getAssistantStyleRoot();
-  root.classList.toggle('imsmassi-dark-mode', isDark);
-  const btnLight = document.getElementById('btn-light');
-  const btnDark = document.getElementById('btn-dark');
-  if (btnLight) btnLight.classList.toggle('imsmassi-active', !isDark);
+  root.classList.toggle("imsmassi-dark-mode", isDark);
+  const btnLight = document.getElementById("btn-light");
+  const btnDark = document.getElementById("btn-dark");
+  if (btnLight) btnLight.classList.toggle("imsmassi-active", !isDark);
   if (btnDark) {
-    btnDark.classList.toggle('imsmassi-active', isDark);
-    btnDark.classList.toggle('dark-active', isDark);
+    btnDark.classList.toggle("imsmassi-active", isDark);
+    btnDark.classList.toggle("dark-active", isDark);
   }
   notifyThemeChange();
   renderAll();
 }
 
 function setSelectedArea(areaId) {
-  const areaSelect = document.getElementById('area-select');
+  const areaSelect = document.getElementById("area-select");
   if (areaSelect) areaSelect.value = areaId;
-  workerSend('CONTEXT_CHANGE', { areaId });
+  workerSend("CONTEXT_CHANGE", { areaId });
   state.selectedArea = areaId;
 }
 
 function selectMenu(menu) {
   state.selectedMenu = menu;
-  workerSend('CONTEXT_CHANGE', { menuId: menu });
-  if (typeof _stickyLayerConfig.getAreaId === 'function') {
+  workerSend("CONTEXT_CHANGE", { menuId: menu });
+  if (typeof _stickyLayerConfig.getAreaId === "function") {
     const areaId = _stickyLayerConfig.getAreaId(menu);
     if (areaId) {
       state.selectedArea = areaId;
-      workerSend('CONTEXT_CHANGE', { areaId });
+      workerSend("CONTEXT_CHANGE", { areaId });
     }
   }
   relocateStickyLayer();
@@ -2590,8 +2883,8 @@ function selectMenu(menu) {
 // 날짜를 YYYY-MM-DD 형식으로 변환
 function getDailyBucket(date = new Date()) {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -2604,13 +2897,13 @@ function getWeeklyBucket(date = new Date()) {
   weekStart.setDate(jan4.getDate() - jan4.getDay());
   const diff = date.getTime() - weekStart.getTime();
   const week = Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1;
-  return `${year}-W${String(week).padStart(2, '0')}`;
+  return `${year}-W${String(week).padStart(2, "0")}`;
 }
 
 // 월을 YYYY-MM 형식으로 변환
 function getMonthlyBucket(date = new Date()) {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, "0");
   return `${year}-${month}`;
 }
 
@@ -2652,7 +2945,7 @@ function pruneTimeBuckets(daysBefore = 30) {
     state.timeBuckets = { daily: {}, weekly: {}, monthly: {} };
   }
 
-  const cutoffTime = Date.now() - (daysBefore * 24 * 60 * 60 * 1000);
+  const cutoffTime = Date.now() - daysBefore * 24 * 60 * 60 * 1000;
   let dailyRemoved = 0;
   let weeklyRemoved = 0;
   let monthlyRemoved = 0;
@@ -2715,23 +3008,28 @@ function recordToBucket(areaId, elapsedMs) {
   if (!state.timeBuckets.daily[dailyKey]) {
     state.timeBuckets.daily[dailyKey] = {};
   }
-  state.timeBuckets.daily[dailyKey][areaId] = (state.timeBuckets.daily[dailyKey][areaId] || 0) + elapsedMs;
+  state.timeBuckets.daily[dailyKey][areaId] =
+    (state.timeBuckets.daily[dailyKey][areaId] || 0) + elapsedMs;
 
   // 주별 버킷
   if (!state.timeBuckets.weekly) state.timeBuckets.weekly = {};
   if (!state.timeBuckets.weekly[weeklyKey]) {
     state.timeBuckets.weekly[weeklyKey] = {};
   }
-  state.timeBuckets.weekly[weeklyKey][areaId] = (state.timeBuckets.weekly[weeklyKey][areaId] || 0) + elapsedMs;
+  state.timeBuckets.weekly[weeklyKey][areaId] =
+    (state.timeBuckets.weekly[weeklyKey][areaId] || 0) + elapsedMs;
 
   // 월별 버킷
   if (!state.timeBuckets.monthly) state.timeBuckets.monthly = {};
   if (!state.timeBuckets.monthly[monthlyKey]) {
     state.timeBuckets.monthly[monthlyKey] = {};
   }
-  state.timeBuckets.monthly[monthlyKey][areaId] = (state.timeBuckets.monthly[monthlyKey][areaId] || 0) + elapsedMs;
+  state.timeBuckets.monthly[monthlyKey][areaId] =
+    (state.timeBuckets.monthly[monthlyKey][areaId] || 0) + elapsedMs;
 
-  console.log(`[recordToBucket] 일: ${dailyKey}, 주: ${weeklyKey}, 월: ${monthlyKey}`);
+  console.log(
+    `[recordToBucket] 일: ${dailyKey}, 주: ${weeklyKey}, 월: ${monthlyKey}`,
+  );
   console.log(`[recordToBucket] 버킷 업데이트:`, state.timeBuckets);
 }
 
@@ -2740,11 +3038,15 @@ function recordToBucket(areaId, elapsedMs) {
 // ========================================
 // IndexedDB에서 메뉴 시간 통계 로드
 // [Worker 위임] 메뉴 시간 통계 로드 (Worker가 STATE_UPDATE로 복원)
-function loadMenuTimeStats() { /* Worker INIT 시 자동 복원 */ }
+function loadMenuTimeStats() {
+  /* Worker INIT 시 자동 복원 */
+}
 
 // IndexedDB에 메뉴 시간 통계 저장
 // [Worker 위임] saveMenuTimeStats (BEFORE_UNLOAD 메시지로 Worker가 처리)
-function saveMenuTimeStats() { workerSend('BEFORE_UNLOAD', {}); }
+function saveMenuTimeStats() {
+  workerSend("BEFORE_UNLOAD", {});
+}
 
 // Area ID 기반 시간 기록 (Worker 경유)
 function recordAreaTime(areaId) {
@@ -2752,7 +3054,7 @@ function recordAreaTime(areaId) {
   const now = Date.now();
   const elapsedMs = now - state.lastMenuChangeTime;
   state.lastMenuChangeTime = now;
-  workerSend('RECORD_AREA_TIME', { areaId, elapsedMs });
+  workerSend("RECORD_AREA_TIME", { areaId, elapsedMs });
 }
 
 function recordMenuTime(menu) {
@@ -2760,7 +3062,7 @@ function recordMenuTime(menu) {
   const now = Date.now();
   const elapsedMs = now - state.lastMenuChangeTime;
   state.lastMenuChangeTime = now;
-  workerSend('RECORD_AREA_TIME', { areaId: 'menu_' + menu, elapsedMs });
+  workerSend("RECORD_AREA_TIME", { areaId: "menu_" + menu, elapsedMs });
 }
 
 // ========================================
@@ -2792,7 +3094,7 @@ function getMonthlyStats(date = new Date()) {
 
 // 버킷 데이터를 표시용 통계로 변환
 function generateTimeStats(bucketData) {
-  const items = getBusinessAreas().map(area => {
+  const items = getBusinessAreas().map((area) => {
     const totalMs = bucketData[area.id] || 0;
     const hours = Math.floor(totalMs / (1000 * 60 * 60));
     const minutes = Math.floor((totalMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -2810,13 +3112,18 @@ function generateTimeStats(bucketData) {
   const totalMs = items.reduce((sum, item) => sum + item.ms, 0);
   const totalHours = Math.floor(totalMs / (1000 * 60 * 60));
   const totalMinutes = Math.floor((totalMs % (1000 * 60 * 60)) / (1000 * 60));
-  const totalStr = totalHours > 0 ? `${totalHours}시간 ${totalMinutes}분` : `${totalMinutes}분`;
+  const totalStr =
+    totalHours > 0
+      ? `${totalHours}시간 ${totalMinutes}분`
+      : `${totalMinutes}분`;
 
   // 퍼센트 계산
-  const itemsWithPercent = items.map(item => ({
-    ...item,
-    percent: totalMs > 0 ? Math.round((item.ms / totalMs) * 100) : 0,
-  })).sort((a, b) => b.ms - a.ms);
+  const itemsWithPercent = items
+    .map((item) => ({
+      ...item,
+      percent: totalMs > 0 ? Math.round((item.ms / totalMs) * 100) : 0,
+    }))
+    .sort((a, b) => b.ms - a.ms);
 
   return {
     total: totalStr,
@@ -2834,7 +3141,7 @@ function getDateRangeStats(startDate, endDate) {
     const dailyKey = getDailyBucket(current);
     const dailyBucketData = state.timeBuckets.daily[dailyKey] || {};
 
-    Object.keys(dailyBucketData).forEach(areaId => {
+    Object.keys(dailyBucketData).forEach((areaId) => {
       if (!rangeData[areaId]) rangeData[areaId] = 0;
       rangeData[areaId] += dailyBucketData[areaId];
     });
@@ -2845,30 +3152,33 @@ function getDateRangeStats(startDate, endDate) {
   return generateTimeStats(rangeData);
 }
 
-function getTimeStats(period = 'today') {
+function getTimeStats(period = "today") {
   // 기간별 버킷 데이터 사용 (timeBuckets에서 조회)
   const now = Date.now();
   const today = new Date();
 
   // 해당 period의 버킷 키 계산
-  let bucketKey = '';
+  let bucketKey = "";
   let bucketData = {};
 
-  if (period === 'today') {
+  if (period === "today") {
     bucketKey = getDailyBucket(today);
     bucketData = state.timeBuckets?.daily?.[bucketKey] || {};
-  } else if (period === 'week') {
+  } else if (period === "week") {
     bucketKey = getWeeklyBucket(today);
     bucketData = state.timeBuckets?.weekly?.[bucketKey] || {};
-  } else if (period === 'month') {
+  } else if (period === "month") {
     bucketKey = getMonthlyBucket(today);
     bucketData = state.timeBuckets?.monthly?.[bucketKey] || {};
   }
 
-  console.log(`[getTimeStats] 기간: ${period}, 버킷: ${bucketKey}, 데이터:`, bucketData);
+  console.log(
+    `[getTimeStats] 기간: ${period}, 버킷: ${bucketKey}, 데이터:`,
+    bucketData,
+  );
 
   // 실제 저장된 시간 데이터로 items 생성 (area.id 기반)
-  const items = getBusinessAreas().map(area => {
+  const items = getBusinessAreas().map((area) => {
     const key = area.id;
     let totalMs = bucketData[key] || 0;
 
@@ -2893,13 +3203,18 @@ function getTimeStats(period = 'today') {
   const totalMs = items.reduce((sum, item) => sum + item.ms, 0);
   const totalHours = Math.floor(totalMs / (1000 * 60 * 60));
   const totalMinutes = Math.floor((totalMs % (1000 * 60 * 60)) / (1000 * 60));
-  const totalStr = totalHours > 0 ? `${totalHours}시간 ${totalMinutes}분` : `${totalMinutes}분`;
+  const totalStr =
+    totalHours > 0
+      ? `${totalHours}시간 ${totalMinutes}분`
+      : `${totalMinutes}분`;
 
   // 퍼센트 계산
-  const itemsWithPercent = items.map(item => ({
-    ...item,
-    percent: totalMs > 0 ? Math.round((item.ms / totalMs) * 100) : 0,
-  })).sort((a, b) => b.ms - a.ms);
+  const itemsWithPercent = items
+    .map((item) => ({
+      ...item,
+      percent: totalMs > 0 ? Math.round((item.ms / totalMs) * 100) : 0,
+    }))
+    .sort((a, b) => b.ms - a.ms);
 
   return {
     total: totalStr,
@@ -2921,7 +3236,7 @@ function getRelativeTime(ms) {
   if (days > 0) return `${days}일 전`;
   if (hours > 0) return `${hours}시간 ${minutes % 60}분 전`;
   if (minutes > 0) return `${minutes}분 전`;
-  return '방금 전';
+  return "방금 전";
 }
 
 async function captureClipboard() {
@@ -2932,7 +3247,7 @@ async function captureClipboard() {
     // 여기서는 수동 입력 또는 드래그 드롭으로 처리하도록 함
     // Ctrl+C 감지는 아래에서 처리
   } catch (error) {
-    console.error('클립보드 읽기 실패:', error);
+    console.error("클립보드 읽기 실패:", error);
   }
 }
 
@@ -2941,15 +3256,15 @@ async function captureClipboard() {
 // 중복 시 카운트 증가 및 최상단 이동
 // ========================================
 function refreshClipboardStateFromDB() {
-  workerSend('REFRESH_CLIPBOARD', {});
+  workerSend("REFRESH_CLIPBOARD", {});
 }
 
 function updateClipboardPanel(preserveScroll = true) {
   if (!state.assistantOpen) return false;
-  const panelBody = document.getElementById('clipboard-panel-body');
+  const panelBody = document.getElementById("clipboard-panel-body");
   if (!panelBody) return false;
   const previousScroll = preserveScroll ? panelBody.scrollTop : 0;
-  panelBody.innerHTML = '';
+  panelBody.innerHTML = "";
   panelBody.appendChild(renderClipboardTabDOM());
   if (preserveScroll) {
     panelBody.scrollTop = Math.min(previousScroll, panelBody.scrollHeight);
@@ -2958,10 +3273,10 @@ function updateClipboardPanel(preserveScroll = true) {
 }
 
 function addClipboardItem(content, options = {}) {
-  if (!content || typeof content !== 'string') return;
+  if (!content || typeof content !== "string") return;
   const trimmed = content.trim();
   if (!trimmed.length) return;
-  workerSend('ADD_CLIPBOARD', { content: trimmed, options });
+  workerSend("ADD_CLIPBOARD", { content: trimmed, options });
 }
 
 // ========================================
@@ -2969,21 +3284,29 @@ function addClipboardItem(content, options = {}) {
 // ========================================
 function normalizeExternalPayload(payload) {
   if (!payload) return null;
-  if (typeof payload === 'string') return payload.trim();
+  if (typeof payload === "string") return payload.trim();
 
   if (Array.isArray(payload)) {
     return payload
-      .map(row => Array.isArray(row) ? row.map(cell => `${cell ?? ''}`).join('\t') : `${row ?? ''}`)
-      .join('\n');
+      .map((row) =>
+        Array.isArray(row)
+          ? row.map((cell) => `${cell ?? ""}`).join("\t")
+          : `${row ?? ""}`,
+      )
+      .join("\n");
   }
 
-  if (typeof payload === 'object') {
+  if (typeof payload === "object") {
     if (payload.tsv) return String(payload.tsv).trim();
     if (payload.text) return String(payload.text).trim();
     if (payload.rows && Array.isArray(payload.rows)) {
       return payload.rows
-        .map(row => Array.isArray(row) ? row.map(cell => `${cell ?? ''}`).join('\t') : `${row ?? ''}`)
-        .join('\n');
+        .map((row) =>
+          Array.isArray(row)
+            ? row.map((cell) => `${cell ?? ""}`).join("\t")
+            : `${row ?? ""}`,
+        )
+        .join("\n");
     }
   }
   return null;
@@ -2996,7 +3319,7 @@ async function ingestExternalContent(payload) {
   await addClipboardItem(normalized);
   if (!state.assistantOpen) state.assistantOpen = true;
   renderAssistant();
-  showToast('외부 데이터가 수신되었습니다');
+  showToast("외부 데이터가 수신되었습니다");
   return true;
 }
 
@@ -3006,35 +3329,41 @@ window.assistantBridge = {
   pushText: (payload) => ingestExternalContent(payload),
   setArea: (areaId) => setSelectedArea(areaId),
   setMenu: (menu) => selectMenu(menu),
-  open: () => { state.assistantOpen = true; renderAssistant(); },
-  close: () => { state.assistantOpen = false; renderAssistant(); },
-  ping: () => 'ok',
+  open: () => {
+    state.assistantOpen = true;
+    renderAssistant();
+  },
+  close: () => {
+    state.assistantOpen = false;
+    renderAssistant();
+  },
+  ping: () => "ok",
   // sticky-layer 재배치 제어
   setupStickyLayerObserver: (cfg) => setupStickyLayerObserver(cfg || {}),
   relocateStickyLayer: () => relocateStickyLayer(),
 };
 
 // postMessage 기반 브리지 (cross-frame 대응)
-window.addEventListener('message', (event) => {
+window.addEventListener("message", (event) => {
   const data = event.data;
   if (!data || !data.type) return;
 
   switch (data.type) {
-    case 'assistant:gridData':
-    case 'assistant:text':
+    case "assistant:gridData":
+    case "assistant:text":
       ingestExternalContent(data.payload);
       break;
-    case 'assistant:setArea':
+    case "assistant:setArea":
       setSelectedArea(data.payload);
       break;
-    case 'assistant:setMenu':
+    case "assistant:setMenu":
       selectMenu(data.payload);
       break;
-    case 'assistant:open':
+    case "assistant:open":
       state.assistantOpen = true;
       renderAssistant();
       break;
-    case 'assistant:close':
+    case "assistant:close":
       state.assistantOpen = false;
       renderAssistant();
       break;
@@ -3049,17 +3378,17 @@ window.addEventListener('message', (event) => {
 function getTodosFromReminders() {
   const todos = [];
 
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
 
   // 모든 메모 탐색 (state.memos는 객체 구조: {memoId: memoData})
-  Object.values(state.memos).forEach(memo => {
+  Object.values(state.memos).forEach((memo) => {
     if (memo.reminder) {
       // reminder는 "YYYY-MM-DD HH:MM" 형식이므로 날짜 부분 추출
-      const reminderDate = memo.reminder.split(' ')[0]; // YYYY-MM-DD
+      const reminderDate = memo.reminder.split(" ")[0]; // YYYY-MM-DD
       todos.push({
         id: memo.id,
         text: getMemoPlainText(memo),
-        title: memo.title || '', // 메모 제목
+        title: memo.title || "", // 메모 제목
         reminder: memo.reminder,
         reminderDate: reminderDate,
         //reminderTime: memo.reminder.split(' ')[1] || '00:00', // HH:MM
@@ -3077,9 +3406,9 @@ function getTodosFromReminders() {
     if (a.isPast !== b.isPast) return a.isPast ? 1 : -1;
     if (a.isToday !== b.isToday) return b.isToday ? 1 : -1;
     // 같은 날짜면 시간순 정렬
-    const timeA = a.reminder.split(':').map(Number);
-    const timeB = b.reminder.split(':').map(Number);
-    return (timeA[0] * 60 + timeA[1]) - (timeB[0] * 60 + timeB[1]);
+    const timeA = a.reminder.split(":").map(Number);
+    const timeB = b.reminder.split(":").map(Number);
+    return timeA[0] * 60 + timeA[1] - (timeB[0] * 60 + timeB[1]);
   });
 
   return todos;
@@ -3087,12 +3416,12 @@ function getTodosFromReminders() {
 
 //당일 리마인더
 function getTodayReminders() {
-  const filtered = getTodosFromReminders().filter(todo => !todo.isPast);
+  const filtered = getTodosFromReminders().filter((todo) => !todo.isPast);
   return filtered;
 }
 //지난 리마인더
 function getPastReminders() {
-  const filtered = getTodosFromReminders().filter(todo => todo.isPast);
+  const filtered = getTodosFromReminders().filter((todo) => todo.isPast);
   return filtered;
 }
 
@@ -3100,7 +3429,7 @@ function getPastReminders() {
 // 할 일 관리
 // ========================================
 function toggleTodo(memoId) {
-  workerSend('TOGGLE_TODO', { memoId });
+  workerSend("TOGGLE_TODO", { memoId });
 }
 
 // ========================================
@@ -3112,67 +3441,72 @@ let lastCheckedMinute = null;
 // 알림 권한 요청
 function requestNotificationPermission() {
   if (!state.settings.browserNotificationEnabled) return;
-  if (!('Notification' in window)) {
-    console.log('⚠️ 이 브라우저는 Web Notification을 지원하지 않습니다.');
+  if (!("Notification" in window)) {
+    console.log("⚠️ 이 브라우저는 Web Notification을 지원하지 않습니다.");
     return;
   }
 
-  if (Notification.permission === 'granted') {
-    console.log('✓ 알림 권한이 이미 승인되었습니다.');
+  if (Notification.permission === "granted") {
+    console.log("✓ 알림 권한이 이미 승인되었습니다.");
     return;
   }
 
-  if (Notification.permission === 'denied') {
-    console.log('⚠️ 사용자가 알림을 거부했습니다. 브라우저 설정에서 권한을 변경하세요.');
+  if (Notification.permission === "denied") {
+    console.log(
+      "⚠️ 사용자가 알림을 거부했습니다. 브라우저 설정에서 권한을 변경하세요.",
+    );
     return;
   }
 
   // 'default' 상태일 때만 요청
-  console.log('🔔 알림 권한을 요청 중입니다...');
-  Notification.requestPermission().then(permission => {
-    if (permission === 'granted') {
-      console.log('✓ 알림 권한이 승인되었습니다.');
-    } else if (permission === 'denied') {
-      console.log('⚠️ 사용자가 알림을 거부했습니다.');
-    }
-  }).catch(error => {
-    console.error('알림 권한 요청 실패:', error);
-  });
+  console.log("🔔 알림 권한을 요청 중입니다...");
+  Notification.requestPermission()
+    .then((permission) => {
+      if (permission === "granted") {
+        console.log("✓ 알림 권한이 승인되었습니다.");
+      } else if (permission === "denied") {
+        console.log("⚠️ 사용자가 알림을 거부했습니다.");
+      }
+    })
+    .catch((error) => {
+      console.error("알림 권한 요청 실패:", error);
+    });
 }
 
 // 브라우저 알림 표시
 function sendBrowserNotification(title, options = {}) {
   if (!state.settings.browserNotificationEnabled) return;
-  if (!('Notification' in window)) {
-    console.warn('이 브라우저는 Web Notification을 지원하지 않습니다.');
+  if (!("Notification" in window)) {
+    console.warn("이 브라우저는 Web Notification을 지원하지 않습니다.");
     return;
   }
 
-  if (Notification.permission === 'granted') {
+  if (Notification.permission === "granted") {
     try {
       new Notification(title, {
         icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🔔</text></svg>',
-        badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="%23FF6B6B"/></svg>',
-        tag: 'reminder-notification',
+        badge:
+          'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="%23FF6B6B"/></svg>',
+        tag: "reminder-notification",
         requireInteraction: false,
-        ...options
+        ...options,
       });
       console.log(`✓ 브라우저 알림 발송: ${title}`);
     } catch (error) {
-      console.error('브라우저 알림 전송 실패:', error);
+      console.error("브라우저 알림 전송 실패:", error);
     }
-  } else if (Notification.permission !== 'denied') {
-    console.log('알림 권한이 아직 설정되지 않았습니다.');
+  } else if (Notification.permission !== "denied") {
+    console.log("알림 권한이 아직 설정되지 않았습니다.");
   }
 }
 
 // UI 알림 표시 (어시스턴트 상태에 따라 다르게 표시)
-function showNotificationToast(title, content, areaId = '', duration = 6000) {
+function showNotificationToast(title, content, areaId = "", duration = 6000) {
   if (state.assistantOpen) {
     // 어시스턴트 열려있으면
     if (state.autoNavigateToDashboard) {
       // 대시보드 탭으로 이동 (설정 활성화 시)
-      setActiveTab('dashboard');
+      setActiveTab("dashboard");
     }
     // 우측 상단 토스트로 표시
     showRightTopToast(title, content, areaId, duration);
@@ -3183,77 +3517,79 @@ function showNotificationToast(title, content, areaId = '', duration = 6000) {
 }
 
 // 우측 상단 토스트 (어시스턴트 열려있을 때)
-function showRightTopToast(title, content, areaId = '', duration = 6000) {
+function showRightTopToast(title, content, areaId = "", duration = 6000) {
   const styleRoot = getAssistantStyleRoot();
-  let container = styleRoot.querySelector('#notification-toast-container');
+  let container = styleRoot.querySelector("#notification-toast-container");
 
   if (!container) {
-    const existing = document.getElementById('notification-toast-container');
+    const existing = document.getElementById("notification-toast-container");
     if (existing) existing.remove();
-    const newContainer = document.createElement('div');
-    newContainer.id = 'notification-toast-container';
-    newContainer.style.position = 'fixed';
-    newContainer.style.top = '20px';
-    newContainer.style.right = '20px';
-    newContainer.style.zIndex = '3000';
-    newContainer.style.pointerEvents = 'none';
+    const newContainer = document.createElement("div");
+    newContainer.id = "notification-toast-container";
+    newContainer.style.position = "fixed";
+    newContainer.style.top = "20px";
+    newContainer.style.right = "20px";
+    newContainer.style.zIndex = "3000";
+    newContainer.style.pointerEvents = "none";
     styleRoot.appendChild(newContainer);
     container = newContainer;
   }
 
-  const toastEl = document.createElement('div');
-  toastEl.className = 'imsmassi-notification-toast';
+  const toastEl = document.createElement("div");
+  toastEl.className = "imsmassi-notification-toast";
 
-  const areaName = getAreaName(areaId, '');
+  const areaName = getAreaName(areaId, "");
 
   toastEl.innerHTML = `
     <div class="imsmassi-notification-toast-title">${title}</div>
-    ${content ? `<div class="imsmassi-notification-toast-content">${content}</div>` : ''}
-    ${areaName ? `<div class="imsmassi-notification-toast-area">${areaName}</div>` : ''}
+    ${content ? `<div class="imsmassi-notification-toast-content">${content}</div>` : ""}
+    ${areaName ? `<div class="imsmassi-notification-toast-area">${areaName}</div>` : ""}
   `;
 
   container.appendChild(toastEl);
 
   // 애니메이션 트리거
-  setTimeout(() => toastEl.classList.add('imsmassi-show'), 10);
+  setTimeout(() => toastEl.classList.add("imsmassi-show"), 10);
 
   // 자동 제거
   setTimeout(() => {
-    toastEl.classList.remove('imsmassi-show');
+    toastEl.classList.remove("imsmassi-show");
     setTimeout(() => toastEl.remove(), 300);
   }, duration);
 }
 
 // 말풍선 알림 (어시스턴트 닫혀있을 때)
-function showBalloonNotification(title, content = '', duration = 6000) {
+function showBalloonNotification(title, content = "", duration = 6000) {
   const styleRoot = getAssistantStyleRoot();
-  let balloonContainer = styleRoot.querySelector('#balloon-notification-container');
+  let balloonContainer = styleRoot.querySelector(
+    "#balloon-notification-container",
+  );
 
   if (!balloonContainer) {
-    const existing = document.getElementById('balloon-notification-container');
+    const existing = document.getElementById("balloon-notification-container");
     if (existing) existing.remove();
-    balloonContainer = document.createElement('div');
-    balloonContainer.id = 'balloon-notification-container';
-    balloonContainer.style.position = 'fixed';
-    balloonContainer.style.bottom = '100px';
-    balloonContainer.style.right = '24px';
-    balloonContainer.style.zIndex = '3000';
-    balloonContainer.style.pointerEvents = 'none';
+    balloonContainer = document.createElement("div");
+    balloonContainer.id = "balloon-notification-container";
+    balloonContainer.style.position = "fixed";
+    balloonContainer.style.bottom = "100px";
+    balloonContainer.style.right = "24px";
+    balloonContainer.style.zIndex = "3000";
+    balloonContainer.style.pointerEvents = "none";
     styleRoot.appendChild(balloonContainer);
   }
 
-  const balloonEl = document.createElement('div');
-  balloonEl.className = 'imsmassi-notification-balloon';
+  const balloonEl = document.createElement("div");
+  balloonEl.className = "imsmassi-notification-balloon";
   balloonEl.innerHTML = `<div>🔔</div><div style="margin-top: 4px;">${title}</div>`;
 
   balloonContainer.appendChild(balloonEl);
 
   // 애니메이션 트리거
-  setTimeout(() => balloonEl.classList.add('imsmassi-show'), 10);
+  setTimeout(() => balloonEl.classList.add("imsmassi-show"), 10);
 
   // 자동 제거
   setTimeout(() => {
-    balloonEl.classList.remove('imsmassi-show');
+    balloonEl.classList.remove("imsmassi-show");
     setTimeout(() => balloonEl.remove(), 400);
     if (!state.assistantOpen) {
       setUnreadReminder(true);
@@ -3263,9 +3599,9 @@ function showBalloonNotification(title, content = '', duration = 6000) {
 
 function setUnreadReminder(isUnread) {
   state.hasUnreadReminder = isUnread;
-  const floatingBtn = document.getElementById('imsmassi-floating-btn');
+  const floatingBtn = document.getElementById("imsmassi-floating-btn");
   if (floatingBtn) {
-    floatingBtn.classList.toggle('imsmassi-show-badge', !!isUnread);
+    floatingBtn.classList.toggle("imsmassi-show-badge", !!isUnread);
   }
 }
 
@@ -3274,8 +3610,8 @@ async function checkReminders() {
   if (!state.memos) return;
 
   const now = new Date();
-  const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
-  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`; // HH:MM
+  const currentDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
+  const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`; // HH:MM
 
   // 같은 분에 여러 번 알림이 울리지 않도록 처리
   if (lastCheckedMinute === currentTime) {
@@ -3287,40 +3623,45 @@ async function checkReminders() {
   // 모든 메모 탐색 (객체 형식: {memoId: memoData, ...})
   for (const [memoId, memo] of Object.entries(state.memos)) {
     if (memo.reminder && !memo.done) {
-      const [reminderDate, reminderTime] = memo.reminder.split(' ');
+      const [reminderDate, reminderTime] = memo.reminder.split(" ");
 
       // 알림 시간이 도래했는지 확인 (분 단위로 비교)
       if (reminderDate === currentDate && reminderTime === currentTime) {
         hasNewReminder = true;
 
-        const title = memo.title || '알림';
+        const title = memo.title || "알림";
         const plainText = getMemoPlainText(memo).substring(0, 50);
-        const areaId = memo.createdAreaId || 'underwriting';
+        const areaId = memo.createdAreaId || "underwriting";
 
         // UI 알림 표시
         showNotificationToast(
           title,
-          plainText || '메모 알림이 도래했습니다',
+          plainText || "메모 알림이 도래했습니다",
           areaId,
-          6000
+          6000,
         );
 
         // 브라우저 알림 발송
         sendBrowserNotification(title, {
-          body: plainText || '메모 알림이 도래했습니다',
+          body: plainText || "메모 알림이 도래했습니다",
           tag: `reminder-${memoId}`,
-          requireInteraction: false
+          requireInteraction: false,
         });
 
         // 반복 알림이면 다음날로 이동
         if (memo.reminderRepeat) {
           const nextDate = new Date(currentDate);
           nextDate.setDate(nextDate.getDate() + 1);
-          const nextDateStr = nextDate.toISOString().split('T')[0];
+          const nextDateStr = nextDate.toISOString().split("T")[0];
           const nextReminderStr = `${nextDateStr} ${reminderTime}`;
           // Worker에 SET_REMINDER 전송 (DB 업데이트 + 브로드캐스트)
-          workerSend('SET_REMINDER', { memoId, reminderStr: nextReminderStr, title: memo.title, reminderRepeat: true });
-          if (state.activeTab === 'dashboard') renderAssistantContent();
+          workerSend("SET_REMINDER", {
+            memoId,
+            reminderStr: nextReminderStr,
+            title: memo.title,
+            reminderRepeat: true,
+          });
+          if (state.activeTab === "dashboard") renderAssistantContent();
         }
 
         console.log(`알림 발송: ${title}`);
@@ -3349,7 +3690,7 @@ function initReminderSystem() {
     checkReminders();
   }, 5000);
 
-  console.log('알림 시스템이 초기화되었습니다.');
+  console.log("알림 시스템이 초기화되었습니다.");
 }
 
 // 알림 시스템 중지
@@ -3361,17 +3702,17 @@ function stopReminderSystem() {
 }
 
 function testReminderNotification() {
-  const title = '리마인더 테스트';
-  const content = '리마인더 알림 테스트 메시지입니다.';
-  const areaId = state.selectedArea || 'underwriting';
+  const title = "리마인더 테스트";
+  const content = "리마인더 알림 테스트 메시지입니다.";
+  const areaId = state.selectedArea || "underwriting";
 
   showNotificationToast(title, content, areaId, 6000);
   sendBrowserNotification(title, {
     body: content,
     tag: `reminder-test-${Date.now()}`,
-    requireInteraction: false
+    requireInteraction: false,
   });
-  console.log('[testReminderNotification] 리마인더 알림 테스트 실행');
+  console.log("[testReminderNotification] 리마인더 알림 테스트 실행");
 }
 
 // ========================================
@@ -3390,15 +3731,15 @@ function closeAssistant() {
 
 function setActiveTab(tabId) {
   let nextTab = tabId;
-  if (tabId === 'clipboard' || tabId === 'template') {
+  if (tabId === "clipboard" || tabId === "template") {
     nextTab = tabId;
-  } else if (tabId === 'time') {
-    nextTab = 'dashboard';
+  } else if (tabId === "time") {
+    nextTab = "dashboard";
   }
   const previousTab = state.activeTab;
   state.activeTab = nextTab;
   renderAssistantTabs();
-  if (nextTab === 'clipboard') {
+  if (nextTab === "clipboard") {
     refreshClipboardStateFromDB().then(() => {
       renderAssistantContent(previousTab);
       updateDashboardButton();
@@ -3423,194 +3764,318 @@ function buildReminderModal(data) {
   const memoId = data ? data.memoId : null;
   const memoForReminder = state.memos[memoId];
 
-  const todayDate = new Date().toISOString().split('T')[0];
-  let reminderDate = todayDate, reminderTime = '14:00', reminderTitle = '', reminderRepeat = false;
+  const todayDate = new Date().toISOString().split("T")[0];
+  let reminderDate = todayDate,
+    reminderTime = "14:00",
+    reminderTitle = "",
+    reminderRepeat = false;
 
   if (memoForReminder && memoForReminder.reminder) {
-    const parts = memoForReminder.reminder.trim().split(' ');
-    if (parts[0] && parts[0].match(/^\d{4}-\d{2}-\d{2}$/)) reminderDate = parts[0];
+    const parts = memoForReminder.reminder.trim().split(" ");
+    if (parts[0] && parts[0].match(/^\d{4}-\d{2}-\d{2}$/))
+      reminderDate = parts[0];
     if (parts[1] && parts[1].match(/^\d{2}:\d{2}$/)) reminderTime = parts[1];
   }
   if (memoForReminder) {
-    reminderTitle = memoForReminder.title || getMemoPlainText(memoForReminder).substring(0, 20).trim();
+    reminderTitle =
+      memoForReminder.title ||
+      getMemoPlainText(memoForReminder).substring(0, 20).trim();
   }
   if (memoForReminder && memoForReminder.reminderRepeat) reminderRepeat = true;
 
-  const title = createElement('div', { className: 'imsmassi-modal-title' });
-  title.textContent = '⏰ 리마인더 설정';
+  const title = createElement("div", { className: "imsmassi-modal-title" });
+  title.textContent = "⏰ 리마인더 설정";
 
-  const titleLabel = createElement('label', { className: 'imsmassi-modal-label' });
-  titleLabel.textContent = '메모 제목';
-  const titleInput = createElement('input', { type: 'text', className: 'imsmassi-modal-input', id: 'modal-title-input', placeholder: '메모 제목을 입력하세요' });
+  const titleLabel = createElement("label", {
+    className: "imsmassi-modal-label",
+  });
+  titleLabel.textContent = "메모 제목";
+  const titleInput = createElement("input", {
+    type: "text",
+    className: "imsmassi-modal-input",
+    id: "modal-title-input",
+    placeholder: "메모 제목을 입력하세요",
+  });
   titleInput.value = reminderTitle;
-  const titleGroup = createElement('div');
+  const titleGroup = createElement("div");
   titleGroup.append(titleLabel, titleInput);
 
-  const dateLabel = createElement('label', { className: 'imsmassi-modal-label' });
-  dateLabel.textContent = '알림 날짜';
-  const dateInput = createElement('input', { type: 'date', className: 'imsmassi-modal-input', id: 'modal-date-input' });
+  const dateLabel = createElement("label", {
+    className: "imsmassi-modal-label",
+  });
+  dateLabel.textContent = "알림 날짜";
+  const dateInput = createElement("input", {
+    type: "date",
+    className: "imsmassi-modal-input",
+    id: "modal-date-input",
+  });
   dateInput.value = reminderDate;
-  const dateGroup = createElement('div');
+  const dateGroup = createElement("div");
   dateGroup.append(dateLabel, dateInput);
 
-  const timeLabel = createElement('label', { className: 'imsmassi-modal-label' });
-  timeLabel.textContent = '알림 시간';
-  const timeInput = createElement('input', { type: 'time', className: 'imsmassi-modal-input', id: 'modal-time-input' });
+  const timeLabel = createElement("label", {
+    className: "imsmassi-modal-label",
+  });
+  timeLabel.textContent = "알림 시간";
+  const timeInput = createElement("input", {
+    type: "time",
+    className: "imsmassi-modal-input",
+    id: "modal-time-input",
+  });
   timeInput.value = reminderTime;
-  const timeGroup = createElement('div');
+  const timeGroup = createElement("div");
   timeGroup.append(timeLabel, timeInput);
 
-  const repeatInput = createElement('input', { type: 'checkbox', id: 'modal-repeat-input' });
+  const repeatInput = createElement("input", {
+    type: "checkbox",
+    id: "modal-repeat-input",
+  });
   repeatInput.checked = reminderRepeat;
-  const repeatLabel = createElement('label', { className: 'imsmassi-modal-label imsmassi-modal-label-inline' });
-  repeatLabel.setAttribute('for', 'modal-repeat-input');
-  repeatLabel.textContent = '매일 반복';
-  const repeatGroup = createElement('div', { className: 'imsmassi-modal-repeat-group' });
+  const repeatLabel = createElement("label", {
+    className: "imsmassi-modal-label imsmassi-modal-label-inline",
+  });
+  repeatLabel.setAttribute("for", "modal-repeat-input");
+  repeatLabel.textContent = "매일 반복";
+  const repeatGroup = createElement("div", {
+    className: "imsmassi-modal-repeat-group",
+  });
   repeatGroup.append(repeatInput, repeatLabel);
 
-  const quickLabel = createElement('label', { className: 'imsmassi-modal-label' });
-  quickLabel.textContent = '빠른 선택';
-  const quickBtnsWrap = createElement('div', { className: 'imsmassi-flex imsmassi-gap-8 imsmassi-flex-wrap' });
-  ['09:00', '12:00', '14:00', '17:00'].forEach(t => {
-    const btn = createElement('button', { className: 'imsmassi-memo-action-btn imsmassi-quick-time-btn' });
+  const quickLabel = createElement("label", {
+    className: "imsmassi-modal-label",
+  });
+  quickLabel.textContent = "빠른 선택";
+  const quickBtnsWrap = createElement("div", {
+    className: "imsmassi-flex imsmassi-gap-8 imsmassi-flex-wrap",
+  });
+  ["09:00", "12:00", "14:00", "17:00"].forEach((t) => {
+    const btn = createElement("button", {
+      className: "imsmassi-memo-action-btn imsmassi-quick-time-btn",
+    });
     btn.textContent = t;
-    btn.addEventListener('click', () => setQuickTime(t));
+    btn.addEventListener("click", () => setQuickTime(t));
     quickBtnsWrap.appendChild(btn);
   });
-  const quickGroup = createElement('div', { className: 'imsmassi-modal-quick-group' });
+  const quickGroup = createElement("div", {
+    className: "imsmassi-modal-quick-group",
+  });
   quickGroup.append(quickLabel, quickBtnsWrap);
 
-  const cancelBtn = createElement('button', { className: 'imsmassi-modal-btn imsmassi-modal-btn-secondary' });
-  cancelBtn.textContent = '취소';
-  cancelBtn.addEventListener('click', closeModal);
-  const clearBtn = createElement('button', { className: 'imsmassi-modal-btn imsmassi-modal-btn-secondary' });
-  clearBtn.textContent = '알림 해제';
-  clearBtn.addEventListener('click', confirmClearReminder);
-  const confirmBtn = createElement('button', { className: 'imsmassi-modal-btn imsmassi-modal-btn-primary' });
-  confirmBtn.textContent = '설정';
-  confirmBtn.addEventListener('click', confirmSetReminder);
-  const btnsGroup = createElement('div', { className: 'imsmassi-modal-btns' });
+  const cancelBtn = createElement("button", {
+    className: "imsmassi-modal-btn imsmassi-modal-btn-secondary",
+  });
+  cancelBtn.textContent = "취소";
+  cancelBtn.addEventListener("click", closeModal);
+  const clearBtn = createElement("button", {
+    className: "imsmassi-modal-btn imsmassi-modal-btn-secondary",
+  });
+  clearBtn.textContent = "알림 해제";
+  clearBtn.addEventListener("click", confirmClearReminder);
+  const confirmBtn = createElement("button", {
+    className: "imsmassi-modal-btn imsmassi-modal-btn-primary",
+  });
+  confirmBtn.textContent = "설정";
+  confirmBtn.addEventListener("click", confirmSetReminder);
+  const btnsGroup = createElement("div", { className: "imsmassi-modal-btns" });
   btnsGroup.append(cancelBtn, clearBtn, confirmBtn);
 
-  const content = createElement('div');
-  content.append(title, titleGroup, dateGroup, timeGroup, repeatGroup, quickGroup, btnsGroup);
+  const content = createElement("div");
+  content.append(
+    title,
+    titleGroup,
+    dateGroup,
+    timeGroup,
+    repeatGroup,
+    quickGroup,
+    btnsGroup,
+  );
   return { content, firstFocus: titleInput };
 }
 
 // ── 빌더: 템플릿 제안 모달 ─────────────────────────────
 function buildTemplateSuggestModal(data) {
   const c = getColors();
-  const suggestedText = data?.suggestedText || '';
+  const suggestedText = data?.suggestedText || "";
   const encodedText = encodeURIComponent(suggestedText);
 
-  const title = createElement('div', { className: 'imsmassi-modal-title' });
-  title.textContent = '⭐ 템플릿 제안';
+  const title = createElement("div", { className: "imsmassi-modal-title" });
+  title.textContent = "⭐ 템플릿 제안";
 
-  const previewBox = createElement('div', { className: 'imsmassi-template-suggest-preview' });
-  const previewLbl = createElement('div', { className: 'imsmassi-template-suggest-preview-lbl' });
-  previewLbl.textContent = '자주 사용하는 텍스트';
-  const codeEl = createElement('code', { className: 'imsmassi-template-suggest-code' });
+  const previewBox = createElement("div", {
+    className: "imsmassi-template-suggest-preview",
+  });
+  const previewLbl = createElement("div", {
+    className: "imsmassi-template-suggest-preview-lbl",
+  });
+  previewLbl.textContent = "자주 사용하는 텍스트";
+  const codeEl = createElement("code", {
+    className: "imsmassi-template-suggest-code",
+  });
   codeEl.textContent = suggestedText;
   previewBox.append(previewLbl, codeEl);
 
-  const tmplLabel = createElement('label', { className: 'imsmassi-modal-label' });
-  tmplLabel.textContent = '템플릿 제목';
-  const tmplInput = createElement('input', { type: 'text', className: 'imsmassi-modal-input', id: 'modal-suggested-template-title', placeholder: '이 텍스트의 이름을 정해주세요' });
-  const tmplGroup = createElement('div');
+  const tmplLabel = createElement("label", {
+    className: "imsmassi-modal-label",
+  });
+  tmplLabel.textContent = "템플릿 제목";
+  const tmplInput = createElement("input", {
+    type: "text",
+    className: "imsmassi-modal-input",
+    id: "modal-suggested-template-title",
+    placeholder: "이 텍스트의 이름을 정해주세요",
+  });
+  const tmplGroup = createElement("div");
   tmplGroup.append(tmplLabel, tmplInput);
 
-  const catLabel = createElement('label', { className: 'imsmassi-modal-label' });
-  catLabel.textContent = '카테고리';
-  const catSelect = createElement('select', { className: 'imsmassi-modal-input imsmassi-modal-select-mt', id: 'modal-suggested-template-category' });
-  [['default','일반'],['underwriting','인수'],['contract','계약'],['claims','청구'],
-   ['accounting','회계'],['performance','실적'],['settlement','정산'],['finance','재무']].forEach(([val, lbl]) => {
-    const opt = createElement('option', { value: val });
+  const catLabel = createElement("label", {
+    className: "imsmassi-modal-label",
+  });
+  catLabel.textContent = "카테고리";
+  const catSelect = createElement("select", {
+    className: "imsmassi-modal-input imsmassi-modal-select-mt",
+    id: "modal-suggested-template-category",
+  });
+  [
+    ["default", "일반"],
+    ["underwriting", "인수"],
+    ["contract", "계약"],
+    ["claims", "청구"],
+    ["accounting", "회계"],
+    ["performance", "실적"],
+    ["settlement", "정산"],
+    ["finance", "재무"],
+  ].forEach(([val, lbl]) => {
+    const opt = createElement("option", { value: val });
     opt.textContent = lbl;
     catSelect.appendChild(opt);
   });
-  const catGroup = createElement('div', { className: 'imsmassi-modal-field-mt' });
+  const catGroup = createElement("div", {
+    className: "imsmassi-modal-field-mt",
+  });
   catGroup.append(catLabel, catSelect);
 
-  const laterBtn = createElement('button', { className: 'imsmassi-modal-btn imsmassi-modal-btn-secondary' });
-  laterBtn.textContent = '나중에';
-  laterBtn.addEventListener('click', closeModal);
-  const addBtn = createElement('button', { className: 'imsmassi-modal-btn imsmassi-modal-btn-primary' });
-  addBtn.textContent = '템플릿으로 추가';
-  addBtn.addEventListener('click', () => confirmAddSuggestedTemplate(encodedText));
-  const btnsGroup = createElement('div', { className: 'imsmassi-modal-btns' });
+  const laterBtn = createElement("button", {
+    className: "imsmassi-modal-btn imsmassi-modal-btn-secondary",
+  });
+  laterBtn.textContent = "나중에";
+  laterBtn.addEventListener("click", closeModal);
+  const addBtn = createElement("button", {
+    className: "imsmassi-modal-btn imsmassi-modal-btn-primary",
+  });
+  addBtn.textContent = "템플릿으로 추가";
+  addBtn.addEventListener("click", () =>
+    confirmAddSuggestedTemplate(encodedText),
+  );
+  const btnsGroup = createElement("div", { className: "imsmassi-modal-btns" });
   btnsGroup.append(laterBtn, addBtn);
 
-  const content = createElement('div');
+  const content = createElement("div");
   content.append(title, previewBox, tmplGroup, catGroup, btnsGroup);
   return { content, firstFocus: tmplInput };
 }
 
 // ── 빌더: 템플릿 추가 모달 ─────────────────────────────
 function buildAddTemplateModal(data) {
-  const title = createElement('div', { className: 'imsmassi-modal-title' });
-  title.textContent = '새 템플릿 추가';
+  const title = createElement("div", { className: "imsmassi-modal-title" });
+  title.textContent = "새 템플릿 추가";
 
-  const titleLabel = createElement('label', { className: 'imsmassi-modal-label' });
-  titleLabel.textContent = '템플릿 제목';
-  const titleInput = createElement('input', { type: 'text', className: 'imsmassi-modal-input', id: 'modal-template-title', placeholder: '예: 확인 요청' });
-  const titleGroup = createElement('div');
+  const titleLabel = createElement("label", {
+    className: "imsmassi-modal-label",
+  });
+  titleLabel.textContent = "템플릿 제목";
+  const titleInput = createElement("input", {
+    type: "text",
+    className: "imsmassi-modal-input",
+    id: "modal-template-title",
+    placeholder: "예: 확인 요청",
+  });
+  const titleGroup = createElement("div");
   titleGroup.append(titleLabel, titleInput);
 
-  const contentLabel = createElement('label', { className: 'imsmassi-modal-label' });
-  contentLabel.textContent = '템플릿 내용';
-  const contentTextarea = createElement('textarea', { className: 'imsmassi-modal-textarea', id: 'modal-template-content', placeholder: '자주 사용하는 문구를 입력하세요' });
+  const contentLabel = createElement("label", {
+    className: "imsmassi-modal-label",
+  });
+  contentLabel.textContent = "템플릿 내용";
+  const contentTextarea = createElement("textarea", {
+    className: "imsmassi-modal-textarea",
+    id: "modal-template-content",
+    placeholder: "자주 사용하는 문구를 입력하세요",
+  });
   // data.content가 전달되면 즉시 값을 주입합니다 (기존 setTimeout 해킹 제거).
   if (data && data.content) contentTextarea.value = data.content;
-  const contentGroup = createElement('div');
+  const contentGroup = createElement("div");
   contentGroup.append(contentLabel, contentTextarea);
 
-  const cancelBtn = createElement('button', { className: 'imsmassi-modal-btn imsmassi-modal-btn-secondary' });
-  cancelBtn.textContent = '취소';
-  cancelBtn.addEventListener('click', closeModal);
-  const addBtn = createElement('button', { className: 'imsmassi-modal-btn imsmassi-modal-btn-primary' });
-  addBtn.textContent = '추가';
-  addBtn.addEventListener('click', confirmAddTemplate);
-  const btnsGroup = createElement('div', { className: 'imsmassi-modal-btns' });
+  const cancelBtn = createElement("button", {
+    className: "imsmassi-modal-btn imsmassi-modal-btn-secondary",
+  });
+  cancelBtn.textContent = "취소";
+  cancelBtn.addEventListener("click", closeModal);
+  const addBtn = createElement("button", {
+    className: "imsmassi-modal-btn imsmassi-modal-btn-primary",
+  });
+  addBtn.textContent = "추가";
+  addBtn.addEventListener("click", confirmAddTemplate);
+  const btnsGroup = createElement("div", { className: "imsmassi-modal-btns" });
   btnsGroup.append(cancelBtn, addBtn);
 
-  const content = createElement('div');
+  const content = createElement("div");
   content.append(title, titleGroup, contentGroup, btnsGroup);
   return { content, firstFocus: titleInput };
 }
 
 // ── 빌더: 템플릿 수정 모달 ─────────────────────────────
 function buildEditTemplateModal(data) {
-  const title = createElement('div', { className: 'imsmassi-modal-title' });
-  title.textContent = '✎ 템플릿 수정';
+  const title = createElement("div", { className: "imsmassi-modal-title" });
+  title.textContent = "✎ 템플릿 수정";
 
-  const titleLabel = createElement('label', { className: 'imsmassi-modal-label' });
-  titleLabel.textContent = '템플릿 제목';
-  const titleInput = createElement('input', { type: 'text', className: 'imsmassi-modal-input', id: 'modal-edit-template-title', placeholder: '예: 확인 요청' });
-  const titleGroup = createElement('div');
+  const titleLabel = createElement("label", {
+    className: "imsmassi-modal-label",
+  });
+  titleLabel.textContent = "템플릿 제목";
+  const titleInput = createElement("input", {
+    type: "text",
+    className: "imsmassi-modal-input",
+    id: "modal-edit-template-title",
+    placeholder: "예: 확인 요청",
+  });
+  const titleGroup = createElement("div");
   titleGroup.append(titleLabel, titleInput);
 
-  const contentLabel = createElement('label', { className: 'imsmassi-modal-label' });
-  contentLabel.textContent = '템플릿 내용';
-  const contentTextarea = createElement('textarea', { className: 'imsmassi-modal-textarea', id: 'modal-edit-template-content', placeholder: '자주 사용하는 문구를 입력하세요' });
+  const contentLabel = createElement("label", {
+    className: "imsmassi-modal-label",
+  });
+  contentLabel.textContent = "템플릿 내용";
+  const contentTextarea = createElement("textarea", {
+    className: "imsmassi-modal-textarea",
+    id: "modal-edit-template-content",
+    placeholder: "자주 사용하는 문구를 입력하세요",
+  });
   // state.editingTemplateId를 통해 기존 값을 즉시 채웁니다 (setTimeout 해킹 제거).
-  const existingTemplate = state.templates.find(t => t.id === state.editingTemplateId);
+  const existingTemplate = state.templates.find(
+    (t) => t.id === state.editingTemplateId,
+  );
   if (existingTemplate) {
-    titleInput.value = existingTemplate.title || '';
-    contentTextarea.value = existingTemplate.content || '';
+    titleInput.value = existingTemplate.title || "";
+    contentTextarea.value = existingTemplate.content || "";
   }
-  const contentGroup = createElement('div');
+  const contentGroup = createElement("div");
   contentGroup.append(contentLabel, contentTextarea);
 
-  const cancelBtn = createElement('button', { className: 'imsmassi-modal-btn imsmassi-modal-btn-secondary' });
-  cancelBtn.textContent = '취소';
-  cancelBtn.addEventListener('click', closeModal);
-  const saveBtn = createElement('button', { className: 'imsmassi-modal-btn imsmassi-modal-btn-primary' });
-  saveBtn.textContent = '저장';
-  saveBtn.addEventListener('click', confirmEditTemplate);
-  const btnsGroup = createElement('div', { className: 'imsmassi-modal-btns' });
+  const cancelBtn = createElement("button", {
+    className: "imsmassi-modal-btn imsmassi-modal-btn-secondary",
+  });
+  cancelBtn.textContent = "취소";
+  cancelBtn.addEventListener("click", closeModal);
+  const saveBtn = createElement("button", {
+    className: "imsmassi-modal-btn imsmassi-modal-btn-primary",
+  });
+  saveBtn.textContent = "저장";
+  saveBtn.addEventListener("click", confirmEditTemplate);
+  const btnsGroup = createElement("div", { className: "imsmassi-modal-btns" });
   btnsGroup.append(cancelBtn, saveBtn);
 
-  const content = createElement('div');
+  const content = createElement("div");
   content.append(title, titleGroup, contentGroup, btnsGroup);
   return { content, firstFocus: titleInput };
 }
@@ -3619,84 +4084,95 @@ function buildEditTemplateModal(data) {
 function buildDeleteConfirmModal(data) {
   const c = getColors();
 
-  const title = createElement('div', { className: 'imsmassi-modal-title' });
-  title.textContent = '⚠️ 메모 삭제';
+  const title = createElement("div", { className: "imsmassi-modal-title" });
+  title.textContent = "⚠️ 메모 삭제";
 
-  const bodyText = createElement('p', { className: 'imsmassi-modal-body-text' });
-  bodyText.textContent = '이 메모를 삭제하시겠습니까? (포스트잇도 함께 삭제됩니다.)';
-  const reminderDisplay = createElement('div', { id: 'modal-delete-reminder-display' });
-  const bodyDiv = createElement('div', { className: 'imsmassi-modal-body' });
+  const bodyText = createElement("p", {
+    className: "imsmassi-modal-body-text",
+  });
+  bodyText.textContent =
+    "이 메모를 삭제하시겠습니까? (포스트잇도 함께 삭제됩니다.)";
+  const reminderDisplay = createElement("div", {
+    id: "modal-delete-reminder-display",
+  });
+  const bodyDiv = createElement("div", { className: "imsmassi-modal-body" });
   bodyDiv.append(bodyText, reminderDisplay);
 
-  const cancelBtn = createElement('button', { className: 'imsmassi-modal-btn imsmassi-modal-btn-secondary' });
-  cancelBtn.textContent = '취소';
-  cancelBtn.addEventListener('click', cancelDeleteMemo);
-  const deleteBtn = createElement('button', { className: 'imsmassi-modal-btn imsmassi-modal-btn-danger' });
-  deleteBtn.textContent = '삭제';
-  deleteBtn.addEventListener('click', confirmDeleteMemo);
-  const btnsGroup = createElement('div', { className: 'imsmassi-modal-btns' });
+  const cancelBtn = createElement("button", {
+    className: "imsmassi-modal-btn imsmassi-modal-btn-secondary",
+  });
+  cancelBtn.textContent = "취소";
+  cancelBtn.addEventListener("click", cancelDeleteMemo);
+  const deleteBtn = createElement("button", {
+    className: "imsmassi-modal-btn imsmassi-modal-btn-danger",
+  });
+  deleteBtn.textContent = "삭제";
+  deleteBtn.addEventListener("click", confirmDeleteMemo);
+  const btnsGroup = createElement("div", { className: "imsmassi-modal-btns" });
   btnsGroup.append(cancelBtn, deleteBtn);
 
-  const content = createElement('div');
+  const content = createElement("div");
   content.append(title, bodyDiv, btnsGroup);
   return { content, firstFocus: null };
 }
 
 // ── 빌더: 설정 모달 ───────────────────────────────────
 function buildSettingsModal(data) {
-  const container = createElement('div');
-  container.innerHTML = getSettingsHtml('closeModal');
+  const container = createElement("div");
+  container.innerHTML = getSettingsHtml("closeModal");
   return { content: container, firstFocus: null };
 }
 
 // ── 모달 빌더 라우팅 맵 ───────────────────────────────
 const MODAL_BUILDERS = {
-  'setReminder':     buildReminderModal,
-  'templateSuggest': buildTemplateSuggestModal,
-  'addTemplate':     buildAddTemplateModal,
-  'editTemplate':    buildEditTemplateModal,
-  'deleteConfirm':   buildDeleteConfirmModal,
-  'settings':        buildSettingsModal,
+  setReminder: buildReminderModal,
+  templateSuggest: buildTemplateSuggestModal,
+  addTemplate: buildAddTemplateModal,
+  editTemplate: buildEditTemplateModal,
+  deleteConfirm: buildDeleteConfirmModal,
+  settings: buildSettingsModal,
 };
 
 // ========================================
 // 모달 시스템
 // ========================================
 function openModal(type, data) {
-  console.log('[openModal] 모달 타입:', type, '데이터:', data);
+  console.log("[openModal] 모달 타입:", type, "데이터:", data);
   state.currentModal = type;
   state.currentMemoId = data ? data.memoId : null;
-  console.log('[openModal] state.currentMemoId 설정:', state.currentMemoId);
+  console.log("[openModal] state.currentMemoId 설정:", state.currentMemoId);
 
-  const modal = document.getElementById('modal-content');
+  const modal = document.getElementById("modal-content");
 
   // ── 빌더 함수 호출 ────────────────────────────────────
   // MODAL_BUILDERS 맵에서 타입에 맞는 빌더를 찾아 호출합니다.
   // 빌더가 없는 타입은 무시됩니다.
   const builder = MODAL_BUILDERS[type];
   if (!builder) {
-    console.warn('[openModal] 알 수 없는 모달 타입:', type);
+    console.warn("[openModal] 알 수 없는 모달 타입:", type);
     return;
   }
 
   const { content: builtContent, firstFocus } = builder(data);
 
   // ── DOM 삽입 (innerHTML 대신 appendChild) ─────────────
-  modal.innerHTML = '';
+  modal.innerHTML = "";
   modal.appendChild(builtContent);
 
   // ── 설정 모달 너비 조정 ───────────────────────────────
-  if (type === 'settings') {
-    modal.classList.add('imsmassi-modal-wide');
+  if (type === "settings") {
+    modal.classList.add("imsmassi-modal-wide");
   } else {
-    modal.classList.remove('imsmassi-modal-wide');
+    modal.classList.remove("imsmassi-modal-wide");
   }
 
   // ── 오버레이 표시 ─────────────────────────────────────
-  document.getElementById('imsmassi-modal-overlay').classList.remove('imsmassi-hidden');
+  document
+    .getElementById("imsmassi-modal-overlay")
+    .classList.remove("imsmassi-hidden");
 
   // ── 설정 탭 초기화 (토글/셀렉트 이벤트 바인딩) ────────
-  if (type === 'settings') {
+  if (type === "settings") {
     initSettingsTab();
   }
 
@@ -3708,44 +4184,46 @@ function openModal(type, data) {
 }
 
 function getSettingsHtml(closeHandler) {
-  const usagePercentRaw = state.storageLimit > 0 ? (state.storageUsed / state.storageLimit * 100) : 0;
+  const usagePercentRaw =
+    state.storageLimit > 0 ? (state.storageUsed / state.storageLimit) * 100 : 0;
   const usagePercent = usagePercentRaw.toFixed(1);
-  const usageColor = usagePercent >= 80 ? '#E74C3C' : usagePercent >= 60 ? '#E67E22' : '#5BA55B';
+  const usageColor =
+    usagePercent >= 80 ? "#E74C3C" : usagePercent >= 60 ? "#E67E22" : "#5BA55B";
   const displayUsed = state.storageUsed.toFixed(1);
   return `
         <!-- 알림 설정 -->
         <div style="margin-bottom: 16px;">
-          <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 12px;">알림 설정</div>
+          <div style="font-size: 13px; font-weight: 600; color: #191F28; margin-bottom: 12px;">알림 설정</div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? '#252525' : '#F8F9FA'}; border-radius: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px;">
             <div>
-              <span style="font-size: 12px; color: #333;">브라우저 알림</span>
+              <span style="font-size: 12px; color: #191F28;">브라우저 알림</span>
               <div style="font-size: 10px; color: #999;">알림 도착 시 브라우저 알림 표시</div>
             </div>
             <label class="imsmassi-toggle-switch">
-              <input type="checkbox" id="setting-browser-notification" ${state.settings.browserNotificationEnabled ? 'checked' : ''}>
+              <input type="checkbox" id="setting-browser-notification" ${state.settings.browserNotificationEnabled ? "checked" : ""}>
               <span class="imsmassi-toggle-slider"></span>
             </label>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? '#252525' : '#F8F9FA'}; border-radius: 6px; margin-top: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-top: 10px;">
             <div>
-              <span style="font-size: 12px; color: #333;">토스트 알림</span>
+              <span style="font-size: 12px; color: #191F28;">토스트 알림</span>
               <div style="font-size: 10px; color: #999;">어시스턴트 하단 토스트 표시</div>
             </div>
             <label class="imsmassi-toggle-switch">
-              <input type="checkbox" id="setting-toast" ${state.settings.toastEnabled ? 'checked' : ''}>
+              <input type="checkbox" id="setting-toast" ${state.settings.toastEnabled ? "checked" : ""}>
               <span class="imsmassi-toggle-slider"></span>
             </label>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? '#252525' : '#FFF9E6'}; border-radius: 6px; border: 1px solid #F0E6CC; margin-top: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#FFF9E6"}; border-radius: 6px; border: 1px solid #F0E6CC; margin-top: 10px;">
             <div>
-              <span style="font-size: 12px; color: #333;">백업 알림</span>
+              <span style="font-size: 12px; color: #191F28;">백업 알림</span>
               <div style="font-size: 10px; color: #999;">마지막 백업: ${state.settings.lastBackup}</div>
             </div>
             <label class="imsmassi-toggle-switch">
-              <input type="checkbox" id="setting-backup" ${state.settings.backupReminder ? 'checked' : ''}>
+              <input type="checkbox" id="setting-backup" ${state.settings.backupReminder ? "checked" : ""}>
               <span class="imsmassi-toggle-slider"></span>
             </label>
           </div>
@@ -3753,58 +4231,58 @@ function getSettingsHtml(closeHandler) {
 
         <!-- 기능 설정 -->
         <div style="margin-bottom: 16px;">
-          <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 12px;">기능 설정</div>
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? '#252525' : '#F8F9FA'}; border-radius: 6px; margin-bottom: 10px;">
+          <div style="font-size: 13px; font-weight: 600; color: #191F28; margin-bottom: 12px;">기능 설정</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
             <div>
-              <span style="font-size: 12px; color: #333;">업무 컬러 설정 표시</span>
+              <span style="font-size: 12px; color: #191F28;">업무 컬러 설정 표시</span>
               <div style="font-size: 10px; color: #999;">대시보드 내 업무 컬러 설정 섹션 표시</div>
             </div>
             <label class="imsmassi-toggle-switch">
-              <input type="checkbox" id="setting-show-area-color" ${state.settings.showAreaColorSection !== false ? 'checked' : ''}>
+              <input type="checkbox" id="setting-show-area-color" ${state.settings.showAreaColorSection !== false ? "checked" : ""}>
               <span class="imsmassi-toggle-slider"></span>
             </label>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? '#252525' : '#F8F9FA'}; border-radius: 6px; margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
             <div>
-              <span style="font-size: 12px; color: #333;">시간 인사이트 표시</span>
+              <span style="font-size: 12px; color: #191F28;">시간 인사이트 표시</span>
               <div style="font-size: 10px; color: #999;">대시보드 내 시간 인사이트 섹션 표시</div>
             </div>
             <label class="imsmassi-toggle-switch">
-              <input type="checkbox" id="setting-show-time-tab" ${state.settings.showTimeTab !== false ? 'checked' : ''}>
+              <input type="checkbox" id="setting-show-time-tab" ${state.settings.showTimeTab !== false ? "checked" : ""}>
               <span class="imsmassi-toggle-slider"></span>
             </label>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? '#252525' : '#F8F9FA'}; border-radius: 6px; margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
             <div>
-              <span style="font-size: 12px; color: #333;">마크다운 단축키</span>
+              <span style="font-size: 12px; color: #191F28;">마크다운 단축키</span>
               <div style="font-size: 10px; color: #999;">**굵게**, *기울임*, ~~취소선~~ 등</div>
             </div>
             <label class="imsmassi-toggle-switch">
-              <input type="checkbox" id="setting-markdown" ${state.settings.markdownEnabled ? 'checked' : ''}>
+              <input type="checkbox" id="setting-markdown" ${state.settings.markdownEnabled ? "checked" : ""}>
               <span class="imsmassi-toggle-slider"></span>
             </label>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? '#252525' : '#F8F9FA'}; border-radius: 6px; margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
             <div>
-              <span style="font-size: 12px; color: #333;">디버그 로그</span>
+              <span style="font-size: 12px; color: #191F28;">디버그 로그</span>
               <div style="font-size: 10px; color: #999;">콘솔 로그 출력 on/off</div>
             </div>
             <label class="imsmassi-toggle-switch">
-              <input type="checkbox" id="setting-debug-logs" ${state.settings.debugLogs ? 'checked' : ''}>
+              <input type="checkbox" id="setting-debug-logs" ${state.settings.debugLogs ? "checked" : ""}>
               <span class="imsmassi-toggle-slider"></span>
             </label>
           </div>
 
-          <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? '#252525' : '#F8F9FA'}; border-radius: 6px;">
+          <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px;">
             <div>
-              <span style="font-size: 12px; color: #333;">대시보드 자동 이동</span>
+              <span style="font-size: 12px; color: #191F28;">대시보드 자동 이동</span>
               <div style="font-size: 10px; color: #999;">알림 설정 후 대시보드로 이동</div>
             </div>
             <label class="imsmassi-toggle-switch">
-              <input type="checkbox" id="setting-auto-dashboard" ${state.settings.autoNavigateToDashboard ? 'checked' : ''}>
+              <input type="checkbox" id="setting-auto-dashboard" ${state.settings.autoNavigateToDashboard ? "checked" : ""}>
               <span class="imsmassi-toggle-slider"></span>
             </label>
           </div>
@@ -3812,14 +4290,14 @@ function getSettingsHtml(closeHandler) {
 
         <!-- 성능 설정 -->
         <div style="margin-bottom: 16px;">
-          <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 12px;">성능 설정</div>
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? '#252525' : '#F8F9FA'}; border-radius: 6px;">
+          <div style="font-size: 13px; font-weight: 600; color: #191F28; margin-bottom: 12px;">성능 설정</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px;">
             <div>
-              <span style="font-size: 12px; color: #333;">저사양 모드</span>
+              <span style="font-size: 12px; color: #191F28;">저사양 모드</span>
               <div style="font-size: 10px; color: #999;">애니메이션 축소, 렌더링 최적화</div>
             </div>
             <label class="imsmassi-toggle-switch">
-              <input type="checkbox" id="setting-lowspec" ${state.settings.lowSpecMode ? 'checked' : ''}>
+              <input type="checkbox" id="setting-lowspec" ${state.settings.lowSpecMode ? "checked" : ""}>
               <span class="imsmassi-toggle-slider"></span>
             </label>
           </div>
@@ -3827,43 +4305,43 @@ function getSettingsHtml(closeHandler) {
 
          <!-- 자동정리 설정 -->
           <div style="margin-bottom: 12px;">
-            <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 12px;">자동 정리 설정</div>
-            <div style="display: flex; flex-direction: column; gap: 10px; padding: 10px; background: ${state.isDarkMode ? '#252525' : '#F8F9FA'}; border-radius: 6px; margin-top: 10px;">
+            <div style="font-size: 13px; font-weight: 600; color: #191F28; margin-bottom: 12px;">자동 정리 설정</div>
+            <div style="display: flex; flex-direction: column; gap: 10px; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-top: 10px;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span style="font-size: 12px; color: #666;">클립보드 기록</span>
                 <select class="imsmassi-modal-input" id="setting-clipboard" style="width: 100px; padding: 6px 8px; font-size: 12px;">
-                  <option value="3" ${state.settings.autoCleanup.clipboard === 3 ? 'selected' : ''}>3일</option>
-                  <option value="7" ${state.settings.autoCleanup.clipboard === 7 ? 'selected' : ''}>7일</option>
-                  <option value="14" ${state.settings.autoCleanup.clipboard === 14 ? 'selected' : ''}>14일</option>
-                  <option value="30" ${state.settings.autoCleanup.clipboard === 30 ? 'selected' : ''}>30일</option>
+                  <option value="3" ${state.settings.autoCleanup.clipboard === 3 ? "selected" : ""}>3일</option>
+                  <option value="7" ${state.settings.autoCleanup.clipboard === 7 ? "selected" : ""}>7일</option>
+                  <option value="14" ${state.settings.autoCleanup.clipboard === 14 ? "selected" : ""}>14일</option>
+                  <option value="30" ${state.settings.autoCleanup.clipboard === 30 ? "selected" : ""}>30일</option>
                 </select>
               </div>
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span style="font-size: 12px; color: #666;">오래된 메모</span>
                 <select class="imsmassi-modal-input" id="setting-oldmemos" style="width: 100px; padding: 6px 8px; font-size: 12px;">
                   <option value="0">삭제 안 함</option>
-                  <option value="90" ${state.settings.autoCleanup.oldMemos === 90 ? 'selected' : ''}>90일</option>
-                  <option value="180" ${state.settings.autoCleanup.oldMemos === 180 ? 'selected' : ''}>180일</option>
-                  <option value="365" ${state.settings.autoCleanup.oldMemos === 365 ? 'selected' : ''}>1년</option>
+                  <option value="90" ${state.settings.autoCleanup.oldMemos === 90 ? "selected" : ""}>90일</option>
+                  <option value="180" ${state.settings.autoCleanup.oldMemos === 180 ? "selected" : ""}>180일</option>
+                  <option value="365" ${state.settings.autoCleanup.oldMemos === 365 ? "selected" : ""}>1년</option>
                 </select>
               </div>
             </div>
           </div>
 
         <!-- 저장 용량 -->
-        <div style="margin-bottom: 20px; padding: 16px; background: ${state.isDarkMode ? '#252525' : '#F8F9FA'}; border-radius: 8px;">
+        <div style="margin-bottom: 20px; padding: 16px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 8px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-size: 13px; font-weight: 600; color: #333;">저장 용량</span>
+            <span style="font-size: 13px; font-weight: 600; color: #191F28;">저장 용량</span>
             <span style="font-size: 12px; color: ${usageColor}; font-weight: 600;">${displayUsed}MB / ${state.storageLimit}MB</span>
           </div>
           <div style="height: 8px; background: #E0E0E0; border-radius: 4px; overflow: hidden;">
             <div style="height: 100%; width: ${usagePercent}%; background: ${usageColor}; border-radius: 4px; transition: width 0.3s;"></div>
           </div>
-          <div style="font-size: 11px; color: #999; margin-top: 6px;">${usagePercent >= 80 ? '⚠️ 용량이 부족합니다. 오래된 데이터를 정리해주세요.' : '정상적으로 사용 중입니다.'}</div>
+          <div style="font-size: 11px; color: #999; margin-top: 6px;">${usagePercent >= 80 ? "⚠️ 용량이 부족합니다. 오래된 데이터를 정리해주세요." : "정상적으로 사용 중입니다."}</div>
         </div>
 
           <div style="display: flex; gap: 8px;">
-            <button class="imsmassi-modal-btn" style="flex: 1; background: #4A90D9; color: #FFF; border: none; font-size: 12px; padding: 10px;" onclick="exportAllData()">📤 내보내기</button>
+            <button class="imsmassi-modal-btn" style="flex: 1; background: #191F28; color: #FFF; border: none; font-size: 12px; padding: 10px;" onclick="exportAllData()">📤 내보내기</button>
             <button class="imsmassi-modal-btn" style="flex: 1; background: #5BA55B; color: #FFF; border: none; font-size: 12px; padding: 10px;" onclick="importData()">📥 가져오기</button>
             <button class="imsmassi-modal-btn" style="flex: 1; background: #E74C3C; color: #FFF; border: none; font-size: 12px; padding: 10px;" onclick="clearOldData()">🗑️ 정리</button>
           </div>
@@ -3873,32 +4351,32 @@ function getSettingsHtml(closeHandler) {
 }
 
 function renderSettingsTab() {
-  return getSettingsHtml('closeSettingsTab');
+  return getSettingsHtml("closeSettingsTab");
 }
 
 function initSettingsTab() {
   const toggleMap = [
-    { id: 'setting-lowspec', label: '저사양 모드' },
-    { id: 'setting-markdown', label: '마크다운 단축키' },
-    { id: 'setting-debug-logs', label: '디버그 로그' },
-    { id: 'setting-auto-dashboard', label: '대시보드 자동 이동' },
-    { id: 'setting-backup', label: '백업 알림' },
-    { id: 'setting-browser-notification', label: '브라우저 알림' },
-    { id: 'setting-toast', label: '토스트 알림' },
-    { id: 'setting-show-time-tab', label: '시간 탭 표시' },
+    { id: "setting-lowspec", label: "저사양 모드" },
+    { id: "setting-markdown", label: "마크다운 단축키" },
+    { id: "setting-debug-logs", label: "디버그 로그" },
+    { id: "setting-auto-dashboard", label: "대시보드 자동 이동" },
+    { id: "setting-backup", label: "백업 알림" },
+    { id: "setting-browser-notification", label: "브라우저 알림" },
+    { id: "setting-toast", label: "토스트 알림" },
+    { id: "setting-show-time-tab", label: "시간 탭 표시" },
   ];
 
   toggleMap.forEach(({ id, label }) => {
     const el = document.getElementById(id);
     if (el) {
       el.onchange = () => {
-        console.log(`설정 변경 - ${label}: ${el.checked ? 'ON' : 'OFF'}`);
+        console.log(`설정 변경 - ${label}: ${el.checked ? "ON" : "OFF"}`);
         saveSettings({ silent: true });
       };
     }
   });
 
-  const selectMap = ['setting-clipboard', 'setting-oldmemos'];
+  const selectMap = ["setting-clipboard", "setting-oldmemos"];
   selectMap.forEach((id) => {
     const el = document.getElementById(id);
     if (el) {
@@ -3908,19 +4386,19 @@ function initSettingsTab() {
 }
 
 function closeModal() {
-  console.log('[closeModal] 모달 닫기 시작');
-  const modalOverlay = document.getElementById('imsmassi-modal-overlay');
-  if (modalOverlay) modalOverlay.classList.add('imsmassi-hidden');
+  console.log("[closeModal] 모달 닫기 시작");
+  const modalOverlay = document.getElementById("imsmassi-modal-overlay");
+  if (modalOverlay) modalOverlay.classList.add("imsmassi-hidden");
   state.currentModal = null;
   state.currentMemoId = null;
   state.editingTemplateId = null;
-  console.log('[closeModal] 모달 닫기 완료');
+  console.log("[closeModal] 모달 닫기 완료");
 }
 
 // 모달 외부 클릭 시 닫기
-const modalOverlay = document.getElementById('imsmassi-modal-overlay');
+const modalOverlay = document.getElementById("imsmassi-modal-overlay");
 if (modalOverlay) {
-  modalOverlay.addEventListener('click', function(e) {
+  modalOverlay.addEventListener("click", function (e) {
     if (e.target === this) {
       closeModal();
     }
@@ -3931,27 +4409,27 @@ if (modalOverlay) {
 // 리마인더 기능
 // ========================================
 function openReminderModal(memoId) {
-  openModal('setReminder', { memoId: memoId });
+  openModal("setReminder", { memoId: memoId });
   // 모달 생성 시점에 이미 기존 리마인더 값이 초기화됨
 }
 
 function setQuickTime(time) {
-  const input = document.getElementById('modal-time-input');
+  const input = document.getElementById("modal-time-input");
   if (input) input.value = time;
 }
 
 async function confirmSetReminder() {
-  const titleInput = document.getElementById('modal-title-input');
-  const dateInput = document.getElementById('modal-date-input');
-  const timeInput = document.getElementById('modal-time-input');
-  const repeatInput = document.getElementById('modal-repeat-input');
+  const titleInput = document.getElementById("modal-title-input");
+  const dateInput = document.getElementById("modal-date-input");
+  const timeInput = document.getElementById("modal-time-input");
+  const repeatInput = document.getElementById("modal-repeat-input");
   const title = titleInput.value.trim();
   const date = dateInput.value;
   const time = timeInput.value;
   const isRepeat = !!repeatInput?.checked;
 
   if (!date || !time) {
-    showToast('날짜와 시간을 선택하세요');
+    showToast("날짜와 시간을 선택하세요");
     return;
   }
 
@@ -3959,53 +4437,62 @@ async function confirmSetReminder() {
   const memo = state.memos[memoId];
 
   if (!memo) {
-    showToast('메모를 찾을 수 없습니다');
+    showToast("메모를 찾을 수 없습니다");
     return;
   }
 
   if (!memoId) {
-    showToast('메모 ID를 찾을 수 없습니다');
+    showToast("메모 ID를 찾을 수 없습니다");
     return;
   }
 
-  workerSend('SET_REMINDER', {
+  workerSend("SET_REMINDER", {
     memoId,
     reminderStr: `${date} ${time}`,
     title,
     reminderRepeat: isRepeat,
   });
   closeModal();
-  if (state.autoNavigateToDashboard) setActiveTab('dashboard');
+  if (state.autoNavigateToDashboard) setActiveTab("dashboard");
 }
 
 function confirmClearReminder() {
   const memoId = state.currentMemoId;
-  if (!memoId || !state.memos[memoId]) { showToast('메모를 찾을 수 없습니다'); return; }
-  workerSend('SET_REMINDER', { memoId, reminderStr: null, reminderRepeat: false });
+  if (!memoId || !state.memos[memoId]) {
+    showToast("메모를 찾을 수 없습니다");
+    return;
+  }
+  workerSend("SET_REMINDER", {
+    memoId,
+    reminderStr: null,
+    reminderRepeat: false,
+  });
   closeModal();
-  if (state.autoNavigateToDashboard) setActiveTab('dashboard');
+  if (state.autoNavigateToDashboard) setActiveTab("dashboard");
 }
 
 // ========================================
 // 메모 기능
 // ========================================
 async function addMemo() {
-  const memoInput = document.getElementById('memo-input');
+  const memoInput = document.getElementById("memo-input");
   const snapshot = getMemoEditorSnapshot(memoQuill, memoInput);
 
   if (!state.selectedMenu) {
-    showToast('메뉴가 선택되지 않았습니다');
+    showToast("메뉴가 선택되지 않았습니다");
     return;
   }
 
   if (snapshot.isEmpty) {
-    showToast('메모 내용을 입력하세요');
+    showToast("메모 내용을 입력하세요");
     return;
   }
 
   // 앱 전체 용량 제한 검사 (50MB)
   if (state.storageUsed >= state.storageLimit) {
-    showToast('⚠️ 저장 용량이 초과되었습니다. 오래된 메모를 삭제하거나 자동 정리를 실행하세요.');
+    showToast(
+      "⚠️ 저장 용량이 초과되었습니다. 오래된 메모를 삭제하거나 자동 정리를 실행하세요.",
+    );
     return;
   }
 
@@ -4015,36 +4502,36 @@ async function addMemo() {
   const contentForSize = useRichText ? snapshot.html : snapshot.text;
   const currentSize = new Blob([contentForSize]).size;
   if (currentSize > MEMO_LIMIT) {
-    showToast('⚠️ 메모 용량이 2MB를 초과했습니다');
+    showToast("⚠️ 메모 용량이 2MB를 초과했습니다");
     return;
   }
 
   // 새로운 메모 객체 (시퀀스 기반 ID)
   const memoId = generateMemoId();
   const newMemo = {
-    title: '',  // 메모 제목 (알림 제목 통합)
+    title: "", // 메모 제목 (알림 제목 통합)
     content: useRichText ? sanitizeHtml(snapshot.html) : snapshot.text.trim(),
     pinned: false,
-    createdAreaId: state.selectedArea,  // 원본 생성 위치
+    createdAreaId: state.selectedArea, // 원본 생성 위치
     menuId: state.selectedMenu,
     labels: [state.selectedMenu], // 현재 menuId만 포함
     reminder: null,
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString().split("T")[0],
     isRichText: useRichText,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
 
   // Worker에 ADD_MEMO 전송 (DB 저장 + 상태 브로드캐스트)
-  workerSend('ADD_MEMO', { memoId, memoData: newMemo });
+  workerSend("ADD_MEMO", { memoId, memoData: newMemo });
 
   // 에디터 즉시 초기화 (UI-only 로컬 처리)
   if (memoQuill) {
-    memoQuill.setText('');
-    state.memoDraftHtml = '';
-    state.memoDraftText = '';
+    memoQuill.setText("");
+    state.memoDraftHtml = "";
+    state.memoDraftText = "";
   } else if (memoInput) {
-    memoInput.innerText = '';
+    memoInput.innerText = "";
   }
   updateMemoCapacity();
 }
@@ -4054,14 +4541,14 @@ async function addMemo() {
 // ========================================
 function handleMemoKeydown(event) {
   // Ctrl+Enter로 메모 추가
-  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
     event.preventDefault();
     addMemo();
     return;
   }
 
-  if (event.key === 'Backspace') {
-    const memoInput = document.getElementById('memo-input');
+  if (event.key === "Backspace") {
+    const memoInput = document.getElementById("memo-input");
     if (normalizeEmptyMemoEditor(null, memoInput)) {
       event.preventDefault();
       updateMemoCapacity();
@@ -4071,8 +4558,8 @@ function handleMemoKeydown(event) {
 
 function updateMemoCapacity() {
   // 메모 용량 표시 업데이트 (2MB 제한)
-  const memoInput = document.getElementById('memo-input');
-  const capacityDisplay = document.getElementById('imsmassi-memo-capacity');
+  const memoInput = document.getElementById("memo-input");
+  const capacityDisplay = document.getElementById("imsmassi-memo-capacity");
 
   if (!capacityDisplay) return;
   if (!memoInput && !memoQuill) return;
@@ -4083,43 +4570,43 @@ function updateMemoCapacity() {
 
   // Quill 에디터 사용 시 - 이미지가 있으면 HTML, 없으면 텍스트 사용
   if (memoQuill && memoQuill.root) {
-    const html = memoQuill.root.innerHTML || '';
-    const hasImage = html.includes('img') || html.includes('data:');
+    const html = memoQuill.root.innerHTML || "";
+    const hasImage = html.includes("img") || html.includes("data:");
 
     if (hasImage) {
       // 이미지가 있으면 HTML 전체 크기로 계산 (base64 포함)
       currentSize = new Blob([html]).size;
     } else {
       // 이미지가 없으면 텍스트만 계산
-      const text = memoQuill.getText() || '';
+      const text = memoQuill.getText() || "";
       currentSize = new Blob([text]).size;
     }
   }
   // contenteditable 사용 시
   else if (memoInput) {
-    const text = memoInput.innerText || '';
+    const text = memoInput.innerText || "";
     currentSize = new Blob([text]).size;
   }
 
-  const percent = (currentSize / MEMO_LIMIT * 100).toFixed(1);
+  const percent = ((currentSize / MEMO_LIMIT) * 100).toFixed(1);
 
   // 용량 포맷팅
-  let sizeText = '';
+  let sizeText = "";
   if (currentSize < 1024) {
-    sizeText = currentSize + ' B';
+    sizeText = currentSize + " B";
   } else if (currentSize < 1024 * 1024) {
-    sizeText = (currentSize / 1024).toFixed(1) + ' KB';
+    sizeText = (currentSize / 1024).toFixed(1) + " KB";
   } else {
-    sizeText = (currentSize / (1024 * 1024)).toFixed(2) + ' MB';
+    sizeText = (currentSize / (1024 * 1024)).toFixed(2) + " MB";
   }
 
   // 용량 초과 시 경고 색상
   const c = getColors();
   if (percent > 90) {
-    capacityDisplay.style.color = '#E74C3C';
+    capacityDisplay.style.color = "#E74C3C";
     capacityDisplay.textContent = `⚠️ ${sizeText} / 2 MB (${percent}%)`;
   } else if (percent > 70) {
-    capacityDisplay.style.color = '#E67E22';
+    capacityDisplay.style.color = "#E67E22";
     capacityDisplay.textContent = `${sizeText} / 2 MB (${percent}%)`;
   } else {
     capacityDisplay.style.color = c.subText;
@@ -4131,12 +4618,12 @@ function updateMemoCapacity() {
     if (memoQuill) {
       const length = memoQuill.getLength();
       if (length > 1) {
-        memoQuill.deleteText(length - 2, 1, 'silent');
+        memoQuill.deleteText(length - 2, 1, "silent");
       }
     } else {
       memoInput.innerText = memoInput.innerText.slice(0, -1);
     }
-    showToast('⚠️ 메모 용량 초과 (최대 2MB)');
+    showToast("⚠️ 메모 용량 초과 (최대 2MB)");
   }
 }
 
@@ -4144,130 +4631,142 @@ function handleMemoPaste(event) {
   // 붙여넣기 시 테이블/텍스트 처리
   event.preventDefault();
 
-  const html = event.clipboardData.getData('text/html');
-  const text = event.clipboardData.getData('text/plain');
+  const html = event.clipboardData.getData("text/html");
+  const text = event.clipboardData.getData("text/plain");
 
   // 메모 용량 제한 확인 (2MB)
   const MEMO_LIMIT = 2 * 1024 * 1024; // 2MB
-  const memoInput = document.getElementById('memo-input');
+  const memoInput = document.getElementById("memo-input");
   const currentSize = new Blob([memoInput.innerText]).size;
   const pastingSize = new Blob([text]).size;
 
   if (currentSize + pastingSize > MEMO_LIMIT) {
-    showToast('⚠️ 메모 용량 초과 (최대 2MB)');
+    showToast("⚠️ 메모 용량 초과 (최대 2MB)");
     return;
   }
 
   // 1. HTML 테이블인 경우 - 그대로 삽입
-  if (html.includes('<table')) {
-    document.execCommand('insertHTML', false, html);
+  if (html.includes("<table")) {
+    document.execCommand("insertHTML", false, html);
     return;
   }
 
   // 2. 일반 텍스트 - 그냥 삽입
-  document.execCommand('insertText', false, text);
+  document.execCommand("insertText", false, text);
 }
 
 function openDeleteConfirmModal(memoId) {
   if (!memoId) {
-    console.error('[openDeleteConfirmModal] memoId가 없습니다');
-    showToast('⚠️ 메모 ID를 찾을 수 없습니다');
+    console.error("[openDeleteConfirmModal] memoId가 없습니다");
+    showToast("⚠️ 메모 ID를 찾을 수 없습니다");
     return;
   }
 
   const memo = state.memos[memoId];
   if (!memo) {
-    console.error('[openDeleteConfirmModal] 메모를 찾을 수 없습니다:', memoId);
-    showToast('⚠️ 메모를 찾을 수 없습니다');
+    console.error("[openDeleteConfirmModal] 메모를 찾을 수 없습니다:", memoId);
+    showToast("⚠️ 메모를 찾을 수 없습니다");
     return;
   }
 
   state.currentMemoId = memoId;
-  openModal('deleteConfirm', { memoId: memoId });
-  console.log('[openDeleteConfirmModal] 삭제 확인 모달 열음:', memoId);
+  openModal("deleteConfirm", { memoId: memoId });
+  console.log("[openDeleteConfirmModal] 삭제 확인 모달 열음:", memoId);
 
   // 리마인더가 설정되어 있으면 모달에 표시
   setTimeout(() => {
-    const reminderDisplay = document.getElementById('modal-delete-reminder-display');
+    const reminderDisplay = document.getElementById(
+      "modal-delete-reminder-display",
+    );
     if (reminderDisplay && memo.reminder) {
       reminderDisplay.innerHTML = `<div style="padding: 8px 12px; background: rgba(230, 126, 34, 0.1); border-left: 3px solid #E67E22; border-radius: 4px; margin: 8px 0; font-size: 13px;">
         <strong>⏰ 알림 설정됨:</strong><br>
         ${memo.reminder}
       </div>`;
     } else if (reminderDisplay) {
-      reminderDisplay.innerHTML = '';
+      reminderDisplay.innerHTML = "";
     }
   }, 100);
 }
 
 function confirmDeleteMemo() {
   const memoId = state.currentMemoId;
-  if (!memoId) { showToast('⚠️ 메모를 찾을 수 없습니다'); return; }
-  if (!state.memos[memoId]) { showToast('⚠️ 메모를 찾을 수 없습니다'); state.currentMemoId = null; closeModal(); return; }
+  if (!memoId) {
+    showToast("⚠️ 메모를 찾을 수 없습니다");
+    return;
+  }
+  if (!state.memos[memoId]) {
+    showToast("⚠️ 메모를 찾을 수 없습니다");
+    state.currentMemoId = null;
+    closeModal();
+    return;
+  }
   // Worker에 DELETE_MEMO 전송 → STATE_UPDATE 수신 후 자동 재렌더
-  workerSend('DELETE_MEMO', { memoId });
+  workerSend("DELETE_MEMO", { memoId });
   state.currentMemoId = null;
   closeModal();
 }
 
 function cancelDeleteMemo() {
-  console.log('[cancelDeleteMemo] 삭제 취소');
+  console.log("[cancelDeleteMemo] 삭제 취소");
   state.currentMemoId = null;
   closeModal();
 }
 
 function togglePin(memoId) {
   const memo = state.memos[memoId];
-  if (!memo) { showToast('메모를 찾을 수 없습니다'); return; }
-  workerSend('TOGGLE_PIN', { memoId });
+  if (!memo) {
+    showToast("메모를 찾을 수 없습니다");
+    return;
+  }
+  workerSend("TOGGLE_PIN", { memoId });
 }
 
 // [레거시 - 미사용] 이전 직접 정렬 로직 (Worker로 이전됨)
 function _legacyTogglePinSort(memoId, memo) {
   // memosByArea 인덱스에서 위치 재정렬
-    // 고정된 메모는 맨 앞으로, 일반 메모는 날짜순으로 정렬
-    Object.keys(state.memosByArea).forEach(areaId => {
-      const memoList = state.memosByArea[areaId];
-      if (memoList && memoList.includes(memoId)) {
-        // 현재 메모를 배열에서 제거
-        const idx = memoList.indexOf(memoId);
-        if (idx > -1) {
-          memoList.splice(idx, 1);
-        }
-
-        // 고정된 메모면 맨 앞에 추가, 아니면 끝에 추가
-        if (memo.pinned) {
-          memoList.unshift(memoId); // 맨 앞에
-        } else {
-          // 일반 메모들 중 같은 날짜 메모 다음에 추가 (날짜순 정렬 유지)
-          let insertIdx = 0;
-          for (let i = 0; i < memoList.length; i++) {
-            const m = state.memos[memoList[i]];
-            if (m && !m.pinned && m.date === memo.date) {
-              insertIdx = i + 1;
-            } else if (m && !m.pinned && new Date(m.date) < new Date(memo.date)) {
-              insertIdx = i + 1;
-            } else if (m && m.pinned) {
-              // 고정 메모는 건너뛰고 계속 탐색
-              continue;
-            } else {
-              break;
-            }
-          }
-          memoList.splice(insertIdx, 0, memoId);
-        }
+  // 고정된 메모는 맨 앞으로, 일반 메모는 날짜순으로 정렬
+  Object.keys(state.memosByArea).forEach((areaId) => {
+    const memoList = state.memosByArea[areaId];
+    if (memoList && memoList.includes(memoId)) {
+      // 현재 메모를 배열에서 제거
+      const idx = memoList.indexOf(memoId);
+      if (idx > -1) {
+        memoList.splice(idx, 1);
       }
-    });
 
+      // 고정된 메모면 맨 앞에 추가, 아니면 끝에 추가
+      if (memo.pinned) {
+        memoList.unshift(memoId); // 맨 앞에
+      } else {
+        // 일반 메모들 중 같은 날짜 메모 다음에 추가 (날짜순 정렬 유지)
+        let insertIdx = 0;
+        for (let i = 0; i < memoList.length; i++) {
+          const m = state.memos[memoList[i]];
+          if (m && !m.pinned && m.date === memo.date) {
+            insertIdx = i + 1;
+          } else if (m && !m.pinned && new Date(m.date) < new Date(memo.date)) {
+            insertIdx = i + 1;
+          } else if (m && m.pinned) {
+            // 고정 메모는 건너뛰고 계속 탐색
+            continue;
+          } else {
+            break;
+          }
+        }
+        memoList.splice(insertIdx, 0, memoId);
+      }
+    }
+  });
 }
 
 // 고정 기능 디버깅 헬퍼
 async function confirmAddTag() {
-  const input = document.getElementById('modal-tag-input');
+  const input = document.getElementById("modal-tag-input");
   const tag = input.value.trim();
 
   if (!tag) {
-    showToast('태그 이름을 입력하세요');
+    showToast("태그 이름을 입력하세요");
     return;
   }
 
@@ -4275,20 +4774,25 @@ async function confirmAddTag() {
   const memo = state.memos[memoId];
 
   if (!memo) {
-    showToast('메모를 찾을 수 없습니다');
+    showToast("메모를 찾을 수 없습니다");
     closeModal();
     return;
   }
 
   if (memo.tags && memo.tags.includes(tag)) {
-    showToast('이미 존재하는 태그입니다');
+    showToast("이미 존재하는 태그입니다");
     return;
   }
 
   if (!memo.tags) memo.tags = [];
   memo.tags.push(tag);
   // Worker에 태그 포함 메모 저장
-  workerSend('SAVE_INLINE_EDIT', { memoId, content: memo.content, isRichText: memo.isRichText, meta: { tags: memo.tags } });
+  workerSend("SAVE_INLINE_EDIT", {
+    memoId,
+    content: memo.content,
+    isRichText: memo.isRichText,
+    meta: { tags: memo.tags },
+  });
   renderAssistantContent();
   showToast(`"${tag}" 태그가 추가되었습니다`);
   closeModal();
@@ -4298,9 +4802,9 @@ async function confirmAddTag() {
 // 클립보드 기능: 저장된 항목을 시스템 클립보드에 복사
 // ========================================
 function copyToClipboard(content) {
-  if (!content || typeof content !== 'string') {
-    console.warn('[copyToClipboard] Invalid content:', content);
-    showToast('복사할 내용이 없습니다');
+  if (!content || typeof content !== "string") {
+    console.warn("[copyToClipboard] Invalid content:", content);
+    showToast("복사할 내용이 없습니다");
     return false;
   }
 
@@ -4309,13 +4813,26 @@ function copyToClipboard(content) {
 
   // ① 현대 Clipboard API (포커스 빼앗지 않음)
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(content).then(() => {
-      console.log('[copyToClipboard] Clipboard API 복사:', content.substring(0, 30));
-      showToast('✓ 클립보드에 복사됨: ' + content.substring(0, 20) + (content.length > 20 ? '...' : ''));
-    }).catch(err => {
-      console.warn('[copyToClipboard] Clipboard API 실패, fallback 사용:', err);
-      _copyToClipboardFallback(content);
-    });
+    navigator.clipboard
+      .writeText(content)
+      .then(() => {
+        console.log(
+          "[copyToClipboard] Clipboard API 복사:",
+          content.substring(0, 30),
+        );
+        showToast(
+          "✓ 클립보드에 복사됨: " +
+            content.substring(0, 20) +
+            (content.length > 20 ? "..." : ""),
+        );
+      })
+      .catch((err) => {
+        console.warn(
+          "[copyToClipboard] Clipboard API 실패, fallback 사용:",
+          err,
+        );
+        _copyToClipboardFallback(content);
+      });
     return true;
   }
 
@@ -4327,34 +4844,44 @@ function _copyToClipboardFallback(content) {
   // 복사 전 포커스 엘리먼트 저장 (Quill 에디터 포커스 보호)
   const prevFocused = document.activeElement;
 
-  const tempElement = document.createElement('textarea');
+  const tempElement = document.createElement("textarea");
   tempElement.value = content;
-  tempElement.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none;z-index:-9999;';
+  tempElement.style.cssText =
+    "position:fixed;top:0;left:0;opacity:0;pointer-events:none;z-index:-9999;";
   getAssistantRoot().appendChild(tempElement);
 
   try {
     tempElement.focus();
     tempElement.select();
     tempElement.setSelectionRange(0, 99999);
-    const success = document.execCommand('copy');
+    const success = document.execCommand("copy");
     if (success) {
-      console.log('[copyToClipboard] execCommand 복사:', content.substring(0, 30));
-      showToast('✓ 클립보드에 복사됨: ' + content.substring(0, 20) + (content.length > 20 ? '...' : ''));
+      console.log(
+        "[copyToClipboard] execCommand 복사:",
+        content.substring(0, 30),
+      );
+      showToast(
+        "✓ 클립보드에 복사됨: " +
+          content.substring(0, 20) +
+          (content.length > 20 ? "..." : ""),
+      );
       return true;
     } else {
-      console.error('[copyToClipboard] execCommand 실패');
-      showToast('클립보드 복사에 실패했습니다');
+      console.error("[copyToClipboard] execCommand 실패");
+      showToast("클립보드 복사에 실패했습니다");
       return false;
     }
   } catch (error) {
-    console.error('[copyToClipboard] 예외 발생:', error);
-    showToast('클립보드 복사에 실패했습니다');
+    console.error("[copyToClipboard] 예외 발생:", error);
+    showToast("클립보드 복사에 실패했습니다");
     return false;
   } finally {
     getAssistantRoot().removeChild(tempElement);
     // 포커스 복구 (Quill 에디터 등 이전 포커스 상태로 되돌림)
-    if (prevFocused && typeof prevFocused.focus === 'function') {
-      try { prevFocused.focus(); } catch (_) {}
+    if (prevFocused && typeof prevFocused.focus === "function") {
+      try {
+        prevFocused.focus();
+      } catch (_) {}
     }
   }
 }
@@ -4364,10 +4891,12 @@ function addCurrentAreaLabel(memoId) {
   if (!memo) return;
   const currentMenu = state.selectedMenu;
   if (memo.labels?.includes(currentMenu)) {
-    showToast(`⚠️ 이 메모는 이미 현재 메뉴(${currentMenu})에 추가되어 있습니다`);
+    showToast(
+      `⚠️ 이 메모는 이미 현재 메뉴(${currentMenu})에 추가되어 있습니다`,
+    );
     return;
   }
-  workerSend('TOGGLE_LABEL', { memoId, menuId: currentMenu, force: true });
+  workerSend("TOGGLE_LABEL", { memoId, menuId: currentMenu, force: true });
 }
 
 function toggleCurrentAreaLabel(memoId) {
@@ -4375,7 +4904,7 @@ function toggleCurrentAreaLabel(memoId) {
   if (!memo) return;
   const currentMenu = state.selectedMenu;
   if (!memo.labels) memo.labels = [];
-  workerSend('TOGGLE_LABEL', { memoId, menuId: currentMenu });
+  workerSend("TOGGLE_LABEL", { memoId, menuId: currentMenu });
 }
 
 function createStickyNoteForMemo(memoId) {
@@ -4386,7 +4915,9 @@ function createStickyNoteForMemo(memoId) {
   if (!currentMenu) return;
 
   // 현재 화면(menuId) 기준으로 이미 포스트잇이 있는지 확인 (다른 화면 포스트잇과 혼동 방지)
-  const alreadyOnScreen = (state.stickyNotes || []).some(n => n.memoId === memoId && n.menuId === currentMenu);
+  const alreadyOnScreen = (state.stickyNotes || []).some(
+    (n) => n.memoId === memoId && n.menuId === currentMenu,
+  );
   if (alreadyOnScreen) {
     removeStickyNote(memoId);
     return;
@@ -4397,75 +4928,116 @@ function createStickyNoteForMemo(memoId) {
 }
 
 function deleteClipboardItem(itemId) {
-  workerSend('DELETE_CLIPBOARD', { itemId });
+  workerSend("DELETE_CLIPBOARD", { itemId });
 }
 
 // ========================================
 // 템플릿 기능
 // ========================================
 function openAddTemplateModal() {
-  openModal('addTemplate');
+  openModal("addTemplate");
 }
 
 function openEditTemplateModal(templateId) {
-  const template = state.templates.find(t => t.id === templateId);
+  const template = state.templates.find((t) => t.id === templateId);
   if (!template) return;
 
   // state.editingTemplateId를 설정한 뒤 openModal을 호출합니다.
   // buildEditTemplateModal 빌더가 state.editingTemplateId를 읽어 값을 즉시 채웁니다.
   // (기존 setTimeout 해킹이 완전히 제거됩니다.)
   state.editingTemplateId = templateId;
-  openModal('editTemplate', { templateId: templateId });
+  openModal("editTemplate", { templateId: templateId });
 }
 
 function confirmAddSuggestedTemplate(suggestedText) {
   if (state.storageUsed >= state.storageLimit) {
-    showToast('⚠️ 저장 용량이 초과되었습니다. 오래된 데이터를 삭제하고 다시 시도하세요.');
+    showToast(
+      "⚠️ 저장 용량이 초과되었습니다. 오래된 데이터를 삭제하고 다시 시도하세요.",
+    );
     return;
   }
   const safeContent = decodeURIComponent(suggestedText);
-  const title = document.getElementById('modal-suggested-template-title')?.value.trim();
-  const category = document.getElementById('modal-suggested-template-category')?.value;
-  if (!title) { showToast('템플릿 이름을 입력하세요'); return; }
-  const template = { title, content: safeContent, category: category || 'default', count: 0 };
-  workerSend('ADD_TEMPLATE', { template });
+  const title = document
+    .getElementById("modal-suggested-template-title")
+    ?.value.trim();
+  const category = document.getElementById(
+    "modal-suggested-template-category",
+  )?.value;
+  if (!title) {
+    showToast("템플릿 이름을 입력하세요");
+    return;
+  }
+  const template = {
+    title,
+    content: safeContent,
+    category: category || "default",
+    count: 0,
+  };
+  workerSend("ADD_TEMPLATE", { template });
   closeModal();
 }
 
 function confirmAddTemplate() {
   if (state.storageUsed >= state.storageLimit) {
-    showToast('⚠️ 저장 용량이 초과되었습니다. 오래된 데이터를 삭제하고 다시 시도하세요.');
+    showToast(
+      "⚠️ 저장 용량이 초과되었습니다. 오래된 데이터를 삭제하고 다시 시도하세요.",
+    );
     return;
   }
-  const title = document.getElementById('modal-template-title')?.value.trim();
-  const content = document.getElementById('modal-template-content')?.value.trim();
-  if (!title) { showToast('템플릿 제목을 입력하세요'); return; }
-  if (!content) { showToast('템플릿 내용을 입력하세요'); return; }
+  const title = document.getElementById("modal-template-title")?.value.trim();
+  const content = document
+    .getElementById("modal-template-content")
+    ?.value.trim();
+  if (!title) {
+    showToast("템플릿 제목을 입력하세요");
+    return;
+  }
+  if (!content) {
+    showToast("템플릿 내용을 입력하세요");
+    return;
+  }
   const template = { title, content, count: 0 };
-  workerSend('ADD_TEMPLATE', { template });
+  workerSend("ADD_TEMPLATE", { template });
   closeModal();
 }
 
 function confirmEditTemplate() {
-  const title = document.getElementById('modal-edit-template-title')?.value.trim();
-  const content = document.getElementById('modal-edit-template-content')?.value.trim();
-  if (!title) { showToast('템플릿 제목을 입력하세요'); return; }
-  if (!content) { showToast('템플릿 내용을 입력하세요'); return; }
-  if (!state.editingTemplateId) { showToast('템플릿을 찾을 수 없습니다'); return; }
-  workerSend('EDIT_TEMPLATE', { templateId: state.editingTemplateId, title, content });
+  const title = document
+    .getElementById("modal-edit-template-title")
+    ?.value.trim();
+  const content = document
+    .getElementById("modal-edit-template-content")
+    ?.value.trim();
+  if (!title) {
+    showToast("템플릿 제목을 입력하세요");
+    return;
+  }
+  if (!content) {
+    showToast("템플릿 내용을 입력하세요");
+    return;
+  }
+  if (!state.editingTemplateId) {
+    showToast("템플릿을 찾을 수 없습니다");
+    return;
+  }
+  workerSend("EDIT_TEMPLATE", {
+    templateId: state.editingTemplateId,
+    title,
+    content,
+  });
   closeModal();
 }
 
 function useTemplate(templateId) {
-  const template = state.templates.find(t => t.id === templateId);
+  const template = state.templates.find((t) => t.id === templateId);
   if (!template) return;
-  state.lastCopySource = 'template';
+  state.lastCopySource = "template";
   copyToClipboard(template.content);
-  workerSend('USE_TEMPLATE', { templateId });
+  workerSend("USE_TEMPLATE", { templateId });
 }
 
 function deleteTemplate(templateId) {
-  workerSend('DELETE_TEMPLATE', { templateId });
+  workerSend("DELETE_TEMPLATE", { templateId });
 }
 
 // ========================================
@@ -4473,26 +5045,28 @@ function deleteTemplate(templateId) {
 // ========================================
 function setTimePeriod(period) {
   state.timePeriod = period;
-  console.log('시간 기간 변경:', period);
+  console.log("시간 기간 변경:", period);
 
   // 디버깅: 현재 버킷 데이터 출력
   const now = new Date();
-  let debugKey = '';
-  if (period === 'today') {
+  let debugKey = "";
+  if (period === "today") {
     debugKey = getDailyBucket(now);
-  } else if (period === 'week') {
+  } else if (period === "week") {
     debugKey = getWeeklyBucket(now);
-  } else if (period === 'month') {
+  } else if (period === "month") {
     debugKey = getMonthlyBucket(now);
   }
 
   console.log(`[setTimePeriod] ${period} (키: ${debugKey})`);
-  console.log('[setTimePeriod] 전체 버킷:', state.timeBuckets);
+  console.log("[setTimePeriod] 전체 버킷:", state.timeBuckets);
 
   // 강제 렌더링
-  const assistantContent = document.getElementById('imsmassi-assistant-content');
+  const assistantContent = document.getElementById(
+    "imsmassi-assistant-content",
+  );
   if (assistantContent) {
-    if (state.activeTab === 'dashboard') {
+    if (state.activeTab === "dashboard") {
       assistantContent.innerHTML = renderDashboardTab();
     } else {
       assistantContent.innerHTML = renderTimeTab();
@@ -4501,7 +5075,7 @@ function setTimePeriod(period) {
 }
 
 function goToMemoTab() {
-  setActiveTab('memo');
+  setActiveTab("memo");
 }
 
 // ========================================
@@ -4524,7 +5098,7 @@ function onAreaColorChange(areaId, key, value) {
     state.areaColors[areaId] = { ...getDefaultAreaColors(areaId) };
   }
   state.areaColors[areaId][key] = value;
-  workerSend('SAVE_AREA_COLORS', { areaId, colors: state.areaColors[areaId] });
+  workerSend("SAVE_AREA_COLORS", { areaId, colors: state.areaColors[areaId] });
   renderAssistant();
   renderStickyNotes();
 }
@@ -4536,25 +5110,25 @@ function onAreaColorChange(areaId, key, value) {
 function resetAreaColors(areaId) {
   if (!state.areaColors) return;
   delete state.areaColors[areaId];
-  workerSend('SAVE_AREA_COLORS', { areaId, colors: null });
+  workerSend("SAVE_AREA_COLORS", { areaId, colors: null });
   renderAssistant();
   renderStickyNotes();
-  if (state.activeTab === 'dashboard') renderAssistantContent();
+  if (state.activeTab === "dashboard") renderAssistantContent();
 }
 
 function openSettingsModal() {
-  if (state.activeTab !== 'settings') {
-    state.lastNonSettingsTab = state.activeTab || 'memo';
+  if (state.activeTab !== "settings") {
+    state.lastNonSettingsTab = state.activeTab || "memo";
   }
-  if (state.activeTab === 'settings') {
+  if (state.activeTab === "settings") {
     closeSettingsTab();
   } else {
-    setActiveTab('settings');
+    setActiveTab("settings");
   }
 }
 
 function closeSettingsTab() {
-  const targetTab = state.lastNonSettingsTab || 'memo';
+  const targetTab = state.lastNonSettingsTab || "memo";
   setActiveTab(targetTab);
 }
 
@@ -4565,18 +5139,32 @@ function _readSettingsFromDOM() {
   const g = (id) => document.getElementById(id);
   return {
     autoCleanup: {
-      clipboard: parseInt(g('setting-clipboard')?.value) || state.settings.autoCleanup.clipboard,
-      oldMemos:  parseInt(g('setting-oldmemos')?.value)  || state.settings.autoCleanup.oldMemos,
+      clipboard:
+        parseInt(g("setting-clipboard")?.value) ||
+        state.settings.autoCleanup.clipboard,
+      oldMemos:
+        parseInt(g("setting-oldmemos")?.value) ||
+        state.settings.autoCleanup.oldMemos,
     },
-    lowSpecMode:                   g('setting-lowspec')?.checked               ?? state.settings.lowSpecMode,
-    backupReminder:                g('setting-backup')?.checked                ?? state.settings.backupReminder,
-    markdownEnabled:               g('setting-markdown')?.checked              ?? state.settings.markdownEnabled,
-    debugLogs:                     g('setting-debug-logs')?.checked            ?? state.settings.debugLogs,
-    autoNavigateToDashboard:       g('setting-auto-dashboard')?.checked        ?? state.settings.autoNavigateToDashboard,
-    browserNotificationEnabled:    g('setting-browser-notification')?.checked  ?? state.settings.browserNotificationEnabled,
-    toastEnabled:                  g('setting-toast')?.checked                 ?? state.settings.toastEnabled,
-    showTimeTab:                   g('setting-show-time-tab') ? g('setting-show-time-tab').checked : (state.settings.showTimeTab !== false),
-    showAreaColorSection:          g('setting-show-area-color') ? g('setting-show-area-color').checked : (state.settings.showAreaColorSection !== false),
+    lowSpecMode: g("setting-lowspec")?.checked ?? state.settings.lowSpecMode,
+    backupReminder:
+      g("setting-backup")?.checked ?? state.settings.backupReminder,
+    markdownEnabled:
+      g("setting-markdown")?.checked ?? state.settings.markdownEnabled,
+    debugLogs: g("setting-debug-logs")?.checked ?? state.settings.debugLogs,
+    autoNavigateToDashboard:
+      g("setting-auto-dashboard")?.checked ??
+      state.settings.autoNavigateToDashboard,
+    browserNotificationEnabled:
+      g("setting-browser-notification")?.checked ??
+      state.settings.browserNotificationEnabled,
+    toastEnabled: g("setting-toast")?.checked ?? state.settings.toastEnabled,
+    showTimeTab: g("setting-show-time-tab")
+      ? g("setting-show-time-tab").checked
+      : state.settings.showTimeTab !== false,
+    showAreaColorSection: g("setting-show-area-color")
+      ? g("setting-show-area-color").checked
+      : state.settings.showAreaColorSection !== false,
   };
 }
 
@@ -4590,28 +5178,35 @@ async function saveSettings(options = {}) {
   state.autoNavigateToDashboard = newSettings.autoNavigateToDashboard;
 
   if (prev.lowSpecMode !== newSettings.lowSpecMode) applyLowSpecMode();
-  if (prev.debugLogs !== newSettings.debugLogs) setConsoleLoggingEnabled(!!newSettings.debugLogs);
-  if (newSettings.browserNotificationEnabled && !prev.browserNotificationEnabled) requestNotificationPermission();
+  if (prev.debugLogs !== newSettings.debugLogs)
+    setConsoleLoggingEnabled(!!newSettings.debugLogs);
+  if (
+    newSettings.browserNotificationEnabled &&
+    !prev.browserNotificationEnabled
+  )
+    requestNotificationPermission();
 
   // Worker에 SAVE_SETTINGS 전송 (DB 저장 + 브로드캐스트)
-  workerSend('SAVE_SETTINGS', { settings: newSettings });
+  workerSend("SAVE_SETTINGS", { settings: newSettings });
 
-  if (!silent) showToast('설정이 저장되었습니다');
+  if (!silent) showToast("설정이 저장되었습니다");
   renderAssistant();
 }
 
 function exportAllData() {
   // Worker가 EXPORT_DATA_RESULT 메시지로 데이터를 전달하면
   // downloadExportData()가 자동 호출됩니다.
-  workerSend('EXPORT_DATA', {});
+  workerSend("EXPORT_DATA", {});
 }
 
 function importData() {
-  const confirmed = window.confirm('가져오기를 실행하면 기존 데이터가 모두 삭제됩니다. (시간 데이터 제외) 계속하시겠습니까?');
+  const confirmed = window.confirm(
+    "가져오기를 실행하면 기존 데이터가 모두 삭제됩니다. (시간 데이터 제외) 계속하시겠습니까?",
+  );
   if (!confirmed) return;
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json';
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json";
   input.onchange = async (e) => {
     try {
       const file = e.target.files[0];
@@ -4619,10 +5214,10 @@ function importData() {
       const text = await file.text();
       const importedData = JSON.parse(text);
       // Worker에 IMPORT_DATA 전송 → STATE_UPDATE 수신 후 자동 재렌더
-      workerSend('IMPORT_DATA', { importedData });
+      workerSend("IMPORT_DATA", { importedData });
     } catch (error) {
-      console.error('데이터 가져오기 실패:', error);
-      showToast('데이터 가져오기에 실패했습니다');
+      console.error("데이터 가져오기 실패:", error);
+      showToast("데이터 가져오기에 실패했습니다");
     }
   };
   input.click();
@@ -4630,25 +5225,27 @@ function importData() {
 
 function clearOldData() {
   const settings = _readSettingsFromDOM();
-  workerSend('CLEAR_OLD_DATA', { settings });
+  workerSend("CLEAR_OLD_DATA", { settings });
 }
 
 function removeMemoFromState(memoId) {
   if (!memoId) return;
   delete state.memos[memoId];
-  Object.keys(state.memosByArea).forEach(areaId => {
+  Object.keys(state.memosByArea).forEach((areaId) => {
     const idx = state.memosByArea[areaId].indexOf(memoId);
     if (idx > -1) {
       state.memosByArea[areaId].splice(idx, 1);
     }
   });
-  state.stickyNotes = (state.stickyNotes || []).filter(note => note.memoId !== memoId);
+  state.stickyNotes = (state.stickyNotes || []).filter(
+    (note) => note.memoId !== memoId,
+  );
 }
 
 async function runAutoCleanup(options = {}) {
-  const { silent = true, refreshUI = false, reason = 'auto' } = options;
+  const { silent = true, refreshUI = false, reason = "auto" } = options;
   // Worker가 CLEAR_OLD_DATA를 처리하고 STATE_UPDATE로 브로드캐스트
-  workerSend('CLEAR_OLD_DATA', { settings: state.settings, silent, reason });
+  workerSend("CLEAR_OLD_DATA", { settings: state.settings, silent, reason });
   if (refreshUI) {
     renderStickyNotes();
     renderAssistantContent();
@@ -4657,7 +5254,6 @@ async function runAutoCleanup(options = {}) {
   }
 }
 
-
 // ========================================
 // [Worker 위임] IndexedDB에서 상태 로드
 // Worker가 INIT 처리 후 STATE_UPDATE로 전체 상태 복원하므로 stub으로 대체
@@ -4665,7 +5261,7 @@ async function runAutoCleanup(options = {}) {
 function loadStateFromDB() {
   // Worker 연결 모드에서는 connectToWorker() → 'INIT' 메시지 → STATE_UPDATE 로 처리됨
   // 폴백(_bootstrapFallback) 경로에서만 직접 DB 로드가 필요하므로 여기선 no-op
-  console.log('[loadStateFromDB] Worker 모드 - STATE_UPDATE 대기 중');
+  console.log("[loadStateFromDB] Worker 모드 - STATE_UPDATE 대기 중");
 }
 
 // ========================================
@@ -4683,17 +5279,17 @@ function renderAll() {
 // ====== 배포시 제거 시작: 데모/미리보기 렌더링 함수 ======
 function renderControlPanel() {
   const theme = getTheme();
-  const themeButtons = document.getElementById('theme-buttons');
+  const themeButtons = document.getElementById("theme-buttons");
   if (!themeButtons) return;
 
   // 테마 버튼
-  let themeBtnsHtml = '';
+  let themeBtnsHtml = "";
   Object.entries(themes).forEach(([key, t]) => {
     const isActive = state.currentTheme === key;
-    const borderStyle = key === 'lightBeige' ? 'border: 1px solid #ccc;' : '';
+    const borderStyle = key === "lightBeige" ? "border: 1px solid #ccc;" : "";
     themeBtnsHtml += `
-      <button class="imsmassi-theme-btn ${isActive ? 'imsmassi-active' : ''}"
-              style="border-color: ${isActive ? t.primary : '#E0E0E0'}; background: ${isActive ? t.primaryLight : '#FFF'};"
+      <button class="imsmassi-theme-btn ${isActive ? "imsmassi-active" : ""}"
+              style="border-color: ${isActive ? t.primary : "#E0E0E0"}; background: ${isActive ? t.primaryLight : "#FFF"};"
               onclick="setTheme('${key}')">
         <span class="imsmassi-theme-dot" style="background: ${t.primary}; ${borderStyle}"></span>
         ${t.name}
@@ -4701,22 +5297,21 @@ function renderControlPanel() {
     `;
   });
   themeButtons.innerHTML = themeBtnsHtml;
-
 }
 
 function renderControlPanel() {
   const theme = getTheme();
-  const themeButtons = document.getElementById('theme-buttons');
+  const themeButtons = document.getElementById("theme-buttons");
   if (!themeButtons) return;
 
   // 테마 버튼
-  let themeBtnsHtml = '';
+  let themeBtnsHtml = "";
   Object.entries(themes).forEach(([key, t]) => {
     const isActive = state.currentTheme === key;
-    const borderStyle = key === 'lightBeige' ? 'border: 1px solid #ccc;' : '';
+    const borderStyle = key === "lightBeige" ? "border: 1px solid #ccc;" : "";
     themeBtnsHtml += `
-      <button class="imsmassi-theme-btn ${isActive ? 'imsmassi-active' : ''}"
-              style="border-color: ${isActive ? t.primary : '#E0E0E0'}; background: ${isActive ? t.primaryLight : '#FFF'};"
+      <button class="imsmassi-theme-btn ${isActive ? "imsmassi-active" : ""}"
+              style="border-color: ${isActive ? t.primary : "#E0E0E0"}; background: ${isActive ? t.primaryLight : "#FFF"};"
               onclick="setTheme('${key}')">
         <span class="imsmassi-theme-dot" style="background: ${t.primary}; ${borderStyle}"></span>
         ${t.name}
@@ -4731,58 +5326,63 @@ function renderSystemPreview() {
   const c = getColors();
 
   // 시스템 미리보기 컨테이너
-  const preview = document.getElementById('imsmassi-system-preview');
+  const preview = document.getElementById("imsmassi-system-preview");
   if (!preview) return;
   preview.style.background = c.bg;
   preview.style.border = `1px solid ${c.border}`;
 
   // 헤더
-  const header = document.getElementById('imsmassi-header');
+  const header = document.getElementById("imsmassi-header");
   if (!header) return;
-  header.style.background = state.isDarkMode ? theme.primaryDark : theme.primary;
-  header.querySelector('.imsmassi-header-logo').style.color = c.headerText;
-  header.querySelector('.imsmassi-header-subtitle').style.color = c.headerSubText;
-  header.querySelector('.imsmassi-header-user').style.color = c.headerSubText;
-  header.querySelector('.imsmassi-header-logout').style.color = c.headerText;
+  header.style.background = state.isDarkMode
+    ? theme.primaryDark
+    : theme.primary;
+  header.querySelector(".imsmassi-header-logo").style.color = c.headerText;
+  header.querySelector(".imsmassi-header-subtitle").style.color =
+    c.headerSubText;
+  header.querySelector(".imsmassi-header-user").style.color = c.headerSubText;
+  header.querySelector(".imsmassi-header-logout").style.color = c.headerText;
 
   // imsmassi-gnb
-  const gnb = document.getElementById('imsmassi-gnb');
+  const gnb = document.getElementById("imsmassi-gnb");
   if (!gnb) return;
   gnb.style.background = c.subBg;
   gnb.style.borderBottom = `1px solid ${c.border}`;
 
-  let gnbHtml = '';
-  getBusinessAreas().slice(0, 5).forEach(a => {
-    const isActive = state.selectedArea === a.id;
-    gnbHtml += `
+  let gnbHtml = "";
+  getBusinessAreas()
+    .slice(0, 5)
+    .forEach((a) => {
+      const isActive = state.selectedArea === a.id;
+      gnbHtml += `
       <button class="imsmassi-gnb-btn"
-              style="border-bottom-color: ${isActive ? a.color : 'transparent'};
-                     background: ${isActive ? (state.isDarkMode ? a.color + '30' : a.bgColor) : 'transparent'};
+              style="border-bottom-color: ${isActive ? a.color : "transparent"};
+                     background: ${isActive ? (state.isDarkMode ? a.color + "30" : a.bgColor) : "transparent"};
                      color: ${isActive ? a.color : c.text};
-                     font-weight: ${isActive ? '600' : '400'};"
+                     font-weight: ${isActive ? "600" : "400"};"
               onclick="setSelectedArea('${a.id}')">
         ${a.name}
       </button>
     `;
-  });
+    });
   gnb.innerHTML = gnbHtml;
 
   // imsmassi-lnb
-  const lnb = document.getElementById('imsmassi-lnb');
+  const lnb = document.getElementById("imsmassi-lnb");
   if (!lnb) return;
-  lnb.style.background = state.isDarkMode ? '#252525' : '#FAFAFA';
+  lnb.style.background = state.isDarkMode ? "#252525" : "#FAFAFA";
   lnb.style.borderRight = `1px solid ${c.border}`;
 
   let lnbHtml = `
-    <div class="imsmassi-lnb-header" style="background: ${state.isDarkMode ? area.color + '30' : area.bgColor}; border-left-color: ${area.color}; color: ${area.color};">
+    <div class="imsmassi-lnb-header" style="background: ${state.isDarkMode ? area.color + "30" : area.bgColor}; border-left-color: ${area.color}; color: ${area.color};">
       ${area.name}
     </div>
   `;
-  ['조회', '등록', '상세', '통계', '보고서'].forEach((menu) => {
+  ["조회", "등록", "상세", "통계", "보고서"].forEach((menu) => {
     const isSelected = state.selectedMenu === menu;
     lnbHtml += `
       <div class="imsmassi-lnb-item"
-           style="color: ${isSelected ? area.color : c.subText}; background: ${isSelected ? (state.isDarkMode ? area.color + '15' : area.bgColor + '80') : 'transparent'}; cursor: pointer;"
+           style="color: ${isSelected ? area.color : c.subText}; background: ${isSelected ? (state.isDarkMode ? area.color + "15" : area.bgColor + "80") : "transparent"}; cursor: pointer;"
            onclick="selectMenu('${menu}')">
         ${area.name} ${menu}
       </div>
@@ -4791,85 +5391,90 @@ function renderSystemPreview() {
   lnb.innerHTML = lnbHtml;
 
   // 페이지 타이틀
-  const pageTitle = document.getElementById('imsmassi-page-title');
+  const pageTitle = document.getElementById("imsmassi-page-title");
   if (!pageTitle) return;
-  pageTitle.style.background = state.isDarkMode ? area.color + '20' : area.bgColor;
+  pageTitle.style.background = state.isDarkMode
+    ? area.color + "20"
+    : area.bgColor;
   pageTitle.style.borderLeftColor = area.color;
-  document.getElementById('page-title-text').style.color = c.text;
-  document.getElementById('page-title-text').textContent = `${area.name} ${state.selectedMenu}`;
-
+  document.getElementById("page-title-text").style.color = c.text;
+  document.getElementById("page-title-text").textContent =
+    `${area.name} ${state.selectedMenu}`;
 
   // 조회 박스
-  const searchBox = document.getElementById('imsmassi-search-box');
+  const searchBox = document.getElementById("imsmassi-search-box");
   if (!searchBox) return;
   searchBox.style.background = c.subBg;
   searchBox.style.border = `1px solid ${c.border}`;
-  searchBox.querySelectorAll('.imsmassi-search-label').forEach(el => el.style.color = c.subText);
-  searchBox.querySelectorAll('.imsmassi-search-input').forEach(el => {
+  searchBox
+    .querySelectorAll(".imsmassi-search-label")
+    .forEach((el) => (el.style.color = c.subText));
+  searchBox.querySelectorAll(".imsmassi-search-input").forEach((el) => {
     el.style.background = c.bg;
     el.style.color = c.text;
     el.style.borderColor = c.border;
   });
-  document.getElementById('btn-search').style.background = area.color;
-  document.getElementById('btn-reset').style.background = state.isDarkMode ? '#404040' : '#E0E0E0';
-  document.getElementById('btn-reset').style.color = c.text;
+  document.getElementById("btn-search").style.background = area.color;
+  document.getElementById("btn-reset").style.background = state.isDarkMode
+    ? "#404040"
+    : "#E0E0E0";
+  document.getElementById("btn-reset").style.color = c.text;
 
   // 그리드
-  const gridContainer = document.getElementById('imsmassi-grid-container');
+  const gridContainer = document.getElementById("imsmassi-grid-container");
   if (!gridContainer) return;
   gridContainer.style.borderColor = c.border;
 
-  const gridToolbar = document.getElementById('imsmassi-grid-toolbar');
+  const gridToolbar = document.getElementById("imsmassi-grid-toolbar");
   if (!gridToolbar) return;
   gridToolbar.style.background = c.subBg;
   gridToolbar.style.borderBottomColor = c.border;
   gridToolbar.style.color = c.text;
-  gridToolbar.querySelectorAll('.imsmassi-grid-toolbar-btn').forEach(el => {
+  gridToolbar.querySelectorAll(".imsmassi-grid-toolbar-btn").forEach((el) => {
     el.style.borderColor = c.border;
     el.style.color = c.subText;
   });
 
-  const gridHeader = document.getElementById('imsmassi-grid-header');
+  const gridHeader = document.getElementById("imsmassi-grid-header");
   if (!gridHeader) return;
-  gridHeader.style.background = state.isDarkMode ? '#353535' : '#F5F5F5';
+  gridHeader.style.background = state.isDarkMode ? "#353535" : "#F5F5F5";
   gridHeader.style.borderBottomColor = c.border;
-  gridHeader.querySelectorAll('.imsmassi-grid-cell').forEach(el => {
+  gridHeader.querySelectorAll(".imsmassi-grid-cell").forEach((el) => {
     el.style.color = c.text;
     el.style.borderRightColor = c.border;
   });
 
   // 그리드 바디
-  let gridBodyHtml = '';
+  let gridBodyHtml = "";
   for (let row = 1; row <= 5; row++) {
     gridBodyHtml += `
       <div class="imsmassi-grid-row" style="background: ${row % 2 === 0 ? c.subBg : c.bg}; border-bottom: 1px solid ${c.border};">
         <div class="imsmassi-grid-cell" style="color: ${c.text}; border-right-color: ${c.border};">${row}</div>
-        <div class="imsmassi-grid-cell imsmassi-link" style="color: ${area.color}; border-right-color: ${c.border};">C202501${String(row).padStart(4, '0')}</div>
+        <div class="imsmassi-grid-cell imsmassi-link" style="color: ${area.color}; border-right-color: ${c.border};">C202501${String(row).padStart(4, "0")}</div>
         <div class="imsmassi-grid-cell" style="color: ${c.text}; border-right-color: ${c.border};">홍길동${row}</div>
         <div class="imsmassi-grid-cell" style="color: ${c.text}; border-right-color: ${c.border};">화재보험</div>
-        <div class="imsmassi-grid-cell" style="color: ${c.text}; border-right-color: ${c.border};">2025-01-${String(row).padStart(2, '0')}</div>
+        <div class="imsmassi-grid-cell" style="color: ${c.text}; border-right-color: ${c.border};">2025-01-${String(row).padStart(2, "0")}</div>
         <div class="imsmassi-grid-cell imsmassi-right" style="color: ${c.text};">${(row * 1234567).toLocaleString()}원</div>
       </div>
     `;
   }
-  const gridBody = document.getElementById('grid-body');
+  const gridBody = document.getElementById("grid-body");
   if (!gridBody) return;
   gridBody.innerHTML = gridBodyHtml;
 
   // 버튼 영역
-  const btnSave = document.getElementById('btn-save');
-  const btnCancel = document.getElementById('btn-cancel');
+  const btnSave = document.getElementById("btn-save");
+  const btnCancel = document.getElementById("btn-cancel");
   if (btnSave) {
-    btnSave.style.background = state.isDarkMode ? theme.primaryDark : theme.primary;
+    btnSave.style.background = state.isDarkMode
+      ? theme.primaryDark
+      : theme.primary;
     btnSave.style.color = c.headerText;
   }
   if (btnCancel) {
     btnCancel.style.borderColor = c.border;
     btnCancel.style.color = c.text;
   }
-
-
-
 
   // 포스트잇 메모 렌더링 (화면 변경 시 라벨 필터링)
   renderStickyNotes();
@@ -4879,17 +5484,17 @@ function renderPalette() {
   const theme = getTheme();
   const c = getColors();
 
-  const paletteTitle = document.getElementById('imsmassi-palette-title');
+  const paletteTitle = document.getElementById("imsmassi-palette-title");
   if (!paletteTitle) return;
-  paletteTitle.textContent = `현재 테마: ${theme.name} (${state.isDarkMode ? '다크' : '라이트'} 모드)`;
+  paletteTitle.textContent = `현재 테마: ${theme.name} (${state.isDarkMode ? "다크" : "라이트"} 모드)`;
 
   // 테마 컬러
-  let themeColorsHtml = '';
+  let themeColorsHtml = "";
   [
-    { label: 'Primary', color: theme.primary },
-    { label: 'Light', color: theme.primaryLight },
-    { label: 'Dark', color: theme.primaryDark },
-  ].forEach(item => {
+    { label: "Primary", color: theme.primary },
+    { label: "Light", color: theme.primaryLight },
+    { label: "Dark", color: theme.primaryDark },
+  ].forEach((item) => {
     themeColorsHtml += `
       <div class="imsmassi-text-center">
         <div class="imsmassi-color-box" style="background: ${item.color}; border: 1px solid #E0E0E0;"></div>
@@ -4898,13 +5503,13 @@ function renderPalette() {
       </div>
     `;
   });
-  const themeColors = document.getElementById('theme-colors');
+  const themeColors = document.getElementById("theme-colors");
   if (!themeColors) return;
   themeColors.innerHTML = themeColorsHtml;
 
   // 영역 컬러
-  let areaColorsHtml = '';
-  getBusinessAreas().forEach(a => {
+  let areaColorsHtml = "";
+  getBusinessAreas().forEach((a) => {
     areaColorsHtml += `
       <div class="imsmassi-text-center">
         <div class="imsmassi-color-box" style="background: ${a.color};"></div>
@@ -4913,7 +5518,7 @@ function renderPalette() {
       </div>
     `;
   });
-  const areaColors = document.getElementById('area-colors');
+  const areaColors = document.getElementById("area-colors");
   if (!areaColors) return;
   areaColors.innerHTML = areaColorsHtml;
 }
@@ -4926,68 +5531,78 @@ function renderAssistant() {
   const c = getColors();
 
   // 플로팅 버튼 — 가시성 + 테마 색상 항상 동기화
-  const floatingBtn = document.getElementById('imsmassi-floating-btn');
+  const floatingBtn = document.getElementById("imsmassi-floating-btn");
   if (floatingBtn) {
-    floatingBtn.style.backgroundColor = state.isDarkMode ? theme.primaryDark : theme.primary;
-    floatingBtn.classList.toggle('imsmassi-hidden', !!state.assistantOpen);
+    floatingBtn.style.backgroundColor = state.isDarkMode
+      ? theme.primaryDark
+      : theme.primary;
+    floatingBtn.classList.toggle("imsmassi-hidden", !!state.assistantOpen);
   }
 
   // 패널 — 가시성 동기화 + 기본 스타일 세팅
-  const panel = document.getElementById('imsmassi-floating-panel');
+  const panel = document.getElementById("imsmassi-floating-panel");
   if (!panel) return;
-  panel.classList.toggle('imsmassi-hidden', !state.assistantOpen);
+  panel.classList.toggle("imsmassi-hidden", !state.assistantOpen);
   panel.style.background = c.bg;
   panel.style.border = `1px solid ${c.border}`;
 
   if (!state.assistantOpen) return;
 
   // 헤더
-  const header = document.getElementById('imsmassi-assistant-header');
+  const header = document.getElementById("imsmassi-assistant-header");
   if (!header) return;
-  header.style.background = state.isDarkMode ? theme.primaryDark : theme.primary;
+  header.style.background = state.isDarkMode
+    ? theme.primaryDark
+    : theme.primary;
   header.style.color = c.headerText;
-  const closeBtn = document.querySelector('.imsmassi-assistant-close');
+  const closeBtn = document.querySelector(".imsmassi-assistant-close");
   if (closeBtn) closeBtn.style.color = c.headerText;
-  const dashboardBtn = document.getElementById('assistant-dashboard-btn');
+  const dashboardBtn = document.getElementById("assistant-dashboard-btn");
   if (dashboardBtn) {
     dashboardBtn.style.borderColor = c.headerText;
     updateDashboardButton();
   }
 
   // 푸터
-  const footer = document.getElementById('imsmassi-assistant-footer');
+  const footer = document.getElementById("imsmassi-assistant-footer");
   if (!footer) return;
-  footer.style.background = state.isDarkMode ? '#252525' : '#FAFAFA';
+  footer.style.background = state.isDarkMode ? "#252525" : "#FAFAFA";
   footer.style.borderTopColor = c.border;
   footer.style.color = c.subText;
-  footer.querySelectorAll('.imsmassi-assistant-footer-btn').forEach(el => {
+  footer.querySelectorAll(".imsmassi-assistant-footer-btn").forEach((el) => {
     el.style.borderColor = c.border;
     el.style.color = c.subText;
   });
-  footer.querySelectorAll('.imsmassi-assistant-footer-group').forEach(el => {
+  footer.querySelectorAll(".imsmassi-assistant-footer-group").forEach((el) => {
     el.style.borderColor = c.border;
   });
 
-  const footerModes = document.getElementById('imsmassi-assistant-footer-modes');
+  const footerModes = document.getElementById(
+    "imsmassi-assistant-footer-modes",
+  );
   if (footerModes) {
     footerModes.innerHTML = `
       <span style="font-size: 11px;">다크</span>
       <label class="imsmassi-toggle-switch" style="transform: scale(0.85);">
-        <input type="checkbox" ${state.isDarkMode ? 'checked' : ''} onchange="setDarkMode(this.checked)">
+        <input type="checkbox" ${state.isDarkMode ? "checked" : ""} onchange="setDarkMode(this.checked)">
         <span class="imsmassi-toggle-slider"></span>
       </label>
      
     `;
   }
 
-  const footerThemes = document.getElementById('imsmassi-assistant-footer-themes');
+  const footerThemes = document.getElementById(
+    "imsmassi-assistant-footer-themes",
+  );
   if (footerThemes) {
-    let themeIconsHtml = '';
+    let themeIconsHtml = "";
     Object.entries(themes).forEach(([key, t]) => {
       const isActive = state.currentTheme === key;
-      const activeRing = isActive ? `box-shadow: 0 0 0 2px ${state.isDarkMode ? '#FFF' : '#333'};` : '';
+      const activeRing = isActive
+        ? `box-shadow: 0 0 0 2px ${state.isDarkMode ? "#FFF" : "#191F28"};`
+        : "";
       themeIconsHtml += `
-        <button class="imsmassi-assistant-footer-theme-btn ${isActive ? 'imsmassi-active' : ''}"
+        <button class="imsmassi-assistant-footer-theme-btn ${isActive ? "imsmassi-active" : ""}"
                 title="${t.name}"
                 onclick="setTheme('${key}')"
                 style="background: ${t.primary}; border-color: ${c.border}; ${activeRing}"></button>
@@ -5004,20 +5619,21 @@ function renderAssistant() {
 }
 
 function updateFooterStorageInfo(colors) {
-  const storageInfo = document.getElementById('footer-storage-info');
+  const storageInfo = document.getElementById("footer-storage-info");
   if (!storageInfo) return;
 
-  const usagePercent = state.storageLimit > 0 ? (state.storageUsed / state.storageLimit * 100) : 0;
+  const usagePercent =
+    state.storageLimit > 0 ? (state.storageUsed / state.storageLimit) * 100 : 0;
   const usedMB = state.storageUsed.toFixed(1);
   const limitMB = state.storageLimit.toFixed(0);
   let statusText = `${usedMB}MB / ${limitMB}MB`;
 
   if (usagePercent >= 80) {
     statusText = `⚠️ ${usedMB}MB / ${limitMB}MB`;
-    storageInfo.style.color = '#E74C3C';
+    storageInfo.style.color = "#E74C3C";
   } else if (state.settings.lowSpecMode) {
     statusText = `⚡ 저사양 | ${usedMB}MB / ${limitMB}MB`;
-    storageInfo.style.color = '#E67E22';
+    storageInfo.style.color = "#E67E22";
     storageInfo.title = `저사양 모드 활성 | ${usedMB}MB / ${limitMB}MB 사용 중`;
   } else {
     storageInfo.style.color = colors.subText;
@@ -5033,12 +5649,12 @@ function updateFooterStorageInfo(colors) {
 function calculateAppUsageMB() {
   try {
     const payload = {
-      memos:         state.memos,
-      stickyNotes:   state.stickyNotes,
-      clipboard:     state.clipboard,
-      templates:     state.templates,
+      memos: state.memos,
+      stickyNotes: state.stickyNotes,
+      clipboard: state.clipboard,
+      templates: state.templates,
       menuTimeStats: state.menuTimeStats,
-      timeBuckets:   state.timeBuckets,
+      timeBuckets: state.timeBuckets,
     };
     const bytes = new Blob([JSON.stringify(payload)]).size;
     return (bytes * 1.5) / (1024 * 1024);
@@ -5049,9 +5665,9 @@ function calculateAppUsageMB() {
 
 async function updateStorageEstimate() {
   const limitMB = 50;
-  const usedMB  = calculateAppUsageMB();
+  const usedMB = calculateAppUsageMB();
 
-  state.storageUsed  = usedMB;
+  state.storageUsed = usedMB;
   state.storageLimit = limitMB;
 
   const c = getColors();
@@ -5075,36 +5691,37 @@ function renderAssistantTabs() {
   const area = getArea();
   const c = getColors();
 
-  const tabsContainer = document.getElementById('imsmassi-assistant-tabs');
+  const tabsContainer = document.getElementById("imsmassi-assistant-tabs");
   if (!tabsContainer) return;
   if (!assistantTabs.length) {
-    tabsContainer.innerHTML = '';
-    tabsContainer.style.display = 'none';
+    tabsContainer.innerHTML = "";
+    tabsContainer.style.display = "none";
     return;
   }
-  tabsContainer.style.display = 'flex';
-  tabsContainer.style.background = state.isDarkMode ? '#252525' : '#FAFAFA';
+  tabsContainer.style.display = "flex";
+  tabsContainer.style.background = state.isDarkMode ? "#252525" : "#FAFAFA";
   tabsContainer.style.borderBottomColor = c.border;
 
   // createElement를 사용하여 탭 버튼을 프로그래밍 방식으로 생성합니다.
-  tabsContainer.innerHTML = '';
-  assistantTabs
-    .forEach(tab => {
+  tabsContainer.innerHTML = "";
+  assistantTabs.forEach((tab) => {
     const isActive = state.activeTab === tab.id;
-    const btn = createElement('button', {
-      className: `imsmassi-assistant-tab${isActive ? ' imsmassi-active' : ''}`,
+    const btn = createElement("button", {
+      className: `imsmassi-assistant-tab${isActive ? " imsmassi-active" : ""}`,
       style: {
-        borderBottomColor: isActive ? area.color : 'transparent',
-        background: isActive ? c.bg : 'transparent',
+        borderBottomColor: isActive ? area.color : "transparent",
+        background: isActive ? c.bg : "transparent",
         color: isActive ? area.color : c.subText,
       },
       onclick: () => setActiveTab(tab.id),
     });
-    const iconSpan = createElement('span', { className: 'imsmassi-assistant-tab-icon' });
+    const iconSpan = createElement("span", {
+      className: "imsmassi-assistant-tab-icon",
+    });
     iconSpan.textContent = tab.icon;
-    const labelSpan = createElement('span', {
-      className: 'imsmassi-assistant-tab-label',
-      style: { fontWeight: isActive ? '600' : '400' },
+    const labelSpan = createElement("span", {
+      className: "imsmassi-assistant-tab-label",
+      style: { fontWeight: isActive ? "600" : "400" },
     });
     labelSpan.textContent = tab.label;
     btn.appendChild(iconSpan);
@@ -5116,12 +5733,15 @@ function renderAssistantTabs() {
 function renderAssistantContent(previousTab) {
   const area = getArea();
   const c = getColors();
-  const content = document.getElementById('imsmassi-assistant-content');
+  const content = document.getElementById("imsmassi-assistant-content");
   if (!content) return;
   const previousScrollTop = content ? content.scrollTop : 0;
 
-  const transitionTabs = new Set(['memo', 'dashboard', 'settings']);
-  const shouldAnimate = transitionTabs.has(previousTab) && transitionTabs.has(state.activeTab) && previousTab !== state.activeTab;
+  const transitionTabs = new Set(["memo", "dashboard", "settings"]);
+  const shouldAnimate =
+    transitionTabs.has(previousTab) &&
+    transitionTabs.has(state.activeTab) &&
+    previousTab !== state.activeTab;
 
   const renderContent = () => {
     // ASSISTANT_TABS 설정에서 현재 탭의 render 함수를 조회합니다.
@@ -5129,18 +5749,18 @@ function renderAssistantContent(previousTab) {
     // 이 구조 덕분에 탭 렌더러를 HTML 문자열 또는 DOM 노드 방식으로 자유롭게 전환할 수 있습니다.
     const tabConfig = ASSISTANT_TABS[state.activeTab];
     const result = tabConfig ? tabConfig.render() : renderMemoTab();
-    content.innerHTML = '';
+    content.innerHTML = "";
     if (result instanceof Node) {
       content.appendChild(result);
     } else {
-      const tempDiv = document.createElement('div');
+      const tempDiv = document.createElement("div");
       tempDiv.innerHTML = result;
       const fragment = document.createDocumentFragment();
       while (tempDiv.firstChild) fragment.appendChild(tempDiv.firstChild);
       content.appendChild(fragment);
     }
 
-    if (state.activeTab === 'memo') {
+    if (state.activeTab === "memo") {
       setTimeout(() => {
         initMemoEditor();
         initMemoListEditors();
@@ -5149,7 +5769,7 @@ function renderAssistantContent(previousTab) {
         updateMemoSidePanelState();
         if (content) content.scrollTop = previousScrollTop;
       }, 0);
-    } else if (state.activeTab === 'settings') {
+    } else if (state.activeTab === "settings") {
       memoQuill = null;
       setTimeout(() => {
         initSettingsTab();
@@ -5162,19 +5782,19 @@ function renderAssistantContent(previousTab) {
   };
 
   if (shouldAnimate) {
-    content.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
-    content.style.opacity = '0';
-    content.style.transform = 'translateY(6px)';
+    content.style.transition = "opacity 0.18s ease, transform 0.18s ease";
+    content.style.opacity = "0";
+    content.style.transform = "translateY(6px)";
     setTimeout(() => {
       renderContent();
       requestAnimationFrame(() => {
-        content.style.opacity = '1';
-        content.style.transform = 'translateY(0)';
+        content.style.opacity = "1";
+        content.style.transform = "translateY(0)";
       });
     }, 120);
   } else {
-    content.style.opacity = '1';
-    content.style.transform = 'none';
+    content.style.opacity = "1";
+    content.style.transform = "none";
     renderContent();
   }
 }
@@ -5193,108 +5813,170 @@ function renderMemoItemDOM(memo) {
   const c = getColors();
 
   // ── 루트 컨테이너 ──
-  const item = createElement('div', { className: 'imsmassi-memo-item', 'data-id': memo.id });
+  const item = createElement("div", {
+    className: "imsmassi-memo-item",
+    "data-id": memo.id,
+  });
   if (memo.pinned) {
-    item.classList.add('imsmassi-memo-item-pinned');
-    item.style.setProperty('--memo-pin-border', area.color);
+    item.classList.add("imsmassi-memo-item-pinned");
+    item.style.setProperty("--memo-pin-border", area.color);
   } else {
-    item.classList.add('imsmassi-memo-item-normal');
+    item.classList.add("imsmassi-memo-item-normal");
   }
 
   // ── 헤더 (드래그 핸들) ──
-  const header = createElement('div', { className: 'imsmassi-memo-item-header imsmassi-memo-drag-handle', draggable: 'true' });
-  header.addEventListener('dragstart', (e) => handleMemoDragStart(e, memo.id));
+  const header = createElement("div", {
+    className: "imsmassi-memo-item-header imsmassi-memo-drag-handle",
+    draggable: "true",
+  });
+  header.addEventListener("dragstart", (e) => handleMemoDragStart(e, memo.id));
 
   // 헤더 좌측: 고정 버튼 + 제목 + 알림 시간 뱃지
-  const headerLeft = createElement('div', { className: 'imsmassi-memo-header-left' });
+  const headerLeft = createElement("div", {
+    className: "imsmassi-memo-header-left",
+  });
 
-  const pinBtn = createElement('button', { className: 'imsmassi-memo-header-pin-btn', draggable: 'false', title: memo.pinned ? '고정 해제' : '고정' });
-  pinBtn.textContent = '📌';
-  pinBtn.addEventListener('click', () => togglePin(memo.id).catch(e => console.error('고정 실패:', e)));
-  pinBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+  const pinBtn = createElement("button", {
+    className: "imsmassi-memo-header-pin-btn",
+    draggable: "false",
+    title: memo.pinned ? "고정 해제" : "고정",
+  });
+  pinBtn.textContent = "📌";
+  pinBtn.addEventListener("click", () =>
+    togglePin(memo.id).catch((e) => console.error("고정 실패:", e)),
+  );
+  pinBtn.addEventListener("mousedown", (e) => e.stopPropagation());
 
-  const titleSpan = createElement('span', { className: 'imsmassi-memo-title-editable', contenteditable: 'true', 'data-memo-id': memo.id, 'data-placeholder': '제목', draggable: 'false' });
-  titleSpan.textContent = memo.title || '';
-  titleSpan.addEventListener('blur', () => saveMemoTitle(memo.id, titleSpan.innerText.trim()));
-  titleSpan.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); titleSpan.blur(); } });
-  titleSpan.addEventListener('mousedown', (e) => e.stopPropagation());
+  const titleSpan = createElement("span", {
+    className: "imsmassi-memo-title-editable",
+    contenteditable: "true",
+    "data-memo-id": memo.id,
+    "data-placeholder": "제목",
+    draggable: "false",
+  });
+  titleSpan.textContent = memo.title || "";
+  titleSpan.addEventListener("blur", () =>
+    saveMemoTitle(memo.id, titleSpan.innerText.trim()),
+  );
+  titleSpan.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === "Escape") {
+      e.preventDefault();
+      titleSpan.blur();
+    }
+  });
+  titleSpan.addEventListener("mousedown", (e) => e.stopPropagation());
 
   headerLeft.append(pinBtn, titleSpan);
 
-  const reminderTime = memo.reminder ? (memo.reminder.split(' ')[1] || '') : '';
+  const reminderTime = memo.reminder ? memo.reminder.split(" ")[1] || "" : "";
   if (reminderTime) {
-    const reminderBadge = createElement('span', { className: 'imsmassi-memo-reminder-badge' });
+    const reminderBadge = createElement("span", {
+      className: "imsmassi-memo-reminder-badge",
+    });
     reminderBadge.textContent = `⏰ ${reminderTime}`;
     headerLeft.appendChild(reminderBadge);
   }
 
   // 헤더 우측: 삭제 버튼
-  const headerRight = createElement('div', { className: 'imsmassi-memo-header-right' });
+  const headerRight = createElement("div", {
+    className: "imsmassi-memo-header-right",
+  });
 
-  const deleteBtn = createElement('button', { className: 'imsmassi-memo-header-delete-btn', draggable: 'false', title: '삭제' });
-  deleteBtn.textContent = '✕';
-  deleteBtn.addEventListener('click', () => openDeleteConfirmModal(memo.id));
-  deleteBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+  const deleteBtn = createElement("button", {
+    className: "imsmassi-memo-header-delete-btn",
+    draggable: "false",
+    title: "삭제",
+  });
+  deleteBtn.textContent = "✕";
+  deleteBtn.addEventListener("click", () => openDeleteConfirmModal(memo.id));
+  deleteBtn.addEventListener("mousedown", (e) => e.stopPropagation());
 
   headerRight.appendChild(deleteBtn);
   header.append(headerLeft, headerRight);
 
   // ── 콘텐츠 ──
-  const contentDiv = createElement('div', { className: 'imsmassi-memo-item-content' });
+  const contentDiv = createElement("div", {
+    className: "imsmassi-memo-item-content",
+  });
   if (isQuillAvailable()) {
     const inlineHtml = memo.isRichText
-      ? sanitizeHtml(memo.content || '')
-      : escapeHtml(getMemoPlainText(memo)).replace(/\n/g, '<br>');
-    const inlineEditor = createElement('div', { className: 'imsmassi-memo-inline-editor', 'data-memo-id': memo.id, 'data-content': encodeURIComponent(inlineHtml) });
+      ? sanitizeHtml(memo.content || "")
+      : escapeHtml(getMemoPlainText(memo)).replace(/\n/g, "<br>");
+    const inlineEditor = createElement("div", {
+      className: "imsmassi-memo-inline-editor",
+      "data-memo-id": memo.id,
+      "data-content": encodeURIComponent(inlineHtml),
+    });
     contentDiv.appendChild(inlineEditor);
   } else {
-    const inlineText = createElement('div', { className: 'imsmassi-memo-inline-text', contenteditable: 'true', 'data-memo-id': memo.id });
+    const inlineText = createElement("div", {
+      className: "imsmassi-memo-inline-text",
+      contenteditable: "true",
+      "data-memo-id": memo.id,
+    });
     inlineText.innerHTML = escapeHtml(getMemoPlainText(memo)); // 이미 escape된 안전한 문자열
-    inlineText.addEventListener('blur', () => saveInlineMemoEdit(memo.id));
+    inlineText.addEventListener("blur", () => saveInlineMemoEdit(memo.id));
     contentDiv.appendChild(inlineText);
   }
 
   // ── 푸터 (원산지 · 날짜 · 액션 버튼) ──
-  const footer = createElement('div', { className: 'imsmassi-memo-item-tags imsmassi-memo-item-footer' });
+  const footer = createElement("div", {
+    className: "imsmassi-memo-item-tags imsmassi-memo-item-footer",
+  });
 
   const createdAreaName = getAreaName(memo.createdAreaId, memo.createdAreaId);
-  const originBadge = createElement('span', { className: 'imsmassi-memo-origin-badge' });
+  const originBadge = createElement("span", {
+    className: "imsmassi-memo-origin-badge",
+  });
   originBadge.textContent = createdAreaName;
 
-  const dateSpan = createElement('span', { className: 'imsmassi-memo-date' });
+  const dateSpan = createElement("span", { className: "imsmassi-memo-date" });
   dateSpan.textContent = memo.date;
 
   const currentMenu = state.selectedMenu;
-  const currentStickyNote = (state.stickyNotes || []).find(n => n.memoId === memo.id && (!currentMenu || n.menuId === currentMenu));
+  const currentStickyNote = (state.stickyNotes || []).find(
+    (n) => n.memoId === memo.id && (!currentMenu || n.menuId === currentMenu),
+  );
   const hasStickyNote = !!currentStickyNote;
   // 뷰포트 밖 여부 (현재 메뉴에 포스트잇이 있을 때만 체크)
-  const isStickyOutOfView = hasStickyNote && isStickyNoteOutOfViewport(currentStickyNote);
-  const actionsDiv = createElement('div', { className: 'imsmassi-memo-actions' });
+  const isStickyOutOfView =
+    hasStickyNote && isStickyNoteOutOfViewport(currentStickyNote);
+  const actionsDiv = createElement("div", {
+    className: "imsmassi-memo-actions",
+  });
 
-  const screenBtn = createElement('button', { className: `imsmassi-memo-action-btn imsmassi-toggle-label imsmassi-screen-btn${hasStickyNote ? ' imsmassi-screen-btn-active' : ''}`, draggable: 'false', title: `포스트잇 ${hasStickyNote ? '제거' : '추가'}` });
+  const screenBtn = createElement("button", {
+    className: `imsmassi-memo-action-btn imsmassi-toggle-label imsmassi-screen-btn${hasStickyNote ? " imsmassi-screen-btn-active" : ""}`,
+    draggable: "false",
+    title: `포스트잇 ${hasStickyNote ? "제거" : "추가"}`,
+  });
   // 동적 컬러값(area.color)은 CSS 변수로 주입
   if (!hasStickyNote) {
-    screenBtn.style.setProperty('--screen-btn-color', area.color);
-    screenBtn.style.setProperty('--screen-btn-shadow', `${area.color}55`);
+    screenBtn.style.setProperty("--screen-btn-color", area.color);
+    screenBtn.style.setProperty("--screen-btn-shadow", `${area.color}55`);
   }
-  screenBtn.textContent = hasStickyNote ? '− 화면' : '+ 화면';
-  screenBtn.addEventListener('click', () => createStickyNoteForMemo(memo.id));
-  screenBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+  screenBtn.textContent = hasStickyNote ? "스티커삭제" : "스티커추가";
+  screenBtn.addEventListener("click", () => createStickyNoteForMemo(memo.id));
+  screenBtn.addEventListener("mousedown", (e) => e.stopPropagation());
 
-  const reminderBtn = createElement('button', { className: `imsmassi-memo-action-btn imsmassi-reminder-btn${memo.reminder ? ' imsmassi-reminder-btn-active' : ''}`, draggable: 'false', title: memo.reminder ? '리마인더 수정' : '리마인더 설정' });
-  reminderBtn.textContent = '⏰ 알림';
-  reminderBtn.addEventListener('click', () => openReminderModal(memo.id));
-  reminderBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+  const reminderBtn = createElement("button", {
+    className: `imsmassi-memo-action-btn imsmassi-reminder-btn${memo.reminder ? " imsmassi-reminder-btn-active" : ""}`,
+    draggable: "false",
+    title: memo.reminder ? "리마인더 수정" : "리마인더 설정",
+  });
+  reminderBtn.textContent = "알림";
+  reminderBtn.addEventListener("click", () => openReminderModal(memo.id));
+  reminderBtn.addEventListener("mousedown", (e) => e.stopPropagation());
 
   actionsDiv.append(screenBtn, reminderBtn);
 
   // 포스트잇이 현재 화면 밖에 위치한 경우 → 화면 밖 표시 뱃지
   if (isStickyOutOfView) {
-    const outBadge = createElement('span', {
-      className: 'imsmassi-sticky-outofview-badge',
-      title: '포스트잇이 현재 화면 밖에 위치합니다'
+    const outBadge = createElement("span", {
+      className: "imsmassi-sticky-outofview-badge",
+      title: "포스트잇이 현재 화면 밖에 위치합니다",
     });
-    outBadge.textContent = '📍 화면 밖';
+    outBadge.textContent = "📍 화면 밖";
     actionsDiv.appendChild(outBadge);
   }
 
@@ -5315,26 +5997,39 @@ function renderMemoTab() {
   const area = getArea();
   const c = getColors();
   const allMemos = Object.values(state.memos || {});
-  const getMemoTime = (memo) => Number.isFinite(memo?.createdAt) ? memo.createdAt : Date.parse(memo?.date || '') || 0;
+  const getMemoTime = (memo) =>
+    Number.isFinite(memo?.createdAt)
+      ? memo.createdAt
+      : Date.parse(memo?.date || "") || 0;
   const sortByTimeDesc = (a, b) => getMemoTime(b) - getMemoTime(a);
 
   // ── 필터 적용 ──────────────────────────────────────────
-  const currentFilter = state.memoFilter || 'menu';
+  const currentFilter = state.memoFilter || "menu";
   let filteredMemos;
-  if (currentFilter === 'menu') {
+  if (currentFilter === "menu") {
     // menuId만으로 화면을 완전히 특정 — areaId 이중 검사 불필요
     // (menuId/areaId가 별도 STATE_UPDATE로 오는 타이밍 차에 메모 목록이 비는 문제 방지)
-    filteredMemos = allMemos.filter(m =>
-      m.menuId === state.selectedMenu || m.labels?.includes(state.selectedMenu)
+    filteredMemos = allMemos.filter(
+      (m) =>
+        m.menuId === state.selectedMenu ||
+        m.labels?.includes(state.selectedMenu),
     );
-  } else if (currentFilter === 'area') {
-    filteredMemos = allMemos.filter(m => m.createdAreaId === state.selectedArea || m.areaId === state.selectedArea);
+  } else if (currentFilter === "area") {
+    filteredMemos = allMemos.filter(
+      (m) =>
+        m.createdAreaId === state.selectedArea ||
+        m.areaId === state.selectedArea,
+    );
   } else {
     filteredMemos = allMemos;
   }
 
-  const pinnedMemos = filteredMemos.filter(memo => memo.pinned).sort(sortByTimeDesc);
-  const unpinnedMemos = filteredMemos.filter(memo => !memo.pinned).sort(sortByTimeDesc);
+  const pinnedMemos = filteredMemos
+    .filter((memo) => memo.pinned)
+    .sort(sortByTimeDesc);
+  const unpinnedMemos = filteredMemos
+    .filter((memo) => !memo.pinned)
+    .sort(sortByTimeDesc);
   const memos = [...pinnedMemos, ...unpinnedMemos];
   const useQuill = isQuillAvailable();
   const isExpanded = !!state.isMemoPanelExpanded;
@@ -5342,86 +6037,196 @@ function renderMemoTab() {
   // ── 메모 에디터 영역 ──
   let editorSection;
   if (useQuill) {
-    editorSection = createElement('div', { className: 'imsmassi-memo-quill-wrapper', id: 'memo-editor-wrapper' });
-    editorSection.style.setProperty('--memo-border-color', c.border);
-    editorSection.style.setProperty('--memo-focus-color', area.color);
-    editorSection.style.setProperty('--memo-focus-shadow', `${area.color}33`);
-    editorSection.style.setProperty('--memo-bg', state.isDarkMode ? '#1A1A1A' : '#FFF');
-    editorSection.style.setProperty('--memo-text', c.text);
-    editorSection.style.setProperty('--memo-placeholder', c.subText);
-    editorSection.style.setProperty('--memo-icon-color', c.text);
-    const editorDiv = createElement('div', { id: 'imsmassi-memo-editor', className: 'imsmassi-memo-editor' });
-    const capacityDiv = createElement('div', { id: 'imsmassi-memo-capacity', className: 'imsmassi-memo-capacity' });
-    Object.assign(capacityDiv.style, { position: 'absolute', bottom: '6px', right: '12px', color: c.subText, pointerEvents: 'none', zIndex: '10' });
-    capacityDiv.textContent = '0 B / 2 MB';
+    editorSection = createElement("div", {
+      className: "imsmassi-memo-quill-wrapper",
+      id: "memo-editor-wrapper",
+    });
+    editorSection.style.setProperty("--memo-border-color", c.border);
+    editorSection.style.setProperty("--memo-focus-color", area.color);
+    editorSection.style.setProperty("--memo-focus-shadow", `${area.color}33`);
+    editorSection.style.setProperty(
+      "--memo-bg",
+      state.isDarkMode ? "#191F28" : "#FFF",
+    );
+    editorSection.style.setProperty("--memo-text", c.text);
+    editorSection.style.setProperty("--memo-placeholder", c.subText);
+    editorSection.style.setProperty("--memo-icon-color", c.text);
+    const editorDiv = createElement("div", {
+      id: "imsmassi-memo-editor",
+      className: "imsmassi-memo-editor",
+    });
+    const capacityDiv = createElement("div", {
+      id: "imsmassi-memo-capacity",
+      className: "imsmassi-memo-capacity",
+    });
+    Object.assign(capacityDiv.style, {
+      position: "absolute",
+      bottom: "6px",
+      right: "12px",
+      color: c.subText,
+      pointerEvents: "none",
+      zIndex: "10",
+    });
+    capacityDiv.textContent = "0 B / 2 MB";
     editorSection.append(editorDiv, capacityDiv);
   } else {
-    editorSection = createElement('div');
-    editorSection.style.position = 'relative';
-    const textarea = createElement('div', { className: 'imsmassi-memo-textarea', id: 'memo-input', contenteditable: 'true', placeholder: `${area.name} 메모를 입력하세요 (Ctrl+Enter로 추가)...` });
-    Object.assign(textarea.style, {
-      background: state.isDarkMode ? '#1A1A1A' : '#FFF', color: c.text,
-      border: `2px solid ${c.border}`, minHeight: '140px', maxHeight: '300px',
-      padding: '12px 40px 30px 12px', borderRadius: '8px', fontSize: '13px',
-      lineHeight: '1.6', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-      outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s', cursor: 'text', overflowY: 'auto',
+    editorSection = createElement("div");
+    editorSection.style.position = "relative";
+    const textarea = createElement("div", {
+      className: "imsmassi-memo-textarea",
+      id: "memo-input",
+      contenteditable: "true",
+      placeholder: `${area.name} 메모를 입력하세요 (Ctrl+Enter로 추가)...`,
     });
-    textarea.addEventListener('paste', (e) => handleMemoPaste(e));
-    textarea.addEventListener('keydown', (e) => handleMemoKeydown(e));
-    textarea.addEventListener('input', () => updateMemoCapacity());
-    textarea.addEventListener('blur', () => { textarea.style.borderColor = c.border; textarea.style.boxShadow = 'none'; });
-    textarea.addEventListener('focus', () => { textarea.style.borderColor = area.color; textarea.style.boxShadow = `0 0 0 2px ${area.color}33`; });
-    const capacityDiv = createElement('div', { id: 'imsmassi-memo-capacity', className: 'imsmassi-memo-capacity' });
-    Object.assign(capacityDiv.style, { position: 'absolute', bottom: '8px', right: '12px', color: c.subText, pointerEvents: 'none' });
-    capacityDiv.textContent = '0 B / 2 MB';
+    Object.assign(textarea.style, {
+      background: state.isDarkMode ? "#1A1A1A" : "#FFF",
+      color: c.text,
+      border: `2px solid ${c.border}`,
+      minHeight: "140px",
+      maxHeight: "300px",
+      padding: "12px 40px 30px 12px",
+      borderRadius: "8px",
+      fontSize: "13px",
+      lineHeight: "1.6",
+      whiteSpace: "pre-wrap",
+      wordBreak: "break-word",
+      outline: "none",
+      transition: "border-color 0.2s, box-shadow 0.2s",
+      cursor: "text",
+      overflowY: "auto",
+    });
+    textarea.addEventListener("paste", (e) => handleMemoPaste(e));
+    textarea.addEventListener("keydown", (e) => handleMemoKeydown(e));
+    textarea.addEventListener("input", () => updateMemoCapacity());
+    textarea.addEventListener("blur", () => {
+      textarea.style.borderColor = c.border;
+      textarea.style.boxShadow = "none";
+    });
+    textarea.addEventListener("focus", () => {
+      textarea.style.borderColor = area.color;
+      textarea.style.boxShadow = `0 0 0 2px ${area.color}33`;
+    });
+    const capacityDiv = createElement("div", {
+      id: "imsmassi-memo-capacity",
+      className: "imsmassi-memo-capacity",
+    });
+    Object.assign(capacityDiv.style, {
+      position: "absolute",
+      bottom: "8px",
+      right: "12px",
+      color: c.subText,
+      pointerEvents: "none",
+    });
+    capacityDiv.textContent = "0 B / 2 MB";
     editorSection.append(textarea, capacityDiv);
   }
 
   // ── 옵션 바 (추가 / 패널 토글) ──
-  const optionsBar = createElement('div', { className: 'imsmassi-memo-options' });
-  optionsBar.style.justifyContent = 'space-between';
-  const addBtn = createElement('button', { className: 'imsmassi-memo-option-btn' });
-  Object.assign(addBtn.style, { borderColor: area.color, color: area.color, fontWeight: '600' });
-  addBtn.textContent = '✚ 추가';
-  addBtn.addEventListener('click', addMemo);
-  const sideToggleBtn = createElement('button', { className: 'imsmassi-memo-option-btn imsmassi-memo-side-toggle-btn', id: 'imsmassi-memo-side-toggle-btn' });
-  Object.assign(sideToggleBtn.style, { borderColor: area.color, color: area.color, fontWeight: '600' });
-  sideToggleBtn.textContent = isExpanded ? '접기 ▸' : '펼치기 ◂';
-  sideToggleBtn.addEventListener('click', toggleMemoSidePanel);
+  const optionsBar = createElement("div", {
+    className: "imsmassi-memo-options",
+  });
+  optionsBar.style.justifyContent = "space-between";
+  const addBtn = createElement("button", {
+    className: "imsmassi-memo-option-btn",
+  });
+  Object.assign(addBtn.style, {
+    fontWeight: "600",
+  });
+  addBtn.textContent = "메모등록";
+  addBtn.addEventListener("click", addMemo);
+  const sideToggleBtn = createElement("button", {
+    className: "imsmassi-memo-option-btn imsmassi-memo-side-toggle-btn",
+    id: "imsmassi-memo-side-toggle-btn",
+  });
+  Object.assign(sideToggleBtn.style, {
+    fontWeight: "600",
+  });
+  sideToggleBtn.textContent = isExpanded ? "접기 ▸" : "펼치기 ◂";
+  sideToggleBtn.addEventListener("click", toggleMemoSidePanel);
   optionsBar.append(addBtn, sideToggleBtn);
 
-  const mainSection = createElement('div', { className: 'imsmassi-memo-main' });
+  const mainSection = createElement("div", { className: "imsmassi-memo-main" });
   mainSection.append(editorSection, optionsBar);
 
   // ── 사이드 패널 (클립보드 · 템플릿 카드) ──
-  const sidePanel = createElement('div', { className: `imsmassi-memo-side${isExpanded ? '' : ' imsmassi-hidden'}`, id: 'memo-side-panel' });
-  const sidePanelContent = createElement('div', { className: 'imsmassi-memo-side-content' });
+  const sidePanel = createElement("div", {
+    className: `imsmassi-memo-side${isExpanded ? "" : " imsmassi-hidden"}`,
+    id: "memo-side-panel",
+  });
+  const sidePanelContent = createElement("div", {
+    className: "imsmassi-memo-side-content",
+  });
 
   // 클립보드 카드
-  const clipboardCard = createElement('div', { className: 'imsmassi-memo-card', id: 'memo-card-clipboard' });
-  Object.assign(clipboardCard.style, { borderColor: c.border, background: state.isDarkMode ? '#1F1F1F' : '#FFF', height: '320px', minHeight: '240px', maxHeight: '420px', overflowY: 'auto' });
-  const clipboardCardHeader = createElement('div', { className: 'imsmassi-memo-card-header' });
-  Object.assign(clipboardCardHeader.style, { color: c.text, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '32px' });
-  const clipboardTitleSpan = createElement('span');
-  clipboardTitleSpan.textContent = '클립보드';
+  const clipboardCard = createElement("div", {
+    className: "imsmassi-memo-card",
+    id: "memo-card-clipboard",
+  });
+  Object.assign(clipboardCard.style, {
+    borderColor: c.border,
+    background: state.isDarkMode ? "#191F28" : "#FFF",
+    height: "320px",
+    minHeight: "240px",
+    maxHeight: "420px",
+    overflowY: "auto",
+  });
+  const clipboardCardHeader = createElement("div", {
+    className: "imsmassi-memo-card-header",
+  });
+  Object.assign(clipboardCardHeader.style, {
+    color: c.text,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: "32px",
+  });
+  const clipboardTitleSpan = createElement("span");
+  clipboardTitleSpan.textContent = "클립보드";
   clipboardCardHeader.appendChild(clipboardTitleSpan);
-  const clipboardBody = createElement('div', { className: 'imsmassi-memo-card-body', id: 'clipboard-panel-body' });
+  const clipboardBody = createElement("div", {
+    className: "imsmassi-memo-card-body",
+    id: "clipboard-panel-body",
+  });
   clipboardBody.appendChild(renderClipboardTabDOM());
   clipboardCard.append(clipboardCardHeader, clipboardBody);
 
   // 템플릿 카드
-  const templateCard = createElement('div', { className: 'imsmassi-memo-card', id: 'memo-card-template' });
-  Object.assign(templateCard.style, { borderColor: c.border, background: state.isDarkMode ? '#1F1F1F' : '#FFF', height: '320px', minHeight: '240px', maxHeight: '420px', overflowY: 'auto' });
-  const templateCardHeader = createElement('div', { className: 'imsmassi-memo-card-header' });
-  Object.assign(templateCardHeader.style, { color: c.text, display: 'flex', alignItems: 'center', justifyContent: 'space-between' });
-  const templateTitleSpan = createElement('span');
-  templateTitleSpan.textContent = '템플릿';
-  const addTemplateBtn = createElement('button', { className: 'imsmassi-memo-option-btn' });
-  Object.assign(addTemplateBtn.style, { borderColor: area.color, color: area.color, fontWeight: '600' });
-  addTemplateBtn.textContent = '✚ 추가';
-  addTemplateBtn.addEventListener('click', openAddTemplateModal);
+  const templateCard = createElement("div", {
+    className: "imsmassi-memo-card",
+    id: "memo-card-template",
+  });
+  Object.assign(templateCard.style, {
+    borderColor: c.border,
+    background: state.isDarkMode ? "#191F28" : "#FFF",
+    height: "320px",
+    minHeight: "240px",
+    maxHeight: "420px",
+    overflowY: "auto",
+  });
+  const templateCardHeader = createElement("div", {
+    className: "imsmassi-memo-card-header",
+  });
+  Object.assign(templateCardHeader.style, {
+    color: c.text,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  });
+  const templateTitleSpan = createElement("span");
+  templateTitleSpan.textContent = "템플릿";
+  const addTemplateBtn = createElement("button", {
+    className: "imsmassi-memo-option-btn",
+  });
+  Object.assign(addTemplateBtn.style, {
+    borderColor: area.color,
+    fontWeight: "600",
+  });
+  addTemplateBtn.textContent = "✚ 추가";
+  addTemplateBtn.addEventListener("click", openAddTemplateModal);
   templateCardHeader.append(templateTitleSpan, addTemplateBtn);
-  const templateBody = createElement('div', { className: 'imsmassi-memo-card-body' });
+  const templateBody = createElement("div", {
+    className: "imsmassi-memo-card-body",
+  });
   templateBody.appendChild(renderTemplateTabDOM());
   templateCard.append(templateCardHeader, templateBody);
 
@@ -5429,28 +6234,45 @@ function renderMemoTab() {
   sidePanel.appendChild(sidePanelContent);
 
   // ── 메모 리스트 영역 ──
-  const listArea = createElement('div', { className: 'imsmassi-memo-list-area' });
-  const listHeader = createElement('div', { className: 'imsmassi-memo-list-header' });
+  const listArea = createElement("div", {
+    className: "imsmassi-memo-list-area",
+  });
+  const listHeader = createElement("div", {
+    className: "imsmassi-memo-list-header",
+  });
   listHeader.style.color = c.subText;
 
-  const filterBar = createElement('div', { className: 'imsmassi-memo-filter-bar' });
-  [['menu', '현재 메뉴'], ['area', '현재 업무'], ['all', '전체']].forEach(([val, label]) => {
-    const filterBtn = createElement('button', { className: `imsmassi-memo-filter-btn${currentFilter === val ? ' imsmassi-memo-filter-active' : ''}` });
-    filterBtn.style.setProperty('--filter-color', area.color);
+  const filterBar = createElement("div", {
+    className: "imsmassi-memo-filter-bar",
+  });
+  [
+    ["menu", "현재 메뉴"],
+    ["area", "현재 업무"],
+    ["all", "전체"],
+  ].forEach(([val, label]) => {
+    const filterBtn = createElement("button", {
+      className: `imsmassi-memo-filter-btn${currentFilter === val ? " imsmassi-memo-filter-active" : ""}`,
+    });
+    filterBtn.style.setProperty("--filter-color", area.color);
     filterBtn.textContent = label;
-    filterBtn.addEventListener('click', () => setMemoFilter(val));
+    filterBtn.addEventListener("click", () => setMemoFilter(val));
     filterBar.appendChild(filterBtn);
   });
-  const memoCountSpan = createElement('span');
-  Object.assign(memoCountSpan.style, { fontSize: '11px', marginLeft: '4px' });
+  const memoCountSpan = createElement("span");
+  Object.assign(memoCountSpan.style, { fontSize: "11px", marginLeft: "4px" });
   memoCountSpan.textContent = `메모 ${memos.length}건`;
   listHeader.append(filterBar, memoCountSpan);
   listArea.appendChild(listHeader);
 
   // 빈 메시지 헬퍼
   const makeEmptyMsg = (text) => {
-    const msg = createElement('div');
-    Object.assign(msg.style, { color: c.subText, fontSize: '13px', textAlign: 'center', padding: '20px' });
+    const msg = createElement("div");
+    Object.assign(msg.style, {
+      color: c.subText,
+      fontSize: "13px",
+      textAlign: "center",
+      padding: "20px",
+    });
     msg.textContent = text;
     return msg;
   };
@@ -5459,34 +6281,48 @@ function renderMemoTab() {
   if (!isExpanded) {
     // 단일 리스트 모드
     if (memos.length === 0) {
-      listArea.appendChild(makeEmptyMsg('메모가 없습니다'));
+      listArea.appendChild(makeEmptyMsg("메모가 없습니다"));
     } else {
-      memos.forEach(memo => listArea.appendChild(renderMemoItemDOM(memo)));
+      memos.forEach((memo) => listArea.appendChild(renderMemoItemDOM(memo)));
     }
   } else {
     // 2단 분할 모드 (일반 / 고정)
-    const splitDiv = createElement('div', { className: 'imsmassi-memo-list-split' });
+    const splitDiv = createElement("div", {
+      className: "imsmassi-memo-list-split",
+    });
 
-    const unpinnedCol = createElement('div', { className: 'imsmassi-memo-list-column' });
-    const unpinnedSubheader = createElement('div', { className: 'imsmassi-memo-list-subheader' });
+    const unpinnedCol = createElement("div", {
+      className: "imsmassi-memo-list-column",
+    });
+    const unpinnedSubheader = createElement("div", {
+      className: "imsmassi-memo-list-subheader",
+    });
     unpinnedSubheader.style.color = c.subText;
     unpinnedSubheader.textContent = `일반 메모 (${unpinnedMemos.length}건)`;
     unpinnedCol.appendChild(unpinnedSubheader);
     if (unpinnedMemos.length === 0) {
-      unpinnedCol.appendChild(makeEmptyMsg('일반 메모가 없습니다'));
+      unpinnedCol.appendChild(makeEmptyMsg("일반 메모가 없습니다"));
     } else {
-      unpinnedMemos.forEach(memo => unpinnedCol.appendChild(renderMemoItemDOM(memo)));
+      unpinnedMemos.forEach((memo) =>
+        unpinnedCol.appendChild(renderMemoItemDOM(memo)),
+      );
     }
 
-    const pinnedCol = createElement('div', { className: 'imsmassi-memo-list-column' });
-    const pinnedSubheader = createElement('div', { className: 'imsmassi-memo-list-subheader' });
+    const pinnedCol = createElement("div", {
+      className: "imsmassi-memo-list-column",
+    });
+    const pinnedSubheader = createElement("div", {
+      className: "imsmassi-memo-list-subheader",
+    });
     pinnedSubheader.style.color = c.subText;
     pinnedSubheader.textContent = `고정 메모 (${pinnedMemos.length}건)`;
     pinnedCol.appendChild(pinnedSubheader);
     if (pinnedMemos.length === 0) {
-      pinnedCol.appendChild(makeEmptyMsg('고정 메모가 없습니다'));
+      pinnedCol.appendChild(makeEmptyMsg("고정 메모가 없습니다"));
     } else {
-      pinnedMemos.forEach(memo => pinnedCol.appendChild(renderMemoItemDOM(memo)));
+      pinnedMemos.forEach((memo) =>
+        pinnedCol.appendChild(renderMemoItemDOM(memo)),
+      );
     }
 
     splitDiv.append(unpinnedCol, pinnedCol);
@@ -5494,22 +6330,28 @@ function renderMemoTab() {
   }
 
   // ── 루트 레이아웃 조립 ──
-  const root = createElement('div', { className: `imsmassi-memo-layout${isExpanded ? '' : ' imsmassi-panel-hidden'}`, id: 'imsmassi-memo-layout' });
+  const root = createElement("div", {
+    className: `imsmassi-memo-layout${isExpanded ? "" : " imsmassi-panel-hidden"}`,
+    id: "imsmassi-memo-layout",
+  });
   root.append(mainSection, sidePanel, listArea);
   return root;
 }
 
 function setMemoFilter(filter) {
-  if (!['menu', 'area', 'all'].includes(filter)) return;
+  if (!["menu", "area", "all"].includes(filter)) return;
   if (state.memoFilter === filter) return;
   state.memoFilter = filter;
   if (workerPort) {
     // Worker 상태에도 반영 → 이후 CONTEXT_CHANGE 등 STATE_UPDATE가 와도 필터가 초기화되지 않음
-    workerSend('SAVE_UI_PREFS', { memoFilter: filter });
+    workerSend("SAVE_UI_PREFS", { memoFilter: filter });
     // SAVE_UI_PREFS → broadcastState() → handleStateUpdate → renderAssistant() 로 리렌더링됨
   } else {
     // SharedWorker 미지원 폴백: 직접 DB 저장 후 리렌더링
-    if (db) db.transaction('settings', 'readwrite', store => store.put(filter, 'memoFilter')).catch(() => {});
+    if (db)
+      db.transaction("settings", "readwrite", (store) =>
+        store.put(filter, "memoFilter"),
+      ).catch(() => {});
     renderAssistantContent();
   }
 }
@@ -5518,36 +6360,43 @@ function toggleMemoSidePanel() {
   state.isMemoPanelExpanded = !state.isMemoPanelExpanded;
   renderAssistantContent();
   // Worker 상태 동기화 — broadcastState()가 동일한 값을 전송하도록
-  workerSend('SAVE_UI_PREFS', { isMemoPanelExpanded: state.isMemoPanelExpanded });
+  workerSend("SAVE_UI_PREFS", {
+    isMemoPanelExpanded: state.isMemoPanelExpanded,
+  });
 }
 
 function updateMemoSidePanelState() {
-  const layout = document.getElementById('imsmassi-memo-layout');
-  const floatingPanel = document.getElementById('imsmassi-floating-panel');
+  const layout = document.getElementById("imsmassi-memo-layout");
+  const floatingPanel = document.getElementById("imsmassi-floating-panel");
   if (!floatingPanel || !layout) return;
   const isHidden = !state.isMemoPanelExpanded;
-  floatingPanel.classList.toggle('imsmassi-expanded', !isHidden);
-  layout.classList.toggle('imsmassi-panel-hidden', isHidden);
-  const toggle = document.getElementById('imsmassi-memo-side-toggle-btn');
+  floatingPanel.classList.toggle("imsmassi-expanded", !isHidden);
+  layout.classList.toggle("imsmassi-panel-hidden", isHidden);
+  const toggle = document.getElementById("imsmassi-memo-side-toggle-btn");
   if (toggle) {
-    toggle.textContent = isHidden ? '펼치기 ◂' : '접기 ▸';
+    toggle.textContent = isHidden ? "펼치기 ◂" : "접기 ▸";
   }
 }
 
 function toggleDashboardView() {
-  if (state.activeTab === 'dashboard') {
-    setActiveTab('memo');
+  if (state.activeTab === "dashboard") {
+    setActiveTab("memo");
   } else {
-    setActiveTab('dashboard');
+    setActiveTab("dashboard");
   }
 }
 
 function updateDashboardButton() {
-  const dashboardBtn = document.getElementById('assistant-dashboard-btn');
+  const dashboardBtn = document.getElementById("assistant-dashboard-btn");
   if (!dashboardBtn) return;
-  dashboardBtn.textContent = state.activeTab === 'dashboard' ? '↩ 메인' : '대시보드';
-  dashboardBtn.title = state.activeTab === 'dashboard' ? '메인으로 돌아가기' : '대시보드';
-  dashboardBtn.classList.toggle('imsmassi-active', state.activeTab === 'dashboard');
+  dashboardBtn.textContent =
+    state.activeTab === "dashboard" ? "↩ 메인" : "대시보드";
+  dashboardBtn.title =
+    state.activeTab === "dashboard" ? "메인으로 돌아가기" : "대시보드";
+  dashboardBtn.classList.toggle(
+    "imsmassi-active",
+    state.activeTab === "dashboard",
+  );
 }
 
 // ========================================
@@ -5560,26 +6409,39 @@ function updateDashboardButton() {
 function renderClipboardItemDOM(item) {
   const c = getColors();
   const areaName = getAreaName(item.areaId, item.areaId);
-  const relativeTime = item.timestamp ? getRelativeTime(item.timestamp) : (item.time || '방금');
+  const relativeTime = item.timestamp
+    ? getRelativeTime(item.timestamp)
+    : item.time || "방금";
 
-  const itemDiv = createElement('div', { className: 'imsmassi-clipboard-item' });
-  itemDiv.style.background = state.isDarkMode ? '#252525' : '#F8F9FA';
-  itemDiv.addEventListener('click', () => copyToClipboard(item.content));
+  const itemDiv = createElement("div", {
+    className: "imsmassi-clipboard-item",
+  });
+  itemDiv.style.background = state.isDarkMode ? "#252525" : "#F8F9FA";
+  itemDiv.addEventListener("click", () => copyToClipboard(item.content));
 
-  const deleteBtn = createElement('button', { className: 'imsmassi-memo-delete-btn' });
+  const deleteBtn = createElement("button", {
+    className: "imsmassi-memo-delete-btn",
+  });
   deleteBtn.style.color = c.subText;
-  deleteBtn.textContent = '✕';
-  deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteClipboardItem(item.id); });
+  deleteBtn.textContent = "✕";
+  deleteBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    deleteClipboardItem(item.id);
+  });
 
-  const contentDiv = createElement('div', { className: 'imsmassi-clipboard-item-content' });
-  Object.assign(contentDiv.style, { color: c.text, paddingRight: '24px' });
+  const contentDiv = createElement("div", {
+    className: "imsmassi-clipboard-item-content",
+  });
+  Object.assign(contentDiv.style, { color: c.text, paddingRight: "24px" });
   contentDiv.textContent = item.content; // textContent로 XSS 방지
 
-  const metaDiv = createElement('div', { className: 'imsmassi-clipboard-item-meta' });
+  const metaDiv = createElement("div", {
+    className: "imsmassi-clipboard-item-meta",
+  });
   metaDiv.style.color = c.subText;
-  const areaSpan = createElement('span');
+  const areaSpan = createElement("span");
   areaSpan.textContent = areaName;
-  const timeSpan = createElement('span');
+  const timeSpan = createElement("span");
   timeSpan.textContent = relativeTime;
   metaDiv.append(areaSpan, timeSpan);
 
@@ -5593,27 +6455,36 @@ function renderClipboardItemDOM(item) {
 function renderClipboardTabDOM() {
   const c = getColors();
   const items = Array.isArray(state.clipboard) ? state.clipboard : [];
-  const container = createElement('div');
+  const container = createElement("div");
 
-  const header = createElement('div', { className: 'imsmassi-clipboard-header' });
+  const header = createElement("div", {
+    className: "imsmassi-clipboard-header",
+  });
   header.style.color = c.subText;
-  const headerSpan = createElement('span');
-  headerSpan.textContent = '최근 복사 히스토리';
+  const headerSpan = createElement("span");
+  headerSpan.textContent = "최근 복사 히스토리";
   header.appendChild(headerSpan);
   container.appendChild(header);
 
   if (items.length === 0) {
-    const empty = createElement('div');
-    Object.assign(empty.style, { color: c.subText, fontSize: '13px', textAlign: 'center', padding: '20px' });
-    empty.textContent = '복사 기록이 없습니다';
+    const empty = createElement("div");
+    Object.assign(empty.style, {
+      color: c.subText,
+      fontSize: "13px",
+      textAlign: "center",
+      padding: "20px",
+    });
+    empty.textContent = "복사 기록이 없습니다";
     container.appendChild(empty);
   } else {
-    items.forEach(item => container.appendChild(renderClipboardItemDOM(item)));
+    items.forEach((item) =>
+      container.appendChild(renderClipboardItemDOM(item)),
+    );
   }
 
-  const hint = createElement('div', { className: 'imsmassi-clipboard-hint' });
+  const hint = createElement("div", { className: "imsmassi-clipboard-hint" });
   hint.style.color = c.subText;
-  hint.textContent = '클릭하면 클립보드에 복사됩니다';
+  hint.textContent = "클릭하면 클립보드에 복사됩니다";
   container.appendChild(hint);
   return container;
 }
@@ -5634,32 +6505,55 @@ function renderTemplateItemDOM(template) {
   const area = getArea();
   const c = getColors();
 
-  const itemDiv = createElement('div', { className: 'imsmassi-template-item' });
-  itemDiv.style.background = state.isDarkMode ? '#252525' : '#F8F9FA';
-  itemDiv.addEventListener('click', () => useTemplate(template.id));
+  const itemDiv = createElement("div", { className: "imsmassi-template-item" });
+  itemDiv.style.background = state.isDarkMode ? "#252525" : "#F8F9FA";
+  itemDiv.addEventListener("click", () => useTemplate(template.id));
 
-  const deleteBtn = createElement('button', { className: 'imsmassi-memo-delete-btn' });
+  const deleteBtn = createElement("button", {
+    className: "imsmassi-memo-delete-btn",
+  });
   deleteBtn.style.color = c.subText;
-  deleteBtn.textContent = '✕';
-  deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteTemplate(template.id); });
+  deleteBtn.textContent = "✕";
+  deleteBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    deleteTemplate(template.id);
+  });
 
-  const editBtn = createElement('button', { className: 'imsmassi-template-edit-btn', title: '수정' });
+  const editBtn = createElement("button", {
+    className: "imsmassi-template-edit-btn",
+    title: "수정",
+  });
   editBtn.style.color = c.subText;
-  editBtn.textContent = '✎';
-  editBtn.addEventListener('click', (e) => { e.stopPropagation(); openEditTemplateModal(template.id); });
+  editBtn.textContent = "✎";
+  editBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openEditTemplateModal(template.id);
+  });
 
-  const headerDiv = createElement('div', { className: 'imsmassi-template-item-header' });
-  headerDiv.style.paddingRight = '52px';
-  const titleSpan = createElement('span', { className: 'imsmassi-template-item-title' });
+  const headerDiv = createElement("div", {
+    className: "imsmassi-template-item-header",
+  });
+  headerDiv.style.paddingRight = "52px";
+  const titleSpan = createElement("span", {
+    className: "imsmassi-template-item-title",
+  });
   titleSpan.style.color = c.text;
   titleSpan.textContent = template.title;
-  const countSpan = createElement('span', { className: 'imsmassi-template-item-count' });
+  const countSpan = createElement("span", {
+    className: "imsmassi-template-item-count",
+  });
   countSpan.style.color = c.subText;
   countSpan.textContent = `사용 ${template.count}회`;
   headerDiv.append(titleSpan, countSpan);
 
-  const contentDiv = createElement('div', { className: 'imsmassi-template-item-content' });
-  Object.assign(contentDiv.style, { background: state.isDarkMode ? '#1E1E1E' : '#FFF', color: c.subText, borderColor: c.border });
+  const contentDiv = createElement("div", {
+    className: "imsmassi-template-item-content",
+  });
+  Object.assign(contentDiv.style, {
+    background: state.isDarkMode ? "#1E1E1E" : "#FFF",
+    color: c.subText,
+    borderColor: c.border,
+  });
   contentDiv.textContent = template.content; // textContent로 XSS 방지
 
   itemDiv.append(deleteBtn, editBtn, headerDiv, contentDiv);
@@ -5671,14 +6565,18 @@ function renderTemplateItemDOM(template) {
  */
 function renderTemplateTabDOM() {
   const c = getColors();
-  const container = createElement('div');
+  const container = createElement("div");
 
-  const listHeader = createElement('div', { className: 'imsmassi-template-list-header' });
+  const listHeader = createElement("div", {
+    className: "imsmassi-template-list-header",
+  });
   listHeader.style.color = c.subText;
   listHeader.textContent = `자주 쓰는 문구 (${state.templates.length}건)`;
   container.appendChild(listHeader);
 
-  state.templates.forEach(template => container.appendChild(renderTemplateItemDOM(template)));
+  state.templates.forEach((template) =>
+    container.appendChild(renderTemplateItemDOM(template)),
+  );
   return container;
 }
 
@@ -5690,38 +6588,38 @@ function renderTemplateTab() {
 function renderTimeTab() {
   const area = getArea();
   const c = getColors();
-  const periodMap = { today: '오늘', week: '이번 주', month: '이번 달' };
+  const periodMap = { today: "오늘", week: "이번 주", month: "이번 달" };
   const data = getTimeStats(state.timePeriod); // 실시간 데이터 가져오기
 
-  let chartHtml = '';
-  data.items.forEach(item => {
+  let chartHtml = "";
+  data.items.forEach((item) => {
     chartHtml += `
-      <div class="imsmassi-time-chart-item" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; margin-top: 6px; border-radius: 8px; background: ${state.isDarkMode ? '#1F1F1F' : '#F6F7F9'};">
+      <div class="imsmassi-time-chart-item" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; margin-top: 6px; border-radius: 8px; background: ${state.isDarkMode ? "#1F1F1F" : "#F6F7F9"};">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="width: 4px; height: 16px; border-radius: 2px; background: ${item.color}; display: inline-block;"></span>
           <span style="color: ${c.text}; font-size: 13px; font-weight: 600;">${item.name}</span>
         </div>
         <div style="display: inline-flex; align-items: center; gap: 10px;">
           <span style="color: ${c.text}; font-size: 12px; min-width: 72px; text-align: right;">${item.time}</span>
-          <span style="color: ${c.subText}; font-size: 11px; padding: 4px 8px; background: ${state.isDarkMode ? '#2E2E2E' : '#EDEFF2'}; border-radius: 8px; min-width: 38px; text-align: center;">${item.percent}%</span>
+          <span style="color: ${c.subText}; font-size: 11px; padding: 4px 8px; background: ${state.isDarkMode ? "#2E2E2E" : "#EDEFF2"}; border-radius: 8px; min-width: 38px; text-align: center;">${item.percent}%</span>
         </div>
       </div>
     `;
   });
 
-  let segmentBarHtml = '';
-  data.items.forEach(item => {
+  let segmentBarHtml = "";
+  data.items.forEach((item) => {
     segmentBarHtml += `
       <div title="${item.name}" style="flex: ${item.percent};  height: 38px; border-radius: 6px; background: ${item.color};"></div>
     `;
   });
 
-  let periodBtnsHtml = '';
+  let periodBtnsHtml = "";
   Object.entries(periodMap).forEach(([key, label]) => {
     const isActive = state.timePeriod === key;
     periodBtnsHtml += `
-      <button class="imsmassi-time-period-btn ${isActive ? 'imsmassi-active' : ''}"
-              style="min-width: 64px; padding: 6px 12px; border: 1px solid ${isActive ? area.color : c.border}; background: ${isActive ? (state.isDarkMode ? '#F5F5F5' : '#F5F5F5') : 'transparent'}; color: ${isActive ? '#111' : c.subText}; border-radius: 8px; cursor: pointer; font-weight: ${isActive ? '600' : '500'}; font-size: 12px; transition: all 0.2s;"
+      <button class="imsmassi-time-period-btn ${isActive ? "imsmassi-active" : ""}"
+              style="min-width: 64px; padding: 6px 12px; border: 1px solid ${isActive ? area.color : c.border}; background: ${isActive ? (state.isDarkMode ? "#F5F5F5" : "#F5F5F5") : "transparent"}; color: ${isActive ? "#111" : c.subText}; border-radius: 8px; cursor: pointer; font-weight: ${isActive ? "600" : "500"}; font-size: 12px; transition: all 0.2s;"
               onclick="setTimePeriod('${key}')">
         ${label}
       </button>
@@ -5730,14 +6628,14 @@ function renderTimeTab() {
 
   // 기간별 설명 추가
   const periodDescMap = {
-    today: '오늘 (자정부터 현재까지)',
-    week: '이번 주 (일요일부터 현재까지)',
-    month: '이번 달 (1일부터 현재까지)',
+    today: "오늘 (자정부터 현재까지)",
+    week: "이번 주 (일요일부터 현재까지)",
+    month: "이번 달 (1일부터 현재까지)",
   };
 
   return `
     <div>
-      <div class="imsmassi-time-summary" style="background: ${state.isDarkMode ? '#252525' : area.bgColor};">
+      <div class="imsmassi-time-summary" style="background: ${state.isDarkMode ? "#252525" : area.bgColor};">
         <div class="imsmassi-time-summary-label" style="color: ${c.subText};">${periodMap[state.timePeriod]} 총 업무 시간</div>
         <div class="imsmassi-time-summary-value" style="color: ${c.text};">${data.total}</div>
         <div style="font-size: 12px; color: ${c.subText}; margin-top: 6px;">${periodDescMap[state.timePeriod]}</div>
@@ -5758,15 +6656,16 @@ function renderAreaColorSection() {
   const c = getColors();
   const areas = getBusinessAreas();
 
-  const rows = areas.map(area => {
-    const def     = getDefaultAreaColors(area.id);
-    const custom  = state.areaColors?.[area.id] || {};
-    const hasCustom = !!state.areaColors?.[area.id];
-    const primary = custom.primary ?? def.primary;
-    const sub1    = custom.sub1    ?? def.sub1;
-    const sub2    = custom.sub2    ?? def.sub2;
+  const rows = areas
+    .map((area) => {
+      const def = getDefaultAreaColors(area.id);
+      const custom = state.areaColors?.[area.id] || {};
+      const hasCustom = !!state.areaColors?.[area.id];
+      const primary = custom.primary ?? def.primary;
+      const sub1 = custom.sub1 ?? def.sub1;
+      const sub2 = custom.sub2 ?? def.sub2;
 
-    return `
+      return `
       <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid ${c.border};">
         <div style="display:flex;align-items:center;gap:4px;min-width:70px;max-width:100px;flex-shrink:0;">
           <span style="width:8px;height:8px;border-radius:50%;background:${primary};display:inline-block;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.1);"></span>
@@ -5788,10 +6687,11 @@ function renderAreaColorSection() {
             style="width:30px;height:22px;border:1px solid ${c.border};padding:1px;cursor:pointer;border-radius:3px;background:none;">
         </label>
         <div style="flex:1;"></div>
-        ${hasCustom ? `<button onclick="resetAreaColors('${area.id}')" title="기본값으로 초기화" style="font-size:10px;background:none;border:1px solid ${c.border};border-radius:3px;padding:2px 6px;cursor:pointer;color:${c.subText};">↩</button>` : ''}
+        ${hasCustom ? `<button onclick="resetAreaColors('${area.id}')" title="기본값으로 초기화" style="font-size:10px;background:none;border:1px solid ${c.border};border-radius:3px;padding:2px 6px;cursor:pointer;color:${c.subText};">↩</button>` : ""}
       </div>
     `;
-  }).join('');
+    })
+    .join("");
 
   return `
     <div class="imsmassi-area-color-legend">
@@ -5805,14 +6705,16 @@ function renderDashboardTab() {
   const area = getArea();
   const c = getColors();
   // showTimeTab 설정이 false이면 시간 인사이트 섹션 렌더링 생략
-  const timeHtml = state.settings?.showTimeTab !== false ? renderTimeTab() : '';
+  const timeHtml = state.settings?.showTimeTab !== false ? renderTimeTab() : "";
 
   // 백업 알림 배너 계산
-  let backupBannerHtml = '';
+  let backupBannerHtml = "";
   if (state.settings.backupReminder) {
     const lastBackup = new Date(state.settings.lastBackup);
     const today = new Date();
-    const daysSinceBackup = Math.floor((today - lastBackup) / (1000 * 60 * 60 * 24));
+    const daysSinceBackup = Math.floor(
+      (today - lastBackup) / (1000 * 60 * 60 * 24),
+    );
     if (daysSinceBackup >= 7) {
       backupBannerHtml = `
         <div class="imsmassi-dashboard-banner imsmassi-dashboard-banner-backup">
@@ -5828,8 +6730,8 @@ function renderDashboardTab() {
   }
 
   // 용량 경고 배너
-  let storageWarningHtml = '';
-  const usagePercent = (state.storageUsed / state.storageLimit * 100);
+  let storageWarningHtml = "";
+  const usagePercent = (state.storageUsed / state.storageLimit) * 100;
   if (usagePercent >= 80) {
     storageWarningHtml = `
       <div class="imsmassi-dashboard-banner imsmassi-dashboard-banner-storage">
@@ -5846,37 +6748,37 @@ function renderDashboardTab() {
   // 할 일 (알림 설정된 메모에서 생성)
   const todayReminders = getTodayReminders() || [];
   const pastReminders = getPastReminders() || [];
-  let todayTodosHtml = '';
+  let todayTodosHtml = "";
   if (todayReminders && todayReminders.length > 0) {
-    todayReminders.forEach(todo => {
+    todayReminders.forEach((todo) => {
       if (!todo || !todo.id) return; // null 체크
       const areaName = getAreaName(todo.areaId, todo.areaId);
       todayTodosHtml += `
         <div class="imsmassi-todo-item">
-          <span class="imsmassi-todo-checkbox ${todo.done ? 'imsmassi-checked imsmassi-checked-done' : ''}"
+          <span class="imsmassi-todo-checkbox ${todo.done ? "imsmassi-checked imsmassi-checked-done" : ""}"
                 onclick="toggleTodo('${todo.id}')">
-            ${todo.done ? '✓' : ''}
+            ${todo.done ? "✓" : ""}
           </span>
-          <span class="imsmassi-todo-text ${todo.done ? 'imsmassi-done imsmassi-todo-text-done' : 'imsmassi-todo-text-pending'}">${todo.title ? `<strong>${todo.title}</strong>` : ''}</span>
+          <span class="imsmassi-todo-text ${todo.done ? "imsmassi-done imsmassi-todo-text-done" : "imsmassi-todo-text-pending"}">${todo.title ? `<strong>${todo.title}</strong>` : ""}</span>
           <span class="imsmassi-todo-area-name">${areaName}</span>
-          <span class="imsmassi-todo-time ${todo.done ? 'imsmassi-todo-time-done' : 'imsmassi-todo-time-active'}">${todo.reminder}</span>
+          <span class="imsmassi-todo-time ${todo.done ? "imsmassi-todo-time-done" : "imsmassi-todo-time-active"}">${todo.reminder}</span>
         </div>
       `;
     });
   }
 
-  let pastTodosHtml = '';
+  let pastTodosHtml = "";
   if (pastReminders && pastReminders.length > 0) {
-    pastReminders.forEach(todo => {
+    pastReminders.forEach((todo) => {
       if (!todo || !todo.id) return; // null 체크
       const areaName = getAreaName(todo.areaId, todo.areaId);
       pastTodosHtml += `
         <div class="imsmassi-todo-item">
-          <span class="imsmassi-todo-checkbox ${todo.done ? 'imsmassi-checked imsmassi-checked-done' : ''}"
+          <span class="imsmassi-todo-checkbox ${todo.done ? "imsmassi-checked imsmassi-checked-done" : ""}"
                 onclick="toggleTodo('${todo.id}')">
-            ${todo.done ? '✓' : ''}
+            ${todo.done ? "✓" : ""}
           </span>
-          <span class="imsmassi-todo-text ${todo.done ? 'imsmassi-done imsmassi-todo-text-done' : 'imsmassi-todo-text-pending'}">${todo.title ? `<strong>${todo.title}</strong>` : ''}</span>
+          <span class="imsmassi-todo-text ${todo.done ? "imsmassi-done imsmassi-todo-text-done" : "imsmassi-todo-text-pending"}">${todo.title ? `<strong>${todo.title}</strong>` : ""}</span>
           <span class="imsmassi-todo-area-name">${areaName}</span>
           <span class="imsmassi-todo-date">${todo.reminderDate}</span>
         </div>
@@ -5884,14 +6786,20 @@ function renderDashboardTab() {
     });
   }
 
-  const emptyTodayHtml = todayReminders.length === 0 ? `<div class="imsmassi-dashboard-empty">오늘 할 일이 없습니다</div>` : '';
-  const emptyPastHtml = pastReminders.length === 0 ? `<div class="imsmassi-dashboard-empty">지난 할 일이 없습니다</div>` : '';
+  const emptyTodayHtml =
+    todayReminders.length === 0
+      ? `<div class="imsmassi-dashboard-empty">오늘 할 일이 없습니다</div>`
+      : "";
+  const emptyPastHtml =
+    pastReminders.length === 0
+      ? `<div class="imsmassi-dashboard-empty">지난 할 일이 없습니다</div>`
+      : "";
 
   // 최근 메모
-  let recentMemosHtml = '';
+  let recentMemosHtml = "";
   const allMemos = [];
   // state.memos는 객체 구조: {memoId: memoData}
-  Object.values(state.memos || {}).forEach(memo => {
+  Object.values(state.memos || {}).forEach((memo) => {
     allMemos.push(memo);
   });
   allMemos
@@ -5902,7 +6810,7 @@ function renderDashboardTab() {
       return new Date(b.date || 0) - new Date(a.date || 0);
     })
     .slice(0, 2)
-    .forEach(memo => {
+    .forEach((memo) => {
       const areaName = getAreaName(memo.createdAreaId, memo.createdAreaId);
       const memoPreview = getMemoPlainText(memo);
       recentMemosHtml += `
@@ -5915,8 +6823,8 @@ function renderDashboardTab() {
 
   // 테스트 버튼 영역
   const testButtonsHtml = `
-    <div style="margin-bottom: 16px; padding: 12px; background: ${state.isDarkMode ? '#1a2a1a' : '#F0FFF0'}; border: 1px dashed ${state.isDarkMode ? '#4a6a4a' : '#90EE90'}; border-radius: 8px;">
-      <div style="font-size: 11px; color: ${state.isDarkMode ? '#90EE90' : '#228B22'}; margin-bottom: 8px; font-weight: 600;">🧪 상태 시뮬레이션 (테스트용)</div>
+    <div style="margin-bottom: 16px; padding: 12px; background: ${state.isDarkMode ? "#1a2a1a" : "#F0FFF0"}; border: 1px dashed ${state.isDarkMode ? "#4a6a4a" : "#90EE90"}; border-radius: 8px;">
+      <div style="font-size: 11px; color: ${state.isDarkMode ? "#90EE90" : "#228B22"}; margin-bottom: 8px; font-weight: 600;">🧪 상태 시뮬레이션 (테스트용)</div>
       <div style="display: flex; gap: 6px; imsmassi-flex-wrap: wrap;">
         <button style="padding: 5px 10px; font-size: 10px; background: #FFF3CD; color: #856404; border: 1px solid #F0D78C; border-radius: 4px; cursor: pointer;" onclick="simulateBackupWarning()">백업 경고</button>
         <button style="padding: 5px 10px; font-size: 10px; background: #F8D7DA; color: #721C24; border: 1px solid #F5C6CB; border-radius: 4px; cursor: pointer;" onclick="simulateStorageWarning()">용량 부족</button>
@@ -5925,8 +6833,8 @@ function renderDashboardTab() {
       </div>
     </div>
   `;
-      // ${testButtonsHtml}
-      // ${backupBannerHtml}
+  // ${testButtonsHtml}
+  // ${backupBannerHtml}
   return `
     <div>
       ${storageWarningHtml}
@@ -5937,14 +6845,18 @@ function renderDashboardTab() {
         ${todayTodosHtml}
         ${emptyTodayHtml}
       </div>
-      ${pastReminders && pastReminders.length > 0 ? `
+      ${
+        pastReminders && pastReminders.length > 0
+          ? `
       <div class="imsmassi-dashboard-section">
         <div class="imsmassi-dashboard-section-header">
           <span> 지난 일</span> 
         </div>
         ${pastTodosHtml}
       </div>
-      ` : ''}
+      `
+          : ""
+      }
       <div class="imsmassi-dashboard-section">
         <div class="imsmassi-dashboard-section-header">
           <span> 최근 메모</span> 
@@ -5953,42 +6865,60 @@ function renderDashboardTab() {
       </div>
     </div>
 
-    ${state.settings?.showAreaColorSection !== false ? `
+    ${
+      state.settings?.showAreaColorSection !== false
+        ? `
     <div class="imsmassi-dashboard-section">
       <div class="imsmassi-dashboard-section-header">
         <span>🎨 업무 컬러 설정</span>
       </div>
       ${renderAreaColorSection()}
     </div>
-    ` : ''}
+    `
+        : ""
+    }
 
-    ${state.settings?.showTimeTab !== false ? `
+    ${
+      state.settings?.showTimeTab !== false
+        ? `
     <div class="imsmassi-dashboard-section dashboard-time-section">
       <div class="imsmassi-dashboard-section-header">
         <span> 시간 인사이트</span>
       </div>
       ${timeHtml}
-    </div>` : ''}
+    </div>`
+        : ""
+    }
   `;
 }
 
 // ========================================
 // 키보드 이벤트 (Enter로 모달 확인, Escape로 모달/어시스턴트 닫기)
 // ========================================
-document.addEventListener('keydown', function(e) {
+document.addEventListener("keydown", function (e) {
   // Enter: 모달 확인
-  if (e.key === 'Enter' && state.currentModal) {
+  if (e.key === "Enter" && state.currentModal) {
     e.preventDefault();
-    switch(state.currentModal) {
-      case 'setReminder': confirmSetReminder(); break;
-      case 'deleteConfirm': confirmDeleteMemo(); break;
-      case 'addTemplate': confirmAddTemplate(); break;
-      case 'editTemplate': confirmEditTemplate(); break;
-      case 'addFavorite': confirmAddFavorite(); break;
+    switch (state.currentModal) {
+      case "setReminder":
+        confirmSetReminder();
+        break;
+      case "deleteConfirm":
+        confirmDeleteMemo();
+        break;
+      case "addTemplate":
+        confirmAddTemplate();
+        break;
+      case "editTemplate":
+        confirmEditTemplate();
+        break;
+      case "addFavorite":
+        confirmAddFavorite();
+        break;
     }
   }
   // Escape: 모달/어시스턴트 닫기
-  if (e.key === 'Escape') {
+  if (e.key === "Escape") {
     if (state.currentModal) {
       closeModal();
     } else if (state.assistantOpen) {
@@ -6000,18 +6930,21 @@ document.addEventListener('keydown', function(e) {
 // ========================================
 // [수정] 복사 이벤트 핸들러
 // ========================================
-document.addEventListener('copy', async (e) => {
+document.addEventListener("copy", async (e) => {
   if (!state.settings.enableClipboardCapture) return;
   // areaId별 클립보드에 저장
 
-  let finalContent = '';
+  let finalContent = "";
   const activeEl = document.activeElement;
 
   // 1. Input/Textarea 텍스트 추출
-  if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+  if (
+    activeEl &&
+    (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA")
+  ) {
     const start = activeEl.selectionStart;
     const end = activeEl.selectionEnd;
-    if (typeof start === 'number' && typeof end === 'number' && start !== end) {
+    if (typeof start === "number" && typeof end === "number" && start !== end) {
       finalContent = activeEl.value.substring(start, end);
     }
   }
@@ -6025,9 +6958,11 @@ document.addEventListener('copy', async (e) => {
   }
 
   // 3. 저장 함수 호출 (여기서 중복/카운트 로직 모두 처리)
-  const cleanText = finalContent ? finalContent.trim() : '';
+  const cleanText = finalContent ? finalContent.trim() : "";
   if (cleanText.length > 0) {
-    addClipboardItem(cleanText, { skipTemplateSuggest: state.lastCopySource === 'template' });
+    addClipboardItem(cleanText, {
+      skipTemplateSuggest: state.lastCopySource === "template",
+    });
     state.lastCopySource = null;
   }
 });
@@ -6044,7 +6979,7 @@ function initializeStyles() {
   // #assistant-root 스코프 요소에만 배경/글자색을 적용하고, 호스트 컨테이너에는 미적용.
   const root = getAssistantRoot();
   if (!root) return;
-  const assistantScopeEl = document.getElementById('assistant-root');
+  const assistantScopeEl = document.getElementById("assistant-root");
   // #assistant-root가 존재하면 이식 모드 → 호스트 컨테이너에 배경색 적용 금지
   // #assistant-root가 없거나 root 자체가 #assistant-root인 경우(standalone)만 적용
   if (!assistantScopeEl || root === assistantScopeEl) {
@@ -6054,28 +6989,30 @@ function initializeStyles() {
   applyLowSpecMode();
 
   // 시스템 미리보기 초기 스타일
-  const preview = document.getElementById('imsmassi-system-preview');
+  const preview = document.getElementById("imsmassi-system-preview");
   if (preview) {
     preview.style.background = c.bg;
     preview.style.border = `1px solid ${c.border}`;
   }
 
   // 헤더 초기 스타일
-  const header = document.getElementById('imsmassi-header');
+  const header = document.getElementById("imsmassi-header");
   if (header) {
-    header.style.background = state.isDarkMode ? theme.primaryDark : theme.primary;
+    header.style.background = state.isDarkMode
+      ? theme.primaryDark
+      : theme.primary;
     header.style.color = c.headerText;
   }
 
   // 플로팅 패널 초기 스타일
-  const panel = document.getElementById('imsmassi-floating-panel');
+  const panel = document.getElementById("imsmassi-floating-panel");
   if (panel) {
     panel.style.background = c.bg;
   }
 
   // 카드 배경색
-  const cards = document.querySelectorAll('.imsmassi-card');
-  cards.forEach(card => {
+  const cards = document.querySelectorAll(".imsmassi-card");
+  cards.forEach((card) => {
     card.style.background = c.bg;
     card.style.color = c.text;
     card.style.borderColor = c.border;
@@ -6098,38 +7035,46 @@ var assistantInitialized = window.assistantInitialized || false;
  */
 function connectToWorker(workerPath, loginId, initialContext = {}) {
   try {
-    const worker = new SharedWorker(workerPath, { name: 'assistant-worker' });
+    const worker = new SharedWorker(workerPath, { name: "assistant-worker" });
     workerPort = worker.port;
 
-    workerPort.addEventListener('message', (event) => {
+    workerPort.addEventListener("message", (event) => {
       const { type, payload } = event.data || {};
       switch (type) {
-        case 'STATE_UPDATE':
+        case "STATE_UPDATE":
           handleStateUpdate(payload);
           break;
-        case 'TOAST':
-          showToast(payload?.message || '');
+        case "TOAST":
+          showToast(payload?.message || "");
           break;
-        case 'EXPORT_DATA_RESULT':
+        case "EXPORT_DATA_RESULT":
           downloadExportData(payload?.data);
           break;
-        case 'TEMPLATE_SUGGEST':
+        case "TEMPLATE_SUGGEST":
           // 모달이 이미 열려있으면 무시
           if (!state.currentModal) {
-            openModal('templateSuggest', { suggestedText: payload?.suggestedText || '' });
+            openModal("templateSuggest", {
+              suggestedText: payload?.suggestedText || "",
+            });
           }
           break;
         default:
-          console.warn('[Assistant] Worker로부터 알 수 없는 메시지:', type);
+          console.warn("[Assistant] Worker로부터 알 수 없는 메시지:", type);
       }
     });
 
     workerPort.start();
     // INIT 메시지로 초기 상태 요청 (initialContext 포함 → 레이스 없이 원자적 컨텍스트 설정)
-    workerPort.postMessage({ type: 'INIT', payload: { loginId, ...initialContext } });
-    console.log('[Assistant] SharedWorker 연결 완료:', workerPath);
+    workerPort.postMessage({
+      type: "INIT",
+      payload: { loginId, ...initialContext },
+    });
+    console.log("[Assistant] SharedWorker 연결 완료:", workerPath);
   } catch (error) {
-    console.error('[Assistant] SharedWorker 연결 실패, 폴백 모드로 전환합니다.', error);
+    console.error(
+      "[Assistant] SharedWorker 연결 실패, 폴백 모드로 전환합니다.",
+      error,
+    );
     _bootstrapFallback(loginId);
   }
 }
@@ -6139,13 +7084,13 @@ function connectToWorker(workerPath, loginId, initialContext = {}) {
  * @param {string} [loginId]
  */
 async function _bootstrapFallback(loginId) {
-  console.warn('[Assistant] 폴백 모드: IndexedDB 직접 접근');
-  const dbName = loginId ? `AssistantDB_${loginId}` : 'AssistantDB_public';
+  console.warn("[Assistant] 폴백 모드: IndexedDB 직접 접근");
+  const dbName = loginId ? `AssistantDB_${loginId}` : "AssistantDB_public";
   db = new AssistantDB(dbName, 5);
   try {
     await loadStateFromDB();
   } catch (e) {
-    console.error('[Assistant] 폴백 DB 로드 실패:', e);
+    console.error("[Assistant] 폴백 DB 로드 실패:", e);
   }
   renderAll();
   initStickyNoteDrop();
@@ -6154,13 +7099,16 @@ async function _bootstrapFallback(loginId) {
 
 async function bootstrapAssistant(config = {}) {
   if (window.assistantInitialized) return;
-  const root = typeof getAssistantRoot === 'function'
-    ? getAssistantRoot()
-    : document.getElementById(ASSISTANT_DOM_TARGET?.rootId || 'assistant-root');
+  const root =
+    typeof getAssistantRoot === "function"
+      ? getAssistantRoot()
+      : document.getElementById(
+          ASSISTANT_DOM_TARGET?.rootId || "assistant-root",
+        );
   if (!root) return;
 
   window.assistantInitialized = true;
-  console.log('[Assistant] 초기화 시작 (Shared Worker 모드)...');
+  console.log("[Assistant] 초기화 시작 (Shared Worker 모드)...");
 
   // 1단계: 초기 스타일 적용 (깨짐 방지)
   initializeStyles();
@@ -6169,29 +7117,33 @@ async function bootstrapAssistant(config = {}) {
   // 2단계: Shared Worker 연결
   // 초기 컨텍스트(menuId/areaId)를 INIT 페이로드에 포함 → 비동기 레이스 없이 원자적 처리
   // (별도 CONTEXT_CHANGE 메시지를 보내면 INIT의 await ensureInit() 도중 선처리되어 덮어쓰이는 문제 방지)
-  const workerPath = config.workerPath || 'assistant/assistant-worker.js';
+  const workerPath = config.workerPath || "assistant/assistant-worker.js";
   const _selCfg = config.stickyLayerSelectors;
   const _initialCtx = {};
-  if (_selCfg && _selCfg !== false && typeof _selCfg.getMenuId === 'function') {
+  if (_selCfg && _selCfg !== false && typeof _selCfg.getMenuId === "function") {
     const _menuId = _selCfg.getMenuId();
     if (_menuId) {
       _initialCtx.menuId = _menuId;
       state.selectedMenu = _menuId;
-      if (typeof _selCfg.getAreaId === 'function') {
+      if (typeof _selCfg.getAreaId === "function") {
         const _areaId = _selCfg.getAreaId(_menuId);
         if (_areaId) {
           _initialCtx.areaId = _areaId;
           state.selectedArea = _areaId;
         }
       }
-      console.log(`[Assistant] 초기 컨텍스트 수집 → menuId: ${_initialCtx.menuId}, areaId: ${_initialCtx.areaId || '-'}`);
+      console.log(
+        `[Assistant] 초기 컨텍스트 수집 → menuId: ${_initialCtx.menuId}, areaId: ${_initialCtx.areaId || "-"}`,
+      );
     }
   }
   connectToWorker(workerPath, config.loginId, _initialCtx);
 
   // 2-1단계: UserInfo 암호화 저장 (loginId + getUserInfo 모두 있을 때만)
   if (config.loginId && config.getUserInfo) {
-    Promise.resolve().then(() => saveUserInfoToWorker(config.loginId, config.getUserInfo));
+    Promise.resolve().then(() =>
+      saveUserInfoToWorker(config.loginId, config.getUserInfo),
+    );
   }
 
   // 포스트잇 드롭 영역 초기화
@@ -6208,17 +7160,17 @@ async function bootstrapAssistant(config = {}) {
 
   // 5단계: 앱 구동 5초 후 백그라운드 자동 정리 (오래된 데이터 제거)
   setTimeout(() => {
-    if (typeof runAutoCleanup === 'function') {
-      runAutoCleanup({ silent: true, refreshUI: true, reason: 'startup' });
+    if (typeof runAutoCleanup === "function") {
+      runAutoCleanup({ silent: true, refreshUI: true, reason: "startup" });
     }
   }, 5000);
 
-  console.log('[Assistant] 초기화 완료 (Shared Worker 연결 중)');
+  console.log("[Assistant] 초기화 완료 (Shared Worker 연결 중)");
 }
 
 window.bootstrapAssistant = bootstrapAssistant;
 
-window.addEventListener('assistant:mounted', (event) => {
+window.addEventListener("assistant:mounted", (event) => {
   bootstrapAssistant(event.detail || {});
 });
 
@@ -6228,24 +7180,24 @@ window.addEventListener('assistant:mounted', (event) => {
 (function setupTabActiveTracking() {
   function notifyActive(isActive) {
     if (!window.assistantInitialized) return;
-    workerSend('TAB_ACTIVE', { isActive });
+    workerSend("TAB_ACTIVE", { isActive });
   }
 
   // Page Visibility API: 탭 전환/최소화 감지
-  document.addEventListener('visibilitychange', () => {
-    notifyActive(document.visibilityState === 'visible');
+  document.addEventListener("visibilitychange", () => {
+    notifyActive(document.visibilityState === "visible");
   });
 
   // 창 포커스 이벤트: 같은 브라우저 내 다른 창으로 전환 감지
-  window.addEventListener('focus', () => notifyActive(true));
-  window.addEventListener('blur',  () => notifyActive(false));
+  window.addEventListener("focus", () => notifyActive(true));
+  window.addEventListener("blur", () => notifyActive(false));
 })();
 
 // 페이지 닫기 전 Worker에 저장 요청
-window.addEventListener('beforeunload', () => {
+window.addEventListener("beforeunload", () => {
   if (!window.assistantInitialized) return;
   // Worker에게 저장 요청 (sync-over-async 불필요, Worker가 자체 처리)
-  workerSend('BEFORE_UNLOAD', {});
+  workerSend("BEFORE_UNLOAD", {});
   stopReminderSystem();
   // 컨텍스트 옵저버 해제
   if (_contextObserver) {
