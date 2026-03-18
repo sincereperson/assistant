@@ -1493,7 +1493,7 @@ function initMemoEditor() {
     modules.table = false; // 기본 table 모듈 비활성화
     modules["table-better"] = {
       language: "en_US",
-      menus: ["column", "row", "merge", "table", "cell", "wrap", "delete"],
+      menus: [],
     };
     modules.keyboard = {
       bindings: window.QuillTableBetter.keyboardBindings,
@@ -1512,6 +1512,19 @@ function initMemoEditor() {
     theme: "bubble",
     placeholder: `${area?.name || ''} 메모를 입력하세요.`,
     modules: modules,
+  });
+
+  // 테이블 셀 내부 커서 선택 시 bubble 툴팁 없애기
+  memoQuill.on('selection-change', function (range) {
+    if (!range) return;
+    const tooltip = memoQuill.theme?.tooltip;
+    if (!tooltip) return;
+    try {
+      const [leaf] = memoQuill.getLeaf(range.index);
+      if (leaf?.domNode?.closest?.('td, th')) {
+        tooltip.hide();
+      }
+    } catch (_) {}
   });
 
   (function installPasteHandler(quillInst) {
@@ -1639,7 +1652,7 @@ function initInlineMemoEditors() {
       modules.table = false;
       modules["table-better"] = {
         language: "en_US",
-        menus: ["column", "row", "merge", "table", "cell", "wrap", "delete"],
+        menus: [],
       };
       modules.keyboard = { bindings: window.QuillTableBetter.keyboardBindings };
     }
@@ -2343,7 +2356,7 @@ function initStickyNoteRichText() {
       modules.table = false;
       modules["table-better"] = {
         language: "en_US",
-        menus: ["column", "row", "merge", "table", "cell", "wrap", "delete"],
+        menus: [],
       };
       modules.keyboard = { bindings: window.QuillTableBetter.keyboardBindings };
     }
@@ -2373,7 +2386,8 @@ function initStickyNoteRichText() {
         scrollToMemoItem(memoId);
       } else {
         if (memoId && stickyNoteDirtyMap[memoId]) {
-          saveStickyNoteRichText(memoId);
+          // map 리셋으로 참조 유실 방지: 클로저의 quill 직접 전달
+          saveStickyNoteRichText(memoId, quill);
         } else {
           state.isStickyNoteEditing = false;
         }
@@ -2382,10 +2396,15 @@ function initStickyNoteRichText() {
   });
 }
 
-async function saveStickyNoteRichText(memoId) {
+async function saveStickyNoteRichText(memoId, quillInst) {
   const memo = state.memos?.[memoId];
-  const quill = stickyNoteQuillMap[memoId];
+  // quillInst: selection-change 클로저에서 직접 전달된 것 우선, 없으면 map fallback
+  const quill = (quillInst && document.body.contains(quillInst.root))
+    ? quillInst
+    : stickyNoteQuillMap[memoId];
   if (!memo || !quill) return;
+  // 좌비 인스턴스 방어 (DOM에서 제거된 quill root)
+  if (!document.body.contains(quill.root)) return;
 
   const content = sanitizeHtml(quill.root.innerHTML || "");
   state.suppressInlineFocus = true;
@@ -7701,12 +7720,16 @@ const AssistantGuide = {
     this._removeDemoPostit();
     const el = document.createElement('div');
     el.setAttribute('data-guide-demo', 'postit');
+    // 픽셀 좌표로 직접 정렬: transform/animation 충돌 방지
+    const postitW = 230;
+    const postitH = 120;
+    const postitTop  = Math.round(window.innerHeight / 2 - postitH / 2);
+    const postitLeft = Math.round(window.innerWidth  / 2 - postitW / 2);
     el.style.cssText = [
       'position:fixed',
-      'top:50%',
-      'left:50%',
-      'transform:translate(-50%,-50%)',
-      'width:230px',
+      `top:${postitTop}px`,
+      `left:${postitLeft}px`,
+      `width:${postitW}px`,
       'min-height:90px',
       'background:#FFFDE7',
       'border-radius:10px',
@@ -7718,7 +7741,6 @@ const AssistantGuide = {
       'color:#333',
       'line-height:1.6',
       'pointer-events:none',
-      'animation:imsmassi-guide-fadein 0.3s ease',
     ].join(';');
     el.innerHTML = `
       <div style="font-weight:700;margin-bottom:6px;color:#E65100;font-size:12px;">📌 [예시] 계약 검토 체크리스트</div>

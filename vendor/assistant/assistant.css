@@ -1759,7 +1759,8 @@
   color: #3d3d3d !important;
   line-height: 1.4 !important;
   word-break: break-word !important;
-  overflow: auto !important;
+  overflow: hidden !important;  /* quill-better-table 리사이즈 핸들(position:absolute)이
+                                   컨테이너 경계를 벗어나 스크롤을 유발하는 것 차단 */
   padding: 6px 10px 12px !important;
   flex: 1 !important;
   min-height: 0 !important;
@@ -2874,4 +2875,18 @@
 .imsmassi-guide-btn-finish:hover {
   background: #3570E0;
   opacity: 1;
+}
+
+/* quill-better-table 테이블 전용 컨텍스트 툴바 숨김 */
+.ql-table-menus-container {
+  display: none !important;
+}
+
+/* quill-better-table 이중 스크롤 방지
+   - sticky-layer는 document.body에 직접 append되므로 #assistant-root 스코프 밖에 있음
+   - 포스트잇 body / 메모 에디터 body 모두 이미 overflow:auto를 가지므로
+     내부 quill-better-table-wrapper의 overflow-x:auto를 visible로 재정의 */
+.imsmassi-sticky-note-body .quill-better-table-wrapper,
+#assistant-root .quill-better-table-wrapper {
+  overflow-x: visible !important;
 }
