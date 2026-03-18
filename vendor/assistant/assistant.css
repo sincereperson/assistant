@@ -130,10 +130,10 @@
 }
 #assistant-root .imsmassi-floating-panel {
   position: fixed;
-  top: 24px;
+  top: 60px;
   right: 24px;
   width: 360px;
-  height: calc(100vh - 48px);
+  height: calc(100vh - 72px);
   border-radius: 14px;
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18);
   display: flex;
@@ -2694,4 +2694,149 @@
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-dashboard-section-header {
   color: #e0e0e0;
+}
+/* ========================================
+   온보딩 가이드 오버레이
+   ======================================== */
+
+/* Dim 레이어: 스포트라이트 외부 클릭 차단용 */
+.imsmassi-guide-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99998;
+  cursor: default;
+  pointer-events: all;
+}
+
+/* 스포트라이트: box-shadow로 주변을 어둡게 */
+.imsmassi-guide-spotlight {
+  position: fixed;
+  z-index: 99999;
+  border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.65);
+  pointer-events: none;
+  transition: top 0.3s ease, left 0.3s ease, width 0.3s ease, height 0.3s ease;
+}
+
+/* 툴팁 말풍선 */
+.imsmassi-guide-tooltip {
+  position: fixed;
+  z-index: 100000;
+  width: 290px;
+  background: #1E2A3B;
+  color: #fff;
+  border-radius: 14px;
+  padding: 20px 22px 18px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  pointer-events: all;
+  transition: top 0.3s ease, left 0.3s ease;
+  animation: imsmassi-guide-fadein 0.25s ease;
+}
+
+@keyframes imsmassi-guide-fadein {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+/* 진행 점(dot) */
+.imsmassi-guide-progress {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 14px;
+}
+
+.imsmassi-guide-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+  transition: background 0.2s, width 0.2s, border-radius 0.2s;
+  flex-shrink: 0;
+}
+
+.imsmassi-guide-dot-active {
+  background: #fff;
+  width: 18px;
+  border-radius: 3px;
+}
+
+/* 타이틀 */
+.imsmassi-guide-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+/* 설명문 */
+.imsmassi-guide-desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.65;
+  margin-bottom: 18px;
+}
+
+/* 컨트롤 영역 */
+.imsmassi-guide-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.imsmassi-guide-nav {
+  display: flex;
+  gap: 8px;
+}
+
+/* 버튼 베이스 */
+.imsmassi-guide-btn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 7px;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+  line-height: 1;
+}
+
+.imsmassi-guide-btn:hover {
+  opacity: 0.85;
+}
+
+/* 건너뛰기 */
+.imsmassi-guide-btn-skip {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.40);
+  padding: 7px 2px;
+}
+
+.imsmassi-guide-btn-skip:hover {
+  color: rgba(255, 255, 255, 0.70);
+  opacity: 1;
+}
+
+/* 이전 */
+.imsmassi-guide-btn-prev {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+/* 다음 */
+.imsmassi-guide-btn-next {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+/* 마지막 단계: 시작하기 */
+.imsmassi-guide-btn-finish {
+  background: #4A8CFF;
+  color: #fff;
+}
+
+.imsmassi-guide-btn-finish:hover {
+  background: #3570E0;
+  opacity: 1;
 }

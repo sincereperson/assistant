@@ -36,6 +36,8 @@ function workerSend(type, payload) {
  * 로컬 state를 갱신하고 UI를 리렌더링합니다.
  * @param {Object} newState - Worker가 전달한 최신 상태 스냅샷
  */
+let _guideTriggered = false;
+
 function handleStateUpdate(newState) {
   // 드래그/리사이즈 중에는 로컬 stickyNotes 변경사항을 worker 스냅샷으로 덮어쓰지 않습니다.
   if (state.stickyDragActive || state.stickyResizeActive) {
@@ -50,6 +52,14 @@ function handleStateUpdate(newState) {
   // 드래그 중에는 sticky notes를 다시 그리지 않습니다 — 드래그 mouseup 후 saveStickyNotes() → 새 STATE_UPDATE에서 처리됩니다.
   if (!state.stickyDragActive) {
     renderStickyNotes();
+  }
+
+  // 온보딩 가이드: DB 로드 후 최초 1회만 표시
+  if (!_guideTriggered && state.hasSeenGuide === false) {
+    _guideTriggered = true;
+    setTimeout(() => {
+      if (typeof AssistantGuide !== 'undefined') AssistantGuide.start();
+    }, 800);
   }
 }
 
@@ -979,7 +989,7 @@ function ensureMenuIndex(menuId) {
 // 상태 관리
 // ========================================
 let state = {
-  currentTheme: "earthbrown",
+  currentTheme: "classic",
   isDarkMode: false,
   selectedArea: "UW",
   selectedMenu: "", // imsmassi-lnb 선택 메뉴 (화면ID, setupStickyLayerObserver 초기화 시 getMenuId()로 설정됨)
@@ -1139,6 +1149,16 @@ let state = {
   // 모달 상태
   currentModal: null,
   currentMemoId: null,
+
+  // 개발자 도구로 개별 온오프할 수 있는 설정 UI 노출 여부 (기본값 false: 숨김)
+  hiddenUI: {
+    areaColor: false,
+    timeInsight: false,
+    markdown: false,
+    debugLog: false,
+    autoNav: false,
+    lowSpec: false,
+  },
 };
 
 // Quill 에디터 인스턴스
@@ -2523,6 +2543,9 @@ let _stickyLayerTargetEl = null;
 /** @type {ResizeObserver|null} 타겟 크기 변화 감지 */
 let _stickyLayerResizeObserver = null;
 
+/** @type {AbortController|null} scroll 리스너 정리용 */
+let _stickyLayerScrollAC = null;
+
 /**
  * #sticky-layer(position:fixed)의 top/left/width/height를
  * 타겟의 parentElement 기준 getBoundingClientRect()으로 갱신합니다.
@@ -2769,6 +2792,12 @@ function relocateStickyLayer() {
     _stickyLayerResizeObserver = null;
   }
 
+  if (_stickyLayerScrollAC) {
+    _stickyLayerScrollAC.abort();
+    _stickyLayerScrollAC = null;
+  }
+
+
   // ② 전환 중 포스트잇 즉시 숨김 (순간이동 방지)
   layer.style.visibility = "hidden";
   layer.innerHTML = "";
@@ -2792,6 +2821,13 @@ function relocateStickyLayer() {
       requestAnimationFrame(() => {
         layer.style.visibility = "";
       });
+    });
+
+    // ④ Scroll 리스너: 스크롤 시 sticky-layer bounds 재동기화
+    // capture:true 로 window 하위 모든 스크롤 이벤트를 단일 리스너로 포착
+    _stickyLayerScrollAC = new AbortController();
+    window.addEventListener('scroll', _syncStickyLayerBounds, {
+      passive: true, capture: true, signal: _stickyLayerScrollAC.signal
     });
 
     console.log(
@@ -4232,7 +4268,7 @@ function getSettingsHtml(closeHandler) {
         <!-- 기능 설정 -->
         <div style="margin-bottom: 16px;">
           <div style="font-size: 13px; font-weight: 600; color: #191F28; margin-bottom: 12px;">기능 설정</div>
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
+          <div style="display: ${state.hiddenUI.areaColor ? 'flex' : 'none'}; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
             <div>
               <span style="font-size: 12px; color: #191F28;">업무 컬러 설정 표시</span>
               <div style="font-size: 10px; color: #999;">대시보드 내 업무 컬러 설정 섹션 표시</div>
@@ -4243,7 +4279,7 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
+          <div style="display: ${state.hiddenUI.timeInsight ? 'flex' : 'none'}; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
             <div>
               <span style="font-size: 12px; color: #191F28;">시간 인사이트 표시</span>
               <div style="font-size: 10px; color: #999;">대시보드 내 시간 인사이트 섹션 표시</div>
@@ -4254,7 +4290,7 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
+          <div style="display: ${state.hiddenUI.markdown ? 'flex' : 'none'}; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
             <div>
               <span style="font-size: 12px; color: #191F28;">마크다운 단축키</span>
               <div style="font-size: 10px; color: #999;">**굵게**, *기울임*, ~~취소선~~ 등</div>
@@ -4265,7 +4301,7 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
+          <div style="display: ${state.hiddenUI.debugLog ? 'flex' : 'none'}; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
             <div>
               <span style="font-size: 12px; color: #191F28;">디버그 로그</span>
               <div style="font-size: 10px; color: #999;">콘솔 로그 출력 on/off</div>
@@ -4276,7 +4312,7 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px;">
+          <div style="margin-bottom: 16px; display: ${state.hiddenUI.autoNav ? 'flex' : 'none'}; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px;">
             <div>
               <span style="font-size: 12px; color: #191F28;">대시보드 자동 이동</span>
               <div style="font-size: 10px; color: #999;">알림 설정 후 대시보드로 이동</div>
@@ -4289,7 +4325,7 @@ function getSettingsHtml(closeHandler) {
 
 
         <!-- 성능 설정 -->
-        <div style="margin-bottom: 16px;">
+        <div style="margin-bottom: 16px; display: ${state.hiddenUI.lowSpec ? 'block' : 'none'};">
           <div style="font-size: 13px; font-weight: 600; color: #191F28; margin-bottom: 12px;">성능 설정</div>
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px;">
             <div>
@@ -4364,6 +4400,7 @@ function initSettingsTab() {
     { id: "setting-browser-notification", label: "브라우저 알림" },
     { id: "setting-toast", label: "토스트 알림" },
     { id: "setting-show-time-tab", label: "시간 탭 표시" },
+    { id: "setting-show-area-color", label: "업무 컬러 설정 표시" },
   ];
 
   toggleMap.forEach(({ id, label }) => {
@@ -6076,7 +6113,7 @@ function renderMemoTab() {
       className: "imsmassi-memo-textarea",
       id: "memo-input",
       contenteditable: "true",
-      placeholder: `${area.name} 메모를 입력하세요 (Ctrl+Enter로 추가)...`,
+      placeholder: `${area.name} 메모를 입력하세요.`,
     });
     Object.assign(textarea.style, {
       background: state.isDarkMode ? "#1A1A1A" : "#FFF",
@@ -7214,3 +7251,271 @@ window.addEventListener("beforeunload", () => {
     _stickyLayerResizeObserver = null;
   }
 });
+/**
+ * [개발자 도구 전용] 특정 고급 설정 UI 항목 노출/숨김 개별 토글
+ * @param {string} key - 'areaColor', 'timeInsight', 'markdown', 'debugLog', 'autoNav', 'lowSpec'
+ * @param {boolean} visible - 노출 여부 (true: 표시, false: 숨김)
+ *
+ * 사용 예시 (브라우저 콘솔):
+ *   toggleAssistantHiddenUI('lowSpec', true);    // 저사양 모드 섹션 표시
+ *   toggleAssistantHiddenUI('areaColor', true);  // 업무 컬러 설정 표시
+ *   toggleAssistantHiddenUI('markdown', false);  // 마크다운 단축키 숨김
+ */
+window.toggleAssistantHiddenUI = function (key, visible = true) {
+  // 상태 안전성 검사
+  if (!state.hiddenUI) {
+    state.hiddenUI = {
+      areaColor: false,
+      timeInsight: false,
+      markdown: false,
+      debugLog: false,
+      autoNav: false,
+      lowSpec: false,
+    };
+  }
+
+  if (key in state.hiddenUI) {
+    state.hiddenUI[key] = !!visible;
+    console.log(`[Assistant] 설정 UI '${key}' 상태가 ${visible ? '표시' : '숨김'}로 변경되었습니다.`);
+
+    // UI 즉각 반영 (설정 모달이 열려있거나 설정 탭인 경우 리렌더링)
+    if (state.currentModal === "settings") {
+      openModal("settings");
+    } else if (state.activeTab === "settings") {
+      renderAssistantContent();
+    }
+  } else {
+    console.warn(`[Assistant] 유효하지 않은 키입니다. 사용 가능한 키: ${Object.keys(state.hiddenUI).join(", ")}`);
+  }
+};
+
+// ========================================
+// 온보딩 가이드 (5단계)
+// ========================================
+const AssistantGuide = {
+  steps: [
+    {
+      targetSelector: '#imsmassi-floating-btn',
+      title: '어시스턴트 시작하기',
+      description: '이 버튼을 클릭하여 솔로몬 어시스턴트를 열어보세요. 업무 중 언제든 메모를 기록할 수 있습니다.',
+      beforeNext: async function () {
+        if (!state.assistantOpen) {
+          openAssistant();
+          await new Promise((r) => setTimeout(r, 450));
+        }
+      },
+    },
+    {
+      targetSelector: '.ql-editor, #memo-input',
+      title: '화면 맞춤 메모 작성',
+      description: '현재 보고 있는 화면과 관련된 메모를 작성해보세요. 단축키 Ctrl+Enter로 빠르게 등록할 수 있습니다.',
+      beforeNext: null,
+    },
+    {
+      targetSelector: '.imsmassi-screen-btn',
+      title: '포스트잇(스티커) 기능',
+      description: '작성한 메모를 포스트잇처럼 화면 위에 띄워둘 수 있습니다. 위치와 크기를 자유롭게 조절하며 업무에 활용해 보세요.',
+      beforeNext: null,
+    },
+    {
+      targetSelector: '#imsmassi-memo-side-toggle-btn',
+      title: '클립보드 & 템플릿',
+      description: '사이드 패널을 열어 복사한 텍스트 기록을 확인하거나, 자주 쓰는 양식을 템플릿으로 저장해 원클릭으로 활용하세요.',
+      beforeNext: async function () {
+        if (!state.isMemoPanelExpanded) {
+          toggleMemoSidePanel();
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      },
+    },
+    {
+      targetSelector: '.imsmassi-reminder-btn',
+      title: '⏰ 잊지 않게 리마인더',
+      description: '메모에 알림을 설정해 보세요! 원하는 시간에 맞춰 바탕화면 알림과 대시보드 할 일 목록으로 리마인드 해줍니다.',
+      beforeNext: null,
+    },
+  ],
+
+  currentStep: 0,
+  overlayEl: null,
+  spotlightEl: null,
+  tooltipEl: null,
+  _resizeHandler: null,
+  _active: false,
+  _padding: 10,
+
+  start() {
+    if (this._active) return;
+    this._active = true;
+    this.currentStep = 0;
+    this._createDOM();
+    this._renderStep();
+    console.log('[Assistant] 온보딩 가이드 시작');
+  },
+
+  _createDOM() {
+    this._cleanup();
+    this.overlayEl = document.createElement('div');
+    this.overlayEl.className = 'imsmassi-guide-overlay';
+
+    this.spotlightEl = document.createElement('div');
+    this.spotlightEl.className = 'imsmassi-guide-spotlight';
+
+    this.tooltipEl = document.createElement('div');
+    this.tooltipEl.className = 'imsmassi-guide-tooltip';
+
+    document.body.appendChild(this.overlayEl);
+    document.body.appendChild(this.spotlightEl);
+    document.body.appendChild(this.tooltipEl);
+
+    this._resizeHandler = () => this._positionElements();
+    window.addEventListener('resize', this._resizeHandler);
+    window.addEventListener('scroll', this._resizeHandler, true);
+  },
+
+  _getTarget(selector) {
+    if (!selector) return null;
+    for (const sel of selector.split(',').map((s) => s.trim())) {
+      const el = document.querySelector(sel);
+      if (el) return el;
+    }
+    return null;
+  },
+
+  _renderStep() {
+    const step = this.steps[this.currentStep];
+    const total = this.steps.length;
+    const isLast = this.currentStep === total - 1;
+    const isFirst = this.currentStep === 0;
+    const target = this._getTarget(step.targetSelector);
+
+    this._positionSpotlight(target);
+
+    const dots = Array.from({ length: total }, (_, i) =>
+      `<span class="imsmassi-guide-dot${i === this.currentStep ? ' imsmassi-guide-dot-active' : ''}"></span>`
+    ).join('');
+
+    this.tooltipEl.innerHTML = `
+      <div class="imsmassi-guide-progress">${dots}</div>
+      <div class="imsmassi-guide-title">${step.title}</div>
+      <div class="imsmassi-guide-desc">${step.description}</div>
+      <div class="imsmassi-guide-controls">
+        <button class="imsmassi-guide-btn imsmassi-guide-btn-skip" onclick="AssistantGuide.skip()">건너뛰기</button>
+        <div class="imsmassi-guide-nav">
+          ${!isFirst ? `<button class="imsmassi-guide-btn imsmassi-guide-btn-prev" onclick="AssistantGuide.prev()">이전</button>` : ''}
+          <button class="imsmassi-guide-btn imsmassi-guide-btn-next${isLast ? ' imsmassi-guide-btn-finish' : ''}" onclick="AssistantGuide.next()">
+            ${isLast ? '시작하기 🎉' : '다음 →'}
+          </button>
+        </div>
+      </div>
+    `;
+
+    requestAnimationFrame(() => this._positionTooltip(target));
+  },
+
+  _positionElements() {
+    const step = this.steps[this.currentStep];
+    const target = this._getTarget(step.targetSelector);
+    this._positionSpotlight(target);
+    this._positionTooltip(target);
+  },
+
+  _positionSpotlight(target) {
+    if (!this.spotlightEl) return;
+    if (!target) {
+      this.spotlightEl.style.cssText =
+        'position:fixed;top:50%;left:50%;width:0;height:0;border-radius:8px;' +
+        'box-shadow:0 0 0 9999px rgba(0,0,0,0.65);z-index:99999;pointer-events:none;';
+      return;
+    }
+    const r = target.getBoundingClientRect();
+    const p = this._padding;
+    this.spotlightEl.style.cssText = [
+      'position:fixed',
+      `top:${r.top - p}px`,
+      `left:${r.left - p}px`,
+      `width:${r.width + p * 2}px`,
+      `height:${r.height + p * 2}px`,
+      'border-radius:8px',
+      'box-shadow:0 0 0 9999px rgba(0,0,0,0.65)',
+      'z-index:99999',
+      'pointer-events:none',
+      'transition:top 0.3s ease,left 0.3s ease,width 0.3s ease,height 0.3s ease',
+    ].join(';');
+  },
+
+  _positionTooltip(target) {
+    if (!this.tooltipEl) return;
+    const tw = this.tooltipEl.offsetWidth || 290;
+    const th = this.tooltipEl.offsetHeight || 190;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const p = this._padding;
+    const gap = 18;
+    let top, left;
+
+    if (!target) {
+      top = vh / 2 - th / 2;
+      left = vw / 2 - tw / 2;
+    } else {
+      const r = target.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      if (r.bottom + p + gap + th <= vh) {
+        top = r.bottom + p + gap; left = cx - tw / 2;
+      } else if (r.top - p - gap - th >= 0) {
+        top = r.top - p - gap - th; left = cx - tw / 2;
+      } else if (r.right + p + gap + tw <= vw) {
+        top = r.top + r.height / 2 - th / 2; left = r.right + p + gap;
+      } else {
+        top = r.top + r.height / 2 - th / 2; left = r.left - p - gap - tw;
+      }
+      left = Math.max(16, Math.min(left, vw - tw - 16));
+      top  = Math.max(16, Math.min(top,  vh - th - 16));
+    }
+    this.tooltipEl.style.left = `${left}px`;
+    this.tooltipEl.style.top  = `${top}px`;
+  },
+
+  async next() {
+    const step = this.steps[this.currentStep];
+    if (typeof step.beforeNext === 'function') {
+      await step.beforeNext();
+    }
+    if (this.currentStep < this.steps.length - 1) {
+      this.currentStep++;
+      this._renderStep();
+    } else {
+      this._finish();
+    }
+  },
+
+  prev() {
+    if (this.currentStep > 0) {
+      this.currentStep--;
+      this._renderStep();
+    }
+  },
+
+  skip() {
+    this._finish();
+  },
+
+  _finish() {
+    this._active = false;
+    this._cleanup();
+    workerSend('MARK_GUIDE_SEEN', {});
+    state.hasSeenGuide = true;
+    console.log('[Assistant] 온보딩 가이드 완료');
+  },
+
+  _cleanup() {
+    if (this.overlayEl)   { this.overlayEl.remove();   this.overlayEl   = null; }
+    if (this.spotlightEl) { this.spotlightEl.remove();  this.spotlightEl = null; }
+    if (this.tooltipEl)   { this.tooltipEl.remove();   this.tooltipEl   = null; }
+    if (this._resizeHandler) {
+      window.removeEventListener('resize', this._resizeHandler);
+      window.removeEventListener('scroll', this._resizeHandler, true);
+      this._resizeHandler = null;
+    }
+  },
+};

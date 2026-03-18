@@ -398,6 +398,7 @@ const state = {
   nextMemoId: 10,
   nextTemplateId: 10,
   nextClipboardId: 10,
+  hasSeenGuide: null, // null = 원쳨 보로드 전, false = 미확인, true = 확인 완료
 };
 
 // ========================================
@@ -503,6 +504,7 @@ function getSnapshot(port) {
     settings:            state.settings,
     nextTemplateId:      state.nextTemplateId,
     userInfo:            state.userInfo,
+    hasSeenGuide:        state.hasSeenGuide,
   };
 }
 
@@ -638,8 +640,73 @@ async function ensureInit(loginId) {
   _initialized = true;
 }
 
+/**
+ * 최초 DB 생성 시 앱 사용법을 안내하는 샘플 데이터를 삽입합니다.
+ */
+async function seedInitialData() {
+  const now = Date.now();
+  const today = new Date().toISOString().split('T')[0];
+  const currentArea = state.selectedArea || 'UW';
+
+  // 1. 환영 메모 (고정)
+  await db.addMemo('mdi-sample-1', {
+    title: '환영합니다 🎉',
+    content: '솔로몬 어시스턴트에 오신 것을 환영합니다!\n\n이곳에 업무 메모를 작성하고, 우측의 클립보드와 템플릿 기능을 활용하여 업무 효율을 높여보세요.',
+    pinned: true,
+    createdAreaId: currentArea,
+    menuId: '메인화면',
+    labels: ['메인화면'],
+    reminder: null,
+    date: today,
+    isRichText: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // 2. 리마인더 포함 메모 (현재 시각 기준 2시간 뒤)
+  const reminderTime = new Date(now + 2 * 60 * 60 * 1000);
+  const rDate = reminderTime.toISOString().split('T')[0];
+  const rTime = `${String(reminderTime.getHours()).padStart(2, '0')}:${String(reminderTime.getMinutes()).padStart(2, '0')}`;
+  await db.addMemo('mdi-sample-2', {
+    title: '오후 업무보고 준비',
+    content: '주간 실적 데이터 취합 및 팀장님께 결과 보고 메일 발송하기',
+    pinned: false,
+    createdAreaId: currentArea,
+    menuId: '메인화면',
+    labels: ['메인화면'],
+    reminder: `${rDate} ${rTime}`,
+    reminderRepeat: false,
+    done: false,
+    date: today,
+    isRichText: false,
+    createdAt: now + 1,
+    updatedAt: now + 1,
+  });
+
+  // 3. 클립보드 예시 데이터
+  await db.addClipboardItem({ content: '123-45-67890', menu: '메인화면', areaId: currentArea, timestamp: now, count: 1 });
+  await db.addClipboardItem({ content: 'hong.gildong@solomon.com', menu: '메인화면', areaId: currentArea, timestamp: now + 1, count: 2 });
+
+  // 4. 템플릿 예시 데이터
+  await db.addTemplate({
+    title: '승인 요청 메일',
+    content: '안녕하세요, 담당자님.\n아래 건에 대해 승인 요청드립니다.\n\n- 계약번호: \n- 고객명: \n- 요청사항: \n\n감사합니다.',
+    category: 'default',
+    count: 0,
+    createdAt: now,
+  });
+}
+
+
 async function loadStateFromDB() {
   await db.init();
+
+  // 최초 1회 실행 여부 확인 및 예시 데이터 주입
+  const isSeeded = await db.getSetting('isSeeded');
+  if (!isSeeded) {
+    await seedInitialData();
+    await db.saveSetting('isSeeded', true);
+  }
 
   const allMemos = await db.getAllMemos();
   state.memos = {};
@@ -717,6 +784,10 @@ async function loadStateFromDB() {
 
   const areaColors = await db.getSetting('area_colors');
   if (areaColors && typeof areaColors === 'object') state.areaColors = areaColors;
+
+  // 온보딩 가이드 확인 여부 로드
+  const hasSeenGuide = await db.getSetting('hasSeenGuide');
+  state.hasSeenGuide = hasSeenGuide === true ? true : false;
 
   // userInfo 로드 (암호화된 채로 state에 보관, 복호화는 클라이언트에서)
   try {
@@ -1234,6 +1305,13 @@ async function handleSaveUserInfo(port, payload) {
   broadcastState();
 }
 
+async function handleMarkGuideSeen(port) {
+  state.hasSeenGuide = true;
+  await db.saveSetting('hasSeenGuide', true);
+  // broadcastState 없이 해당 포트에만 응답 (가이드 종료는 다른 탭에 영향 미침)
+  sendTo(port, 'STATE_UPDATE', getSnapshot(port));
+}
+
 const HANDLERS = {
   INIT:              handleInit,
   CONTEXT_CHANGE:    handleContextChange,
@@ -1267,6 +1345,7 @@ const HANDLERS = {
   REFRESH_CLIPBOARD: handleRefreshClipboard,
   SAVE_UI_PREFS:     handleSaveUIPrefs,
   SAVE_USER_INFO:    handleSaveUserInfo,
+  MARK_GUIDE_SEEN:   handleMarkGuideSeen,
 };
 
 async function dispatchMessage(port, event) {
