@@ -130,12 +130,12 @@
 }
 #assistant-root .imsmassi-floating-panel {
   position: fixed;
-  top: 60px;
+  bottom: 24px;
   right: 24px;
   width: 360px;
   height: 80vh;
   min-height: 300px;
-  max-height: calc(100vh - 72px);
+  max-height: calc(100vh - 64px);
   border-radius: 14px;
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18);
   display: flex;

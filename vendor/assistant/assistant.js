@@ -7317,7 +7317,7 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
 // ========================================
 /**
  * 패널 상단 가장자리를 드래그하여 높이 조절.
- * top 위치를 고정(right/fixed)하고 height 만 변경합니다.
+ * bottom 앵커 고정 → 드래그 위로 = 위쪽 경계가 올라가며 높이 증가.
  */
 function initPanelResize(panel) {
   // 기존 핸들이 있으면 제거
@@ -7326,11 +7326,11 @@ function initPanelResize(panel) {
 
   const handle = document.createElement('div');
   handle.className = 'imsmassi-panel-resize-handle';
-  handle.title = '높이 조절';
+  handle.title = '높이 조절 (더블클릭: 기본값 복원)';
   panel.prepend(handle);
 
   const MIN_H = 300;
-  const MAX_H_OFFSET = 40; // 뷰포트 상단 여유
+  const MAX_H_OFFSET = 64; // bottom 24px + 상단 여유 40px
 
   handle.addEventListener('mousedown', (e) => {
     e.preventDefault();
