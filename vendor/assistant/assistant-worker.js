@@ -392,13 +392,14 @@ const state = {
     autoNavigateToDashboard: true,
     browserNotificationEnabled: true,
     toastEnabled: true,
-    showTimeTab: true,
-    showAreaColorSection: true,
+    showTimeTab: false,
+    showAreaColorSection: false,
   },
   nextMemoId: 10,
   nextTemplateId: 10,
   nextClipboardId: 10,
-  hasSeenGuide: null, // null = 원쳨 보로드 전, false = 미확인, true = 확인 완료
+  hasSeenGuide: null,
+  panelHeight: null, // px, null = CSS 기본값
 };
 
 // ========================================
@@ -505,6 +506,7 @@ function getSnapshot(port) {
     nextTemplateId:      state.nextTemplateId,
     userInfo:            state.userInfo,
     hasSeenGuide:        state.hasSeenGuide,
+    panelHeight:         state.panelHeight,
   };
 }
 
@@ -788,6 +790,10 @@ async function loadStateFromDB() {
   // 온보딩 가이드 확인 여부 로드
   const hasSeenGuide = await db.getSetting('hasSeenGuide');
   state.hasSeenGuide = hasSeenGuide === true ? true : false;
+
+  // 패널 높이 로드
+  const savedPanelHeight = await db.getSetting('panelHeight');
+  if (typeof savedPanelHeight === 'number') state.panelHeight = savedPanelHeight;
 
   // userInfo 로드 (암호화된 채로 state에 보관, 복호화는 클라이언트에서)
   try {
@@ -1281,7 +1287,7 @@ async function handleRefreshClipboard(port) {
 }
 
 async function handleSaveUIPrefs(port, payload) {
-  const { isMemoPanelExpanded, memoFilter } = payload;
+  const { isMemoPanelExpanded, memoFilter, panelHeight } = payload;
   if (typeof isMemoPanelExpanded === 'boolean') {
     state.isMemoPanelExpanded = isMemoPanelExpanded;
     await db.saveSetting('isMemoPanelExpanded', isMemoPanelExpanded);
@@ -1289,6 +1295,10 @@ async function handleSaveUIPrefs(port, payload) {
   if (['menu', 'area', 'all'].includes(memoFilter)) {
     state.memoFilter = memoFilter;
     await db.saveSetting('memoFilter', memoFilter);
+  }
+  if (panelHeight === null || typeof panelHeight === 'number') {
+    state.panelHeight = panelHeight;
+    await db.saveSetting('panelHeight', panelHeight);
   }
   broadcastState();
 }

@@ -1150,6 +1150,9 @@ let state = {
   currentModal: null,
   currentMemoId: null,
 
+  // 패널 높이 (px, null이면 CSS 기본값 사용)
+  panelHeight: null,
+
   // 개발자 도구로 개별 온오프할 수 있는 설정 UI 노출 여부 (기본값 false: 숨김)
   hiddenUI: {
     areaColor: false,
@@ -4383,6 +4386,15 @@ function getSettingsHtml(closeHandler) {
           </div>
         </div>
 
+        <!-- 온보딩 가이드 다시보기 -->
+        <div style="margin-bottom: 16px; padding: 14px 16px; background: ${state.isDarkMode ? '#252525' : '#F0F4FF'}; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 12px; font-weight: 600; color: #191F28;">이용 가이드</div>
+            <div style="font-size: 10px; color: #999; margin-top: 2px;">어시스턴트 주요 기능 안내를 다시 확인해보세요</div>
+          </div>
+          <button class="imsmassi-modal-btn" style="background: #4A8CFF; color: #FFF; border: none; font-size: 11px; padding: 7px 14px; white-space: nowrap; flex-shrink: 0;" onclick="AssistantGuide.replay()">📖 다시보기</button>
+        </div>
+
       `;
 }
 
@@ -5582,6 +5594,17 @@ function renderAssistant() {
   panel.classList.toggle("imsmassi-hidden", !state.assistantOpen);
   panel.style.background = c.bg;
   panel.style.border = `1px solid ${c.border}`;
+  // 저장된 높이 복원
+  if (state.panelHeight) {
+    panel.style.height = `${state.panelHeight}px`;
+  } else {
+    panel.style.height = "";
+  }
+  // 리사이즈 핸들 초기화 (처음 한 번만)
+  if (!panel._resizeInited) {
+    panel._resizeInited = true;
+    initPanelResize(panel);
+  }
 
   if (!state.assistantOpen) return;
 
@@ -7290,6 +7313,60 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
 };
 
 // ========================================
+// 패널 높이 리사이즈
+// ========================================
+/**
+ * 패널 상단 가장자리를 드래그하여 높이 조절.
+ * top 위치를 고정(right/fixed)하고 height 만 변경합니다.
+ */
+function initPanelResize(panel) {
+  // 기존 핸들이 있으면 제거
+  const existing = panel.querySelector('.imsmassi-panel-resize-handle');
+  if (existing) existing.remove();
+
+  const handle = document.createElement('div');
+  handle.className = 'imsmassi-panel-resize-handle';
+  handle.title = '높이 조절';
+  panel.prepend(handle);
+
+  const MIN_H = 300;
+  const MAX_H_OFFSET = 40; // 뷰포트 상단 여유
+
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = panel.offsetHeight;
+
+    function onMove(ev) {
+      const delta = startY - ev.clientY; // 위로 드래그 → 높이 증가
+      const newH = Math.min(
+        Math.max(startH + delta, MIN_H),
+        window.innerHeight - MAX_H_OFFSET
+      );
+      state.panelHeight = newH;
+      panel.style.height = `${newH}px`;
+    }
+
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      // DB 저장
+      workerSend('SAVE_UI_PREFS', { panelHeight: state.panelHeight });
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  // 더블클릭: 기본 높이 복원
+  handle.addEventListener('dblclick', () => {
+    state.panelHeight = null;
+    panel.style.height = '';
+    workerSend('SAVE_UI_PREFS', { panelHeight: null });
+  });
+}
+
+// ========================================
 // 온보딩 가이드 (5단계)
 // ========================================
 const AssistantGuide = {
@@ -7308,7 +7385,7 @@ const AssistantGuide = {
     {
       targetSelector: '.ql-editor, #memo-input',
       title: '화면 맞춤 메모 작성',
-      description: '현재 보고 있는 화면과 관련된 메모를 작성해보세요. 단축키 Ctrl+Enter로 빠르게 등록할 수 있습니다.',
+      description: '현재 보고 있는 화면과 관련된 메모를 작성해보세요. 빠르게 등록할 수 있습니다.',
       beforeNext: null,
     },
     {
@@ -7498,6 +7575,12 @@ const AssistantGuide = {
 
   skip() {
     this._finish();
+  },
+
+  replay() {
+    // 기존 보임 상태와 관계없이 지금 즐더 다시보기 (\ub2e4시보기 단추 트리거)
+    this._active = false; // 새로 시작 허용
+    this.start();
   },
 
   _finish() {

@@ -133,7 +133,9 @@
   top: 60px;
   right: 24px;
   width: 360px;
-  height: calc(100vh - 72px);
+  height: 80vh;
+  min-height: 300px;
+  max-height: calc(100vh - 72px);
   border-radius: 14px;
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18);
   display: flex;
@@ -145,6 +147,31 @@
     box-shadow 0.25s,
     background 0.25s;
   will-change: width, box-shadow, background;
+}
+/* 리사이즈 핸들 */
+#assistant-root .imsmassi-panel-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: ns-resize;
+  z-index: 10;
+  background: transparent;
+  border-radius: 14px 14px 0 0;
+}
+#assistant-root .imsmassi-panel-resize-handle::after {
+  content: '';
+  display: block;
+  width: 36px;
+  height: 3px;
+  background: rgba(128, 128, 128, 0.3);
+  border-radius: 2px;
+  margin: 1.5px auto 0;
+  transition: background 0.2s;
+}
+#assistant-root .imsmassi-panel-resize-handle:hover::after {
+  background: rgba(128, 128, 128, 0.6);
 }
 #assistant-root .imsmassi-floating-panel.imsmassi-expanded {
   width: 640px;
@@ -633,6 +660,16 @@
 }
 #assistant-root .imsmassi-memo-quill-wrapper .ql-editor.ql-blank::before {
   color: var(--memo-placeholder);
+}
+/* contenteditable div placeholder (Quill 미사용 모드) */
+#assistant-root .imsmassi-memo-textarea:empty::before {
+  content: attr(placeholder);
+  color: var(--memo-placeholder, #aaa);
+  pointer-events: none;
+  display: block;
+}
+#assistant-root .imsmassi-memo-textarea:focus::before {
+  display: none;
 }
 
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-textarea,
