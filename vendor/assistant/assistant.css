@@ -133,7 +133,7 @@
   bottom: 24px;
   right: 24px;
   width: 360px;
-  height: 80vh;
+  height: 90vh;
   min-height: 300px;
   max-height: calc(100vh - 64px);
   border-radius: 14px;
@@ -662,14 +662,12 @@
   color: var(--memo-placeholder);
 }
 /* contenteditable div placeholder (Quill 미사용 모드) */
-#assistant-root .imsmassi-memo-textarea:empty::before {
+/* :empty는 <br>이 삽입된 contenteditable에서 동작 안 하므로 JS 클래스 방식 사용 */
+#assistant-root .imsmassi-memo-textarea.imsmassi-is-empty::before {
   content: attr(placeholder);
   color: var(--memo-placeholder, #aaa);
   pointer-events: none;
   display: block;
-}
-#assistant-root .imsmassi-memo-textarea:focus::before {
-  display: none;
 }
 
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-textarea,

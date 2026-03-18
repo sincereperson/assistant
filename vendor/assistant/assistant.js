@@ -1507,8 +1507,10 @@ function initMemoEditor() {
     modules.markdownShortcuts = {};
   }
 
+  const area = getArea();
   memoQuill = new Quill(editor, {
     theme: "bubble",
+    placeholder: `${area?.name || ''} 메모를 입력하세요.`,
     modules: modules,
   });
 
@@ -6155,9 +6157,17 @@ function renderMemoTab() {
       cursor: "text",
       overflowY: "auto",
     });
+    // placeholder 표시용 클래스 관리 (contenteditable은 :empty가 <br>로 인해 동작 안 함)
+    const _updateEmptyClass = () => {
+      const isEmpty = textarea.innerText.trim() === '' || textarea.innerHTML === '' || textarea.innerHTML === '<br>';
+      textarea.classList.toggle('imsmassi-is-empty', isEmpty);
+    };
+    textarea.classList.add('imsmassi-is-empty'); // 초기 빈 상태
+    textarea.addEventListener("focus", () => textarea.classList.remove('imsmassi-is-empty'));
+    textarea.addEventListener("blur", _updateEmptyClass);
     textarea.addEventListener("paste", (e) => handleMemoPaste(e));
     textarea.addEventListener("keydown", (e) => handleMemoKeydown(e));
-    textarea.addEventListener("input", () => updateMemoCapacity());
+    textarea.addEventListener("input", () => { updateMemoCapacity(); _updateEmptyClass(); });
     textarea.addEventListener("blur", () => {
       textarea.style.borderColor = c.border;
       textarea.style.boxShadow = "none";
@@ -6898,7 +6908,7 @@ function renderDashboardTab() {
   return `
     <div>
       ${storageWarningHtml}
-      <div class="imsmassi-dashboard-section">
+      <div id="imsmassi-dashboard-today" class="imsmassi-dashboard-section">
         <div class="imsmassi-dashboard-section-header">
           <span> 오늘 할 일</span> 
         </div>
@@ -7370,49 +7380,110 @@ function initPanelResize(panel) {
 // 온보딩 가이드 (5단계)
 // ========================================
 const AssistantGuide = {
+  // ── 각 단계 정의 ──────────────────────────────────────────────────────────────
+  // setup()   : 해당 단계를 보여주기 직전에 항상 실행 (next/prev 방향 무관)
+  // 공통 헬퍼는 AssistantGuide._ensurePanel() 등을 사용
   steps: [
+    /* ─── STEP 1 : 플로팅 버튼 ──────────────────────────────────────────── */
     {
       targetSelector: '#imsmassi-floating-btn',
       title: '어시스턴트 시작하기',
-      description: '이 버튼을 클릭하여 솔로몬 어시스턴트를 열어보세요. 업무 중 언제든 메모를 기록할 수 있습니다.',
-      beforeNext: async function () {
-        if (!state.assistantOpen) {
-          openAssistant();
-          await new Promise((r) => setTimeout(r, 450));
+      description: '화면 우측 하단의 이 버튼을 클릭하면 솔로몬 어시스턴트가 열립니다. 업무 중 언제든 메모를 기록할 수 있습니다.',
+      setup: async function () {
+        AssistantGuide._removeDemoPostit();
+        // 패널이 열려 있으면 닫아야 플로팅 버튼이 보임
+        if (state.assistantOpen) {
+          closeAssistant();
+          await AssistantGuide._wait(400);
+        }
+        if (state.isMemoPanelExpanded) {
+          toggleMemoSidePanel();
+          await AssistantGuide._wait(200);
         }
       },
     },
+    /* ─── STEP 2 : 메모 입력창 ──────────────────────────────────────────── */
     {
-      targetSelector: '.ql-editor, #memo-input',
+      targetSelector: '.ql-editor, .imsmassi-memo-textarea',
       title: '화면 맞춤 메모 작성',
-      description: '현재 보고 있는 화면과 관련된 메모를 작성해보세요. 빠르게 등록할 수 있습니다.',
-      beforeNext: null,
+      description: '현재 보고 있는 화면과 관련된 메모를 작성해보세요. 제목·내용을 자유롭게 기록하고 빠르게 저장할 수 있습니다.',
+      setup: async function () {
+        AssistantGuide._removeDemoPostit();
+        await AssistantGuide._ensurePanel();
+        if (state.activeTab !== 'memo') {
+          setActiveTab('memo');
+          await AssistantGuide._wait(350);
+        }
+        if (state.isMemoPanelExpanded) {
+          toggleMemoSidePanel();
+          await AssistantGuide._wait(200);
+        }
+      },
     },
+    /* ─── STEP 3 : 포스트잇 데모 ────────────────────────────────────────── */
     {
-      targetSelector: '.imsmassi-screen-btn',
-      title: '포스트잇(스티커) 기능',
-      description: '작성한 메모를 포스트잇처럼 화면 위에 띄워둘 수 있습니다. 위치와 크기를 자유롭게 조절하며 업무에 활용해 보세요.',
-      beforeNext: null,
+      targetSelector: '[data-guide-demo="postit"]',
+      title: '📌 포스트잇(스티커) 기능',
+      description: '메모를 포스트잇처럼 화면 위에 띄워두세요! 위치와 크기를 자유롭게 조절하며 업무 내용을 한눈에 확인할 수 있습니다.',
+      setup: async function () {
+        await AssistantGuide._ensurePanel();
+        if (state.activeTab !== 'memo') {
+          setActiveTab('memo');
+          await AssistantGuide._wait(350);
+        }
+        if (state.isMemoPanelExpanded) {
+          toggleMemoSidePanel();
+          await AssistantGuide._wait(200);
+        }
+        // 기존 데모 포스트잇 제거 후 새로 생성
+        AssistantGuide._removeDemoPostit();
+        AssistantGuide._createDemoPostit();
+        await AssistantGuide._wait(250);
+      },
     },
+    /* ─── STEP 4 : 클립보드 & 템플릿 ────────────────────────────────────── */
     {
       targetSelector: '#imsmassi-memo-side-toggle-btn',
       title: '클립보드 & 템플릿',
-      description: '사이드 패널을 열어 복사한 텍스트 기록을 확인하거나, 자주 쓰는 양식을 템플릿으로 저장해 원클릭으로 활용하세요.',
-      beforeNext: async function () {
+      description: '사이드 패널에서 복사한 텍스트 기록을 확인하거나, 자주 쓰는 양식을 템플릿으로 저장해 원클릭으로 활용하세요.',
+      setup: async function () {
+        AssistantGuide._removeDemoPostit();
+        await AssistantGuide._ensurePanel();
+        if (state.activeTab !== 'memo') {
+          setActiveTab('memo');
+          await AssistantGuide._wait(350);
+        }
+        // step 4는 사이드 패널을 열어서 보여줌
         if (!state.isMemoPanelExpanded) {
           toggleMemoSidePanel();
-          await new Promise((r) => setTimeout(r, 300));
+          await AssistantGuide._wait(300);
         }
       },
     },
+    /* ─── STEP 5 : 리마인더 (대시보드) ──────────────────────────────────── */
     {
-      targetSelector: '.imsmassi-reminder-btn',
+      targetSelector: '#imsmassi-dashboard-today',
       title: '⏰ 잊지 않게 리마인더',
-      description: '메모에 알림을 설정해 보세요! 원하는 시간에 맞춰 바탕화면 알림과 대시보드 할 일 목록으로 리마인드 해줍니다.',
-      beforeNext: null,
+      description: '메모에 알림을 설정하면 지정한 시간에 알림이 울리고, 대시보드 할 일 목록에도 자동으로 나타납니다!',
+      setup: async function () {
+        AssistantGuide._removeDemoPostit();
+        await AssistantGuide._ensurePanel();
+        if (state.isMemoPanelExpanded) {
+          toggleMemoSidePanel();
+          await AssistantGuide._wait(200);
+        }
+        setActiveTab('dashboard');
+        await AssistantGuide._wait(450);
+        const todayEl = document.getElementById('imsmassi-dashboard-today');
+        if (todayEl) {
+          todayEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          await AssistantGuide._wait(200);
+        }
+      },
     },
   ],
 
+  // ── 내부 상태 ────────────────────────────────────────────────────────────────
   currentStep: 0,
   overlayEl: null,
   spotlightEl: null,
@@ -7420,16 +7491,73 @@ const AssistantGuide = {
   _resizeHandler: null,
   _active: false,
   _padding: 10,
+  _demoPostitEl: null,
 
-  start() {
+  // ── 공개 API ──────────────────────────────────────────────────────────────────
+  async start() {
     if (this._active) return;
     this._active = true;
     this.currentStep = 0;
     this._createDOM();
-    this._renderStep();
+    await this._gotoStep(0);
     console.log('[Assistant] 온보딩 가이드 시작');
   },
 
+  async next() {
+    if (!this._active) return;
+    if (this.currentStep < this.steps.length - 1) {
+      await this._gotoStep(this.currentStep + 1);
+    } else {
+      this._finish();
+    }
+  },
+
+  async prev() {
+    if (!this._active) return;
+    if (this.currentStep > 0) {
+      await this._gotoStep(this.currentStep - 1);
+    }
+  },
+
+  skip() {
+    this._finish();
+  },
+
+  replay() {
+    this._active = false;
+    this._cleanup();
+    this._removeDemoPostit();
+    // 딜레이 없이 바로 시작 (패널 닫힘은 step 1 setup에서 처리)
+    setTimeout(() => this.start(), 80);
+  },
+
+  // ── 내부 헬퍼 ──────────────────────────────────────────────────────────────────
+  /** n ms 대기 */
+  _wait(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  },
+
+  /** 패널이 닫혀 있으면 열기 */
+  async _ensurePanel() {
+    if (!state.assistantOpen) {
+      openAssistant();
+      await this._wait(450);
+    }
+  },
+
+  /** 단계 이동 핵심 함수 — setup 실행 후 렌더링 */
+  async _gotoStep(idx) {
+    this.currentStep = idx;
+    const step = this.steps[idx];
+    if (typeof step.setup === 'function') {
+      await step.setup();
+    }
+    // 가이드가 skip/finish 됐으면 렌더 중단
+    if (!this._active) return;
+    this._renderStep();
+  },
+
+  // ── DOM 생성/렌더 ──────────────────────────────────────────────────────────────
   _createDOM() {
     this._cleanup();
     this.overlayEl = document.createElement('div');
@@ -7460,13 +7588,15 @@ const AssistantGuide = {
   },
 
   _renderStep() {
+    if (!this.tooltipEl) return;
     const step = this.steps[this.currentStep];
     const total = this.steps.length;
     const isLast = this.currentStep === total - 1;
     const isFirst = this.currentStep === 0;
-    const target = this._getTarget(step.targetSelector);
 
-    this._positionSpotlight(target);
+    // transition 없이 즉시 스냅 위치 → 좌표 불일치 방지
+    const target = this._getTarget(step.targetSelector);
+    this._positionSpotlight(target, false);
 
     const dots = Array.from({ length: total }, (_, i) =>
       `<span class="imsmassi-guide-dot${i === this.currentStep ? ' imsmassi-guide-dot-active' : ''}"></span>`
@@ -7487,22 +7617,35 @@ const AssistantGuide = {
       </div>
     `;
 
-    requestAnimationFrame(() => this._positionTooltip(target));
+    // tooltip 위치 + spotlight 재확인(레이아웃 완료 후)
+    requestAnimationFrame(() => {
+      const t = this._getTarget(step.targetSelector);
+      this._positionSpotlight(t, false);
+      this._positionTooltip(t);
+    });
   },
 
   _positionElements() {
+    if (!this._active) return;
     const step = this.steps[this.currentStep];
     const target = this._getTarget(step.targetSelector);
-    this._positionSpotlight(target);
+    this._positionSpotlight(target, true); // 스크롤/리사이즈는 부드러운 이동
     this._positionTooltip(target);
   },
 
-  _positionSpotlight(target) {
+  /**
+   * @param {Element|null} target
+   * @param {boolean} animate - true: transition 사용(scroll/resize), false: 즉시 스냅(단계 전환)
+   */
+  _positionSpotlight(target, animate = true) {
     if (!this.spotlightEl) return;
+    const transition = animate
+      ? 'transition:top 0.3s ease,left 0.3s ease,width 0.3s ease,height 0.3s ease'
+      : 'transition:none';
     if (!target) {
       this.spotlightEl.style.cssText =
-        'position:fixed;top:50%;left:50%;width:0;height:0;border-radius:8px;' +
-        'box-shadow:0 0 0 9999px rgba(0,0,0,0.65);z-index:99999;pointer-events:none;';
+        `position:fixed;top:50%;left:50%;width:0;height:0;border-radius:8px;` +
+        `box-shadow:0 0 0 9999px rgba(0,0,0,0.65);z-index:99999;pointer-events:none;${transition};`;
       return;
     }
     const r = target.getBoundingClientRect();
@@ -7517,7 +7660,7 @@ const AssistantGuide = {
       'box-shadow:0 0 0 9999px rgba(0,0,0,0.65)',
       'z-index:99999',
       'pointer-events:none',
-      'transition:top 0.3s ease,left 0.3s ease,width 0.3s ease,height 0.3s ease',
+      transition,
     ].join(';');
   },
 
@@ -7553,38 +7696,54 @@ const AssistantGuide = {
     this.tooltipEl.style.top  = `${top}px`;
   },
 
-  async next() {
-    const step = this.steps[this.currentStep];
-    if (typeof step.beforeNext === 'function') {
-      await step.beforeNext();
+  // ── 데모 포스트잇 ──────────────────────────────────────────────────────────────
+  _createDemoPostit() {
+    this._removeDemoPostit();
+    const el = document.createElement('div');
+    el.setAttribute('data-guide-demo', 'postit');
+    el.style.cssText = [
+      'position:fixed',
+      'top:50%',
+      'left:50%',
+      'transform:translate(-50%,-50%)',
+      'width:230px',
+      'min-height:90px',
+      'background:#FFFDE7',
+      'border-radius:10px',
+      'border-top:4px solid #FFD54F',
+      'box-shadow:0 6px 24px rgba(0,0,0,0.22)',
+      'padding:14px 18px 16px',
+      'z-index:98000',
+      'font-size:13px',
+      'color:#333',
+      'line-height:1.6',
+      'pointer-events:none',
+      'animation:imsmassi-guide-fadein 0.3s ease',
+    ].join(';');
+    el.innerHTML = `
+      <div style="font-weight:700;margin-bottom:6px;color:#E65100;font-size:12px;">📌 [예시] 계약 검토 체크리스트</div>
+      <div style="font-size:12px;color:#555;">
+        ✅ 고객 서명 확인<br>
+        ✅ 보장 내역 검토<br>
+        ⬜ 담당자 승인 요청
+      </div>
+    `;
+    document.body.appendChild(el);
+    this._demoPostitEl = el;
+  },
+
+  _removeDemoPostit() {
+    if (this._demoPostitEl) {
+      this._demoPostitEl.remove();
+      this._demoPostitEl = null;
     }
-    if (this.currentStep < this.steps.length - 1) {
-      this.currentStep++;
-      this._renderStep();
-    } else {
-      this._finish();
-    }
+    document.querySelectorAll('[data-guide-demo="postit"]').forEach((el) => el.remove());
   },
 
-  prev() {
-    if (this.currentStep > 0) {
-      this.currentStep--;
-      this._renderStep();
-    }
-  },
-
-  skip() {
-    this._finish();
-  },
-
-  replay() {
-    // 기존 보임 상태와 관계없이 지금 즐더 다시보기 (\ub2e4시보기 단추 트리거)
-    this._active = false; // 새로 시작 허용
-    this.start();
-  },
-
+  // ── 종료 & 정리 ────────────────────────────────────────────────────────────────
   _finish() {
     this._active = false;
+    this._removeDemoPostit();
     this._cleanup();
     workerSend('MARK_GUIDE_SEEN', {});
     state.hasSeenGuide = true;
@@ -7601,4 +7760,5 @@ const AssistantGuide = {
       this._resizeHandler = null;
     }
   },
+
 };
