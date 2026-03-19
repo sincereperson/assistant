@@ -121,62 +121,76 @@
       /><span class="imsmassi-assistant-badge"></span>
     </button>
 
-    <div
-      class="imsmassi-floating-panel imsmassi-hidden"
-      id="imsmassi-floating-panel"
-    >
-      <!-- 헤더 -->
-      <div class="imsmassi-assistant-header" id="imsmassi-assistant-header">
-        <div class="imsmassi-assistant-title">
-          <!-- <span>💼</span> -->
-          <span>어시스턴트</span>
-        </div>
-        <div class="imsmassi-assistant-header-actions">
-          <button
-            class="imsmassi-assistant-header-btn"
-            id="assistant-dashboard-btn"
-            onclick="toggleDashboardView()"
-            title="대시보드"
-          >
-            📊 대시보드
-          </button>
-          <button
-            class="imsmassi-assistant-close"
-            onclick="closeAssistant()"
-            title="닫기"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
+    <!-- ========== 패널 외부 래퍼 (탭 사이드바 + 패널) ========== -->
+    <!-- overflow:visible 여기서만 관리 → 내부 패널은 overflow:hidden 유지 가능 -->
+    <div id="imsmassi-panel-outer" class="imsmassi-panel-outer imsmassi-hidden">
 
-      <!-- 콘텐츠 -->
+      <!-- 탭 사이드바: 패널의 형제 노드 (패널 overflow 영향 받지 않음) -->
+      <div class="imsmassi-assistant-tabs" id="imsmassi-assistant-tabs"></div>
+
       <div
-        class="imsmassi-assistant-content"
-        id="imsmassi-assistant-content"
-      ></div>
+        class="imsmassi-floating-panel"
+        id="imsmassi-floating-panel"
+      >
+        <!-- 헤더 -->
+        <div class="imsmassi-assistant-header" id="imsmassi-assistant-header">
+          <div class="imsmassi-assistant-title">
+            <!-- <span>💼</span> -->
+            <span>어시스턴트</span>
+          </div>
+          <div class="imsmassi-assistant-header-actions">
+            <button
+              class="imsmassi-assistant-header-btn"
+              id="assistant-dashboard-btn"
+              onclick="toggleDashboardView()"
+              title="대시보드"
+            >
+              📊 대시보드
+            </button>
+            <button
+              class="imsmassi-assistant-close"
+              onclick="closeAssistant()"
+              title="닫기"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
 
-      <!-- 푸터 -->
-      <div class="imsmassi-assistant-footer" id="imsmassi-assistant-footer">
-        <span id="footer-storage-info">로컬 저장 (IndexedDB)</span>
-        <div class="imsmassi-assistant-footer-controls">
+        <!-- 바디 래퍼 (탭은 panel-outer 레벨로 분리) -->
+        <div class="imsmassi-panel-body-wrapper" id="imsmassi-panel-body-wrapper">
+
+          <!-- 콘텐츠 영역 -->
           <div
-            class="imsmassi-assistant-footer-modes imsmassi-assistant-footer-group"
-            id="imsmassi-assistant-footer-modes"
+            class="imsmassi-assistant-content"
+            id="imsmassi-assistant-content"
           ></div>
-          <div
-            class="imsmassi-assistant-footer-themes imsmassi-assistant-footer-group"
-            id="imsmassi-assistant-footer-themes"
-          ></div>
-          <button
-            class="imsmassi-assistant-footer-btn"
-            onclick="openSettingsModal()"
-          >
-            설정
-          </button>
+
+        </div>
+
+        <!-- 푸터 -->
+        <div class="imsmassi-assistant-footer" id="imsmassi-assistant-footer">
+          <span id="footer-storage-info">로컬 저장 (IndexedDB)</span>
+          <div class="imsmassi-assistant-footer-controls">
+            <div
+              class="imsmassi-assistant-footer-modes imsmassi-assistant-footer-group"
+              id="imsmassi-assistant-footer-modes"
+            ></div>
+            <div
+              class="imsmassi-assistant-footer-themes imsmassi-assistant-footer-group"
+              id="imsmassi-assistant-footer-themes"
+            ></div>
+            <button
+              class="imsmassi-assistant-footer-btn"
+              onclick="openSettingsModal()"
+            >
+              설정
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+    </div><!-- /#imsmassi-panel-outer -->
 
     <!-- ========== 모달 ========== -->
     <div

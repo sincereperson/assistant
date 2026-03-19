@@ -400,6 +400,7 @@ const state = {
   nextClipboardId: 10,
   hasSeenGuide: null,
   panelHeight: null, // px, null = CSS 기본값
+  panelWidth: null,  // px, null = CSS 기본값
 };
 
 // ========================================
@@ -507,6 +508,7 @@ function getSnapshot(port) {
     userInfo:            state.userInfo,
     hasSeenGuide:        state.hasSeenGuide,
     panelHeight:         state.panelHeight,
+    panelWidth:          state.panelWidth,
   };
 }
 
@@ -794,6 +796,10 @@ async function loadStateFromDB() {
   // 패널 높이 로드
   const savedPanelHeight = await db.getSetting('panelHeight');
   if (typeof savedPanelHeight === 'number') state.panelHeight = savedPanelHeight;
+
+  // 패널 너비 로드
+  const savedPanelWidth = await db.getSetting('panelWidth');
+  if (typeof savedPanelWidth === 'number') state.panelWidth = savedPanelWidth;
 
   // userInfo 로드 (암호화된 채로 state에 보관, 복호화는 클라이언트에서)
   try {
@@ -1287,7 +1293,7 @@ async function handleRefreshClipboard(port) {
 }
 
 async function handleSaveUIPrefs(port, payload) {
-  const { isMemoPanelExpanded, memoFilter, panelHeight } = payload;
+  const { isMemoPanelExpanded, memoFilter, panelHeight, panelWidth } = payload;
   if (typeof isMemoPanelExpanded === 'boolean') {
     state.isMemoPanelExpanded = isMemoPanelExpanded;
     await db.saveSetting('isMemoPanelExpanded', isMemoPanelExpanded);
@@ -1299,6 +1305,10 @@ async function handleSaveUIPrefs(port, payload) {
   if (panelHeight === null || typeof panelHeight === 'number') {
     state.panelHeight = panelHeight;
     await db.saveSetting('panelHeight', panelHeight);
+  }
+  if (panelWidth === null || typeof panelWidth === 'number') {
+    state.panelWidth = panelWidth;
+    await db.saveSetting('panelWidth', panelWidth);
   }
   broadcastState();
 }

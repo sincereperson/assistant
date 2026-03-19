@@ -47,6 +47,12 @@ function handleStateUpdate(newState) {
   } else {
     Object.assign(state, newState);
   }
+  // CSS 커스텀 프로퍼티: state 복원 후 DOM에 테마/다크모드 반영
+  const root = getAssistantStyleRoot();
+  if (root) {
+    root.dataset.theme = state.currentTheme || "classic";
+    root.classList.toggle("imsmassi-dark-mode", !!state.isDarkMode);
+  }
   rebuildAssistantTabs();
   renderAssistant();
   // 드래그 중에는 sticky notes를 다시 그리지 않습니다 — 드래그 mouseup 후 saveStickyNotes() → 새 STATE_UPDATE에서 처리됩니다.
@@ -821,31 +827,21 @@ let db;
 // ========================================
 // 데이터 정의
 // ========================================
+// 테마별 표시명 메타데이터 (색상 값은 assistant.css 커스텀 프로퍼티로 이관)
 const themes = {
-  classic: {
-    name: "클래식",
-    primary: "#4A90A4",
-    primaryLight: "#E8F4F8",
-    primaryDark: "#2E5A6A",
-  },
-  earthbrown: {
-    name: "어스 브라운",
-    primary: "#C9BEAA",
-    primaryLight: "#D6CEC0",
-    primaryDark: "#9A9387",
-  },
-  oceangreen: {
-    name: "오션 그린",
-    primary: "#7CE0D3",
-    primaryLight: "#A9E9E1",
-    primaryDark: "#44A79E",
-  },
-  lightbeige: {
-    name: "라이트 베이지",
-    primary: "#FBF1E6",
-    primaryLight: "#FAF3EB",
-    primaryDark: "#D6CEC5",
-  },
+  classic:    { name: "클래식" },
+  earthbrown: { name: "어스 브라운" },
+  oceangreen: { name: "오션 그린" },
+  lightbeige: { name: "라이트 베이지" },
+};
+
+// 테마 선택 UI에서 비활성 테마의 닷(dot) 표식에 사용하는 정적 스와치
+// (활성 테마는 getTheme()로 CSS var에서 읽으므로 이곳에 포함하지 않아도 됨)
+const THEME_SWATCHES = {
+  classic:    { primary: "#4A90A4", light: "#E8F4F8", border: "" },
+  earthbrown: { primary: "#C9BEAA", light: "#D6CEC0", border: "" },
+  oceangreen: { primary: "#7CE0D3", light: "#A9E9E1", border: "" },
+  lightbeige: { primary: "#FBF1E6", light: "#FAF3EB", border: "1px solid #ccc" },
 };
 
 const businessAreas = [
@@ -1152,6 +1148,8 @@ let state = {
 
   // 패널 높이 (px, null이면 CSS 기본값 사용)
   panelHeight: null,
+  // 패널 너비 (px, null이면 CSS 기본값 사용)
+  panelWidth: null,
 
   // 개발자 도구로 개별 온오프할 수 있는 설정 UI 노출 여부 (기본값 false: 숨김)
   hiddenUI: {
@@ -1161,6 +1159,8 @@ let state = {
     debugLog: false,
     autoNav: false,
     lowSpec: false,
+    theme: false,    // 푸터 테마/모드 전환 UI 노출 여부
+    sideTabs: true,  // 좌측 사이드 탭 버튼 그룹 (기본값 true: 표시)
   },
 };
 
@@ -1233,7 +1233,17 @@ function getAssistantStyleRoot() {
 // 유틸리티 함수
 // ========================================
 function getTheme() {
-  return themes[state.currentTheme] || themes.classic;
+  const meta = themes[state.currentTheme] || themes.classic;
+  const root = getAssistantStyleRoot();
+  const cs = root ? getComputedStyle(root) : null;
+  const v = (name, fallback) =>
+    cs ? cs.getPropertyValue(name).trim() || fallback : fallback;
+  return {
+    name:         meta.name,
+    primary:      v("--imsmassi-primary",       "#4A90A4"),
+    primaryLight: v("--imsmassi-primary-light", "#E8F4F8"),
+    primaryDark:  v("--imsmassi-primary-dark",  "#2E5A6A"),
+  };
 }
 
 /**
@@ -1308,17 +1318,18 @@ function getArea() {
 }
 
 function getColors() {
-  const theme = getTheme();
-  const isDark = state.isDarkMode;
+  const root = getAssistantStyleRoot();
+  const cs = root ? getComputedStyle(root) : null;
+  const v = (name, fallback) =>
+    cs ? cs.getPropertyValue(name).trim() || fallback : fallback;
   return {
-    bg: isDark ? "#2B2F35" : "#FFFFFF",
-    subBg: isDark ? "#191F28" : "#F8F9FA",
-    text: isDark ? "#E0E0E0" : "#191F28",
-    subText: isDark ? "#A0A0A0" : "#666666",
-    border: isDark ? "#404040" : "#E0E0E0",
-    headerText: state.currentTheme === "lightBeige" ? "#191F28" : "#FFF",
-    headerSubText:
-      state.currentTheme === "lightBeige" ? "#666" : "rgba(255,255,255,0.8)",
+    bg:            v("--imsmassi-bg",               "#FFFFFF"),
+    subBg:         v("--imsmassi-sub-bg",           "#F8F9FA"),
+    text:          v("--imsmassi-text",             "#191F28"),
+    subText:       v("--imsmassi-sub-text",         "#666666"),
+    border:        v("--imsmassi-border",           "#E0E0E0"),
+    headerText:    v("--imsmassi-header-text",      "#FFFFFF"),
+    headerSubText: v("--imsmassi-header-sub-text",  "rgba(255,255,255,0.8)"),
   };
 }
 
@@ -2895,8 +2906,10 @@ function notifyThemeChange() {
 function setTheme(themeKey) {
   if (!themes[themeKey]) return;
   workerSend("SET_THEME", { themeKey });
-  // 테마 변경 알림 (로컬 즉각 처리)
   state.currentTheme = themeKey;
+  // CSS 커스텀 프로퍼티 적용: #assistant-root[data-theme="..."]
+  const root = getAssistantStyleRoot();
+  if (root) root.dataset.theme = themeKey;
   notifyThemeChange();
 }
 
@@ -3474,9 +3487,11 @@ function getTodosFromReminders() {
   return todos;
 }
 
-//당일 리마인더
+//당일 리마인더 (Task 2.1: done 완료 항목 제외 / Task 2.2: isToday 엄격 필터 - 미래 날짜 제외)
 function getTodayReminders() {
-  const filtered = getTodosFromReminders().filter((todo) => !todo.isPast);
+  const filtered = getTodosFromReminders().filter(
+    (todo) => todo.isToday === true && !todo.done
+  );
   return filtered;
 }
 //지난 리마인더
@@ -4252,13 +4267,13 @@ function getSettingsHtml(closeHandler) {
   const displayUsed = state.storageUsed.toFixed(1);
   return `
         <!-- 알림 설정 -->
-        <div style="margin-bottom: 16px;">
-          <div style="font-size: 13px; font-weight: 600; color: #191F28; margin-bottom: 12px;">알림 설정</div>
+        <div class="imsmassi-settings-section">
+          <div class="imsmassi-settings-section-title">알림 설정</div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px;">
+          <div class="imsmassi-settings-row">
             <div>
-              <span style="font-size: 12px; color: #191F28;">브라우저 알림</span>
-              <div style="font-size: 10px; color: #999;">알림 도착 시 브라우저 알림 표시</div>
+              <span class="imsmassi-settings-label">브라우저 알림</span>
+              <div class="imsmassi-settings-desc">알림 도착 시 브라우저 알림 표시</div>
             </div>
             <label class="imsmassi-toggle-switch">
               <input type="checkbox" id="setting-browser-notification" ${state.settings.browserNotificationEnabled ? "checked" : ""}>
@@ -4266,10 +4281,10 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-top: 10px;">
+          <div class="imsmassi-settings-row imsmassi-settings-row-mt">
             <div>
-              <span style="font-size: 12px; color: #191F28;">토스트 알림</span>
-              <div style="font-size: 10px; color: #999;">어시스턴트 하단 토스트 표시</div>
+              <span class="imsmassi-settings-label">토스트 알림</span>
+              <div class="imsmassi-settings-desc">어시스턴트 하단 토스트 표시</div>
             </div>
             <label class="imsmassi-toggle-switch">
               <input type="checkbox" id="setting-toast" ${state.settings.toastEnabled ? "checked" : ""}>
@@ -4277,10 +4292,10 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#FFF9E6"}; border-radius: 6px; border: 1px solid #F0E6CC; margin-top: 10px;">
+          <div class="imsmassi-settings-row imsmassi-settings-row-mt imsmassi-settings-row-backup">
             <div>
-              <span style="font-size: 12px; color: #191F28;">백업 알림</span>
-              <div style="font-size: 10px; color: #999;">마지막 백업: ${state.settings.lastBackup}</div>
+              <span class="imsmassi-settings-label">백업 알림</span>
+              <div class="imsmassi-settings-desc">마지막 백업: ${state.settings.lastBackup}</div>
             </div>
             <label class="imsmassi-toggle-switch">
               <input type="checkbox" id="setting-backup" ${state.settings.backupReminder ? "checked" : ""}>
@@ -4290,12 +4305,12 @@ function getSettingsHtml(closeHandler) {
         </div>
 
         <!-- 기능 설정 -->
-        <div style="margin-bottom: 16px;">
-          <div style="font-size: 13px; font-weight: 600; color: #191F28; margin-bottom: 12px;">기능 설정</div>
-          <div style="display: ${state.hiddenUI.areaColor ? 'flex' : 'none'}; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
+        <div class="imsmassi-settings-section">
+          <div class="imsmassi-settings-section-title">기능 설정</div>
+          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.areaColor ? 'flex' : 'none'};">
             <div>
-              <span style="font-size: 12px; color: #191F28;">업무 컬러 설정 표시</span>
-              <div style="font-size: 10px; color: #999;">대시보드 내 업무 컬러 설정 섹션 표시</div>
+              <span class="imsmassi-settings-label">업무 컬러 설정 표시</span>
+              <div class="imsmassi-settings-desc">대시보드 내 업무 컬러 설정 섹션 표시</div>
             </div>
             <label class="imsmassi-toggle-switch">
               <input type="checkbox" id="setting-show-area-color" ${state.settings.showAreaColorSection !== false ? "checked" : ""}>
@@ -4303,10 +4318,10 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div style="display: ${state.hiddenUI.timeInsight ? 'flex' : 'none'}; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
+          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.timeInsight ? 'flex' : 'none'};">
             <div>
-              <span style="font-size: 12px; color: #191F28;">시간 인사이트 표시</span>
-              <div style="font-size: 10px; color: #999;">대시보드 내 시간 인사이트 섹션 표시</div>
+              <span class="imsmassi-settings-label">시간 인사이트 표시</span>
+              <div class="imsmassi-settings-desc">대시보드 내 시간 인사이트 섹션 표시</div>
             </div>
             <label class="imsmassi-toggle-switch">
               <input type="checkbox" id="setting-show-time-tab" ${state.settings.showTimeTab !== false ? "checked" : ""}>
@@ -4314,10 +4329,10 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div style="display: ${state.hiddenUI.markdown ? 'flex' : 'none'}; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
+          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.markdown ? 'flex' : 'none'};">
             <div>
-              <span style="font-size: 12px; color: #191F28;">마크다운 단축키</span>
-              <div style="font-size: 10px; color: #999;">**굵게**, *기울임*, ~~취소선~~ 등</div>
+              <span class="imsmassi-settings-label">마크다운 단축키</span>
+              <div class="imsmassi-settings-desc">**굵게**, *기울임*, ~~취소선~~ 등</div>
             </div>
             <label class="imsmassi-toggle-switch">
               <input type="checkbox" id="setting-markdown" ${state.settings.markdownEnabled ? "checked" : ""}>
@@ -4325,10 +4340,10 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div style="display: ${state.hiddenUI.debugLog ? 'flex' : 'none'}; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-bottom: 10px;">
+          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.debugLog ? 'flex' : 'none'};">
             <div>
-              <span style="font-size: 12px; color: #191F28;">디버그 로그</span>
-              <div style="font-size: 10px; color: #999;">콘솔 로그 출력 on/off</div>
+              <span class="imsmassi-settings-label">디버그 로그</span>
+              <div class="imsmassi-settings-desc">콘솔 로그 출력 on/off</div>
             </div>
             <label class="imsmassi-toggle-switch">
               <input type="checkbox" id="setting-debug-logs" ${state.settings.debugLogs ? "checked" : ""}>
@@ -4336,25 +4351,25 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div style="margin-bottom: 16px; display: ${state.hiddenUI.autoNav ? 'flex' : 'none'}; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px;">
+          <div class="imsmassi-settings-row" style="display: ${state.hiddenUI.autoNav ? 'flex' : 'none'};">
             <div>
-              <span style="font-size: 12px; color: #191F28;">대시보드 자동 이동</span>
-              <div style="font-size: 10px; color: #999;">알림 설정 후 대시보드로 이동</div>
+              <span class="imsmassi-settings-label">대시보드 자동 이동</span>
+              <div class="imsmassi-settings-desc">알림 설정 후 대시보드로 이동</div>
             </div>
             <label class="imsmassi-toggle-switch">
               <input type="checkbox" id="setting-auto-dashboard" ${state.settings.autoNavigateToDashboard ? "checked" : ""}>
               <span class="imsmassi-toggle-slider"></span>
             </label>
           </div>
-
+        </div>
 
         <!-- 성능 설정 -->
-        <div style="margin-bottom: 16px; display: ${state.hiddenUI.lowSpec ? 'block' : 'none'};">
-          <div style="font-size: 13px; font-weight: 600; color: #191F28; margin-bottom: 12px;">성능 설정</div>
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px;">
+        <div class="imsmassi-settings-section" style="display: ${state.hiddenUI.lowSpec ? 'block' : 'none'};">
+          <div class="imsmassi-settings-section-title">성능 설정</div>
+          <div class="imsmassi-settings-row">
             <div>
-              <span style="font-size: 12px; color: #191F28;">저사양 모드</span>
-              <div style="font-size: 10px; color: #999;">애니메이션 축소, 렌더링 최적화</div>
+              <span class="imsmassi-settings-label">저사양 모드</span>
+              <div class="imsmassi-settings-desc">애니메이션 축소, 렌더링 최적화</div>
             </div>
             <label class="imsmassi-toggle-switch">
               <input type="checkbox" id="setting-lowspec" ${state.settings.lowSpecMode ? "checked" : ""}>
@@ -4363,57 +4378,55 @@ function getSettingsHtml(closeHandler) {
           </div>
         </div>
 
-         <!-- 자동정리 설정 -->
-          <div style="margin-bottom: 12px;">
-            <div style="font-size: 13px; font-weight: 600; color: #191F28; margin-bottom: 12px;">자동 정리 설정</div>
-            <div style="display: flex; flex-direction: column; gap: 10px; padding: 10px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 6px; margin-top: 10px;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 12px; color: #666;">클립보드 기록</span>
-                <select class="imsmassi-modal-input" id="setting-clipboard" style="width: 100px; padding: 6px 8px; font-size: 12px;">
-                  <option value="3" ${state.settings.autoCleanup.clipboard === 3 ? "selected" : ""}>3일</option>
-                  <option value="7" ${state.settings.autoCleanup.clipboard === 7 ? "selected" : ""}>7일</option>
-                  <option value="14" ${state.settings.autoCleanup.clipboard === 14 ? "selected" : ""}>14일</option>
-                  <option value="30" ${state.settings.autoCleanup.clipboard === 30 ? "selected" : ""}>30일</option>
-                </select>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 12px; color: #666;">오래된 메모</span>
-                <select class="imsmassi-modal-input" id="setting-oldmemos" style="width: 100px; padding: 6px 8px; font-size: 12px;">
-                  <option value="0">삭제 안 함</option>
-                  <option value="90" ${state.settings.autoCleanup.oldMemos === 90 ? "selected" : ""}>90일</option>
-                  <option value="180" ${state.settings.autoCleanup.oldMemos === 180 ? "selected" : ""}>180일</option>
-                  <option value="365" ${state.settings.autoCleanup.oldMemos === 365 ? "selected" : ""}>1년</option>
-                </select>
-              </div>
+        <!-- 자동정리 설정 -->
+        <div class="imsmassi-cleanup-section">
+          <div class="imsmassi-settings-section-title">자동 정리 설정</div>
+          <div class="imsmassi-cleanup-grid">
+            <div class="imsmassi-cleanup-row">
+              <span class="imsmassi-cleanup-label">클립보드 기록</span>
+              <select class="imsmassi-modal-input imsmassi-select-sm" id="setting-clipboard">
+                <option value="3" ${state.settings.autoCleanup.clipboard === 3 ? "selected" : ""}>3일</option>
+                <option value="7" ${state.settings.autoCleanup.clipboard === 7 ? "selected" : ""}>7일</option>
+                <option value="14" ${state.settings.autoCleanup.clipboard === 14 ? "selected" : ""}>14일</option>
+                <option value="30" ${state.settings.autoCleanup.clipboard === 30 ? "selected" : ""}>30일</option>
+              </select>
+            </div>
+            <div class="imsmassi-cleanup-row">
+              <span class="imsmassi-cleanup-label">오래된 메모</span>
+              <select class="imsmassi-modal-input imsmassi-select-sm" id="setting-oldmemos">
+                <option value="0">삭제 안 함</option>
+                <option value="90" ${state.settings.autoCleanup.oldMemos === 90 ? "selected" : ""}>90일</option>
+                <option value="180" ${state.settings.autoCleanup.oldMemos === 180 ? "selected" : ""}>180일</option>
+                <option value="365" ${state.settings.autoCleanup.oldMemos === 365 ? "selected" : ""}>1년</option>
+              </select>
             </div>
           </div>
-
-        <!-- 저장 용량 -->
-        <div style="margin-bottom: 20px; padding: 16px; background: ${state.isDarkMode ? "#252525" : "#F8F9FA"}; border-radius: 8px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-size: 13px; font-weight: 600; color: #191F28;">저장 용량</span>
-            <span style="font-size: 12px; color: ${usageColor}; font-weight: 600;">${displayUsed}MB / ${state.storageLimit}MB</span>
-          </div>
-          <div style="height: 8px; background: #E0E0E0; border-radius: 4px; overflow: hidden;">
-            <div style="height: 100%; width: ${usagePercent}%; background: ${usageColor}; border-radius: 4px; transition: width 0.3s;"></div>
-          </div>
-          <div style="font-size: 11px; color: #999; margin-top: 6px;">${usagePercent >= 80 ? "⚠️ 용량이 부족합니다. 오래된 데이터를 정리해주세요." : "정상적으로 사용 중입니다."}</div>
         </div>
 
-          <div style="display: flex; gap: 8px;">
-            <button class="imsmassi-modal-btn" style="flex: 1; background: #191F28; color: #FFF; border: none; font-size: 12px; padding: 10px;" onclick="exportAllData()">📤 내보내기</button>
-            <button class="imsmassi-modal-btn" style="flex: 1; background: #5BA55B; color: #FFF; border: none; font-size: 12px; padding: 10px;" onclick="importData()">📥 가져오기</button>
-            <button class="imsmassi-modal-btn" style="flex: 1; background: #E74C3C; color: #FFF; border: none; font-size: 12px; padding: 10px;" onclick="clearOldData()">🗑️ 정리</button>
+        <!-- 저장 용량 -->
+        <div class="imsmassi-storage-box">
+          <div class="imsmassi-storage-header">
+            <span class="imsmassi-storage-title">저장 용량</span>
+            <span style="font-size: 12px; color: ${usageColor}; font-weight: 600;">${displayUsed}MB / ${state.storageLimit}MB</span>
+          </div>
+          <div class="imsmassi-progress-bar">
+            <div class="imsmassi-progress-fill" style="width: ${usagePercent}%; background: ${usageColor};"></div>
+          </div>
+          <div class="imsmassi-storage-hint">${usagePercent >= 80 ? "⚠️ 용량이 부족합니다. 오래된 데이터를 정리해주세요." : "정상적으로 사용 중입니다."}</div>
+          <div class="imsmassi-storage-actions">
+            <button class="imsmassi-modal-btn imsmassi-btn-primary" onclick="exportAllData()">📤 내보내기</button>
+            <button class="imsmassi-modal-btn imsmassi-btn-secondary" onclick="importData()">📥 가져오기</button>
+            <button class="imsmassi-modal-btn imsmassi-btn-danger" onclick="clearOldData()">🗑️ 정리</button>
           </div>
         </div>
 
         <!-- 온보딩 가이드 다시보기 -->
-        <div style="margin-bottom: 16px; padding: 14px 16px; background: ${state.isDarkMode ? '#252525' : '#F0F4FF'}; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+        <div class="imsmassi-guide-section-row">
           <div>
-            <div style="font-size: 12px; font-weight: 600; color: #191F28;">이용 가이드</div>
-            <div style="font-size: 10px; color: #999; margin-top: 2px;">어시스턴트 주요 기능 안내를 다시 확인해보세요</div>
+            <div class="imsmassi-settings-label" style="font-weight: 600;">이용 가이드</div>
+            <div class="imsmassi-settings-desc" style="margin-top: 2px;">어시스턴트 주요 기능 안내를 다시 확인해보세요</div>
           </div>
-          <button class="imsmassi-modal-btn" style="background: #4A8CFF; color: #FFF; border: none; font-size: 11px; padding: 7px 14px; white-space: nowrap; flex-shrink: 0;" onclick="AssistantGuide.replay()">📖 다시보기</button>
+          <button class="imsmassi-modal-btn imsmassi-btn-guide" onclick="AssistantGuide.replay()">📖 다시보기</button>
         </div>
 
       `;
@@ -5235,6 +5248,9 @@ function _readSettingsFromDOM() {
     showAreaColorSection: g("setting-show-area-color")
       ? g("setting-show-area-color").checked
       : state.settings.showAreaColorSection !== false,
+    // Task 2.3: lastBackup은 DOM에 없으므로 항상 현재 state 값을 유지
+    // (downloadExportData()에서 갱신된 값이 Worker에 전달되도록 보장)
+    lastBackup: state.settings.lastBackup,
   };
 }
 
@@ -5356,12 +5372,15 @@ function renderControlPanel() {
   let themeBtnsHtml = "";
   Object.entries(themes).forEach(([key, t]) => {
     const isActive = state.currentTheme === key;
-    const borderStyle = key === "lightBeige" ? "border: 1px solid #ccc;" : "";
+    const sw = THEME_SWATCHES[key] || THEME_SWATCHES.classic;
+    const dotColor = isActive ? theme.primary : sw.primary;
+    const bgColor  = isActive ? theme.primaryLight : sw.light;
+    const borderStyle = sw.border ? `border: ${sw.border};` : "";
     themeBtnsHtml += `
       <button class="imsmassi-theme-btn ${isActive ? "imsmassi-active" : ""}"
-              style="border-color: ${isActive ? t.primary : "#E0E0E0"}; background: ${isActive ? t.primaryLight : "#FFF"};"
+              style="border-color: ${isActive ? theme.primary : "#E0E0E0"}; background: ${bgColor};"
               onclick="setTheme('${key}')">
-        <span class="imsmassi-theme-dot" style="background: ${t.primary}; ${borderStyle}"></span>
+        <span class="imsmassi-theme-dot" style="background: ${dotColor}; ${borderStyle}"></span>
         ${t.name}
       </button>
     `;
@@ -5378,12 +5397,15 @@ function renderControlPanel() {
   let themeBtnsHtml = "";
   Object.entries(themes).forEach(([key, t]) => {
     const isActive = state.currentTheme === key;
-    const borderStyle = key === "lightBeige" ? "border: 1px solid #ccc;" : "";
+    const sw = THEME_SWATCHES[key] || THEME_SWATCHES.classic;
+    const dotColor = isActive ? theme.primary : sw.primary;
+    const bgColor  = isActive ? theme.primaryLight : sw.light;
+    const borderStyle = sw.border ? `border: ${sw.border};` : "";
     themeBtnsHtml += `
       <button class="imsmassi-theme-btn ${isActive ? "imsmassi-active" : ""}"
-              style="border-color: ${isActive ? t.primary : "#E0E0E0"}; background: ${isActive ? t.primaryLight : "#FFF"};"
+              style="border-color: ${isActive ? theme.primary : "#E0E0E0"}; background: ${bgColor};"
               onclick="setTheme('${key}')">
-        <span class="imsmassi-theme-dot" style="background: ${t.primary}; ${borderStyle}"></span>
+        <span class="imsmassi-theme-dot" style="background: ${dotColor}; ${borderStyle}"></span>
         ${t.name}
       </button>
     `;
@@ -5612,7 +5634,14 @@ function renderAssistant() {
   // 패널 — 가시성 동기화 + 기본 스타일 세팅
   const panel = document.getElementById("imsmassi-floating-panel");
   if (!panel) return;
-  panel.classList.toggle("imsmassi-hidden", !state.assistantOpen);
+  // 탭+패널을 묶는 외부 래퍼의 가시성 토글 (panel-outer 구조 대응)
+  const panelOuter = document.getElementById("imsmassi-panel-outer");
+  if (panelOuter) {
+    panelOuter.classList.toggle("imsmassi-hidden", !state.assistantOpen);
+  } else {
+    // fallback: 구 구조 대응
+    panel.classList.toggle("imsmassi-hidden", !state.assistantOpen);
+  }
   panel.style.background = c.bg;
   panel.style.border = `1px solid ${c.border}`;
   // 저장된 높이 복원
@@ -5621,10 +5650,17 @@ function renderAssistant() {
   } else {
     panel.style.height = "";
   }
+  // 저장된 너비 복원
+  if (state.panelWidth) {
+    panel.style.width = `${state.panelWidth}px`;
+  } else {
+    panel.style.width = "";
+  }
   // 리사이즈 핸들 초기화 (처음 한 번만)
   if (!panel._resizeInited) {
     panel._resizeInited = true;
     initPanelResize(panel);
+    initPanelWidthResize(panel);
   }
 
   if (!state.assistantOpen) return;
@@ -5662,6 +5698,8 @@ function renderAssistant() {
     "imsmassi-assistant-footer-modes",
   );
   if (footerModes) {
+    // 다크모드 토글은 항상 표시
+    footerModes.style.display = "";
     footerModes.innerHTML = `
       <span style="font-size: 11px;">다크</span>
       <label class="imsmassi-toggle-switch" style="transform: scale(0.85);">
@@ -5676,20 +5714,30 @@ function renderAssistant() {
     "imsmassi-assistant-footer-themes",
   );
   if (footerThemes) {
-    let themeIconsHtml = "";
-    Object.entries(themes).forEach(([key, t]) => {
-      const isActive = state.currentTheme === key;
-      const activeRing = isActive
-        ? `box-shadow: 0 0 0 2px ${state.isDarkMode ? "#FFF" : "#191F28"};`
-        : "";
-      themeIconsHtml += `
-        <button class="imsmassi-assistant-footer-theme-btn ${isActive ? "imsmassi-active" : ""}"
-                title="${t.name}"
-                onclick="setTheme('${key}')"
-                style="background: ${t.primary}; border-color: ${c.border}; ${activeRing}"></button>
-      `;
-    });
-    footerThemes.innerHTML = themeIconsHtml;
+    if (state.hiddenUI.theme) {
+      // 테마 컬러 버튼 표시
+      footerThemes.style.display = "";
+      let themeIconsHtml = "";
+      Object.entries(themes).forEach(([key, t]) => {
+        const isActive = state.currentTheme === key;
+        const activeRing = isActive
+          ? `box-shadow: 0 0 0 2px ${state.isDarkMode ? "#FFF" : "#191F28"};`
+          : "";
+        const sw = THEME_SWATCHES[key] || THEME_SWATCHES.classic;
+        const dotColor = isActive ? theme.primary : sw.primary;
+        themeIconsHtml += `
+          <button class="imsmassi-assistant-footer-theme-btn ${isActive ? "imsmassi-active" : ""}"
+                  title="${t.name}"
+                  onclick="setTheme('${key}')"
+                  style="background: ${dotColor}; border-color: ${c.border}; ${activeRing}"></button>
+        `;
+      });
+      footerThemes.innerHTML = themeIconsHtml;
+    } else {
+      // 빈 껍데기가 남지 않도록 완전히 숨김
+      footerThemes.style.display = "none";
+      footerThemes.innerHTML = "";
+    }
   }
 
   updateFooterStorageInfo(c);
@@ -5774,24 +5822,22 @@ function renderAssistantTabs() {
 
   const tabsContainer = document.getElementById("imsmassi-assistant-tabs");
   if (!tabsContainer) return;
-  if (!assistantTabs.length) {
+  if (!assistantTabs.length || state.hiddenUI.sideTabs === false) {
     tabsContainer.innerHTML = "";
     tabsContainer.style.display = "none";
     return;
   }
+  // 사이드바 display 동기화 (배경/테두리는 CSS에서만 관리)
   tabsContainer.style.display = "flex";
-  tabsContainer.style.background = state.isDarkMode ? "#252525" : "#FAFAFA";
-  tabsContainer.style.borderBottomColor = c.border;
 
-  // createElement를 사용하여 탭 버튼을 프로그래밍 방식으로 생성합니다.
+  // 탭 버튼 렌더링
   tabsContainer.innerHTML = "";
   assistantTabs.forEach((tab) => {
     const isActive = state.activeTab === tab.id;
     const btn = createElement("button", {
       className: `imsmassi-assistant-tab${isActive ? " imsmassi-active" : ""}`,
       style: {
-        borderBottomColor: isActive ? area.color : "transparent",
-        background: isActive ? c.bg : "transparent",
+        borderLeftColor: isActive ? area.color : "transparent", // 바깥쪽 활성 인디케이터
         color: isActive ? area.color : c.subText,
       },
       onclick: () => setActiveTab(tab.id),
@@ -5809,6 +5855,36 @@ function renderAssistantTabs() {
     btn.appendChild(labelSpan);
     tabsContainer.appendChild(btn);
   });
+
+  // 모든 탭에서 사이드 패널 접기/펼치기 버튼 (사이드바 하단 고정)
+  const sideToggleBtn = createElement("button", {
+    className: "imsmassi-assistant-tab-toggle-btn",
+    id: "imsmassi-memo-side-toggle-btn",
+    title: state.isMemoPanelExpanded ? "사이드 패널 접기" : "사이드 패널 펼치기",
+  });
+  const toggleIconSpan = createElement("span", {
+    className: "imsmassi-assistant-tab-icon",
+  });
+  toggleIconSpan.textContent = state.isMemoPanelExpanded ? "◂" : "▸";
+  const toggleLabelSpan = createElement("span", {
+    className: "imsmassi-assistant-tab-label",
+  });
+  toggleLabelSpan.textContent = "사이드";
+  sideToggleBtn.style.color = c.subText;
+  sideToggleBtn.appendChild(toggleIconSpan);
+  sideToggleBtn.appendChild(toggleLabelSpan);
+  sideToggleBtn.addEventListener("click", () => {
+    // 메모 탭이 아니면 먼저 메모 탭으로 전환 후 사이드 패널 토글
+    if (state.activeTab !== "memo") {
+      setActiveTab("memo");
+      if (!state.isMemoPanelExpanded) {
+        setTimeout(() => toggleMemoSidePanel(), 80);
+      }
+    } else {
+      toggleMemoSidePanel();
+    }
+  });
+  tabsContainer.appendChild(sideToggleBtn);
 }
 
 function renderAssistantContent(previousTab) {
@@ -6005,7 +6081,8 @@ function renderMemoItemDOM(memo) {
     className: "imsmassi-memo-item-tags imsmassi-memo-item-footer",
   });
 
-  const createdAreaName = getAreaName(memo.createdAreaId, memo.createdAreaId);
+  const createdAreaName = memo.menuId; 
+
   const originBadge = createElement("span", {
     className: "imsmassi-memo-origin-badge",
   });
@@ -6140,14 +6217,7 @@ function renderMemoTab() {
       id: "imsmassi-memo-capacity",
       className: "imsmassi-memo-capacity",
     });
-    Object.assign(capacityDiv.style, {
-      position: "absolute",
-      bottom: "6px",
-      right: "12px",
-      color: c.subText,
-      pointerEvents: "none",
-      zIndex: "10",
-    });
+    capacityDiv.style.color = c.subText;
     capacityDiv.textContent = "0 B / 2 MB";
     editorSection.append(editorDiv, capacityDiv);
   } else {
@@ -6159,23 +6229,8 @@ function renderMemoTab() {
       contenteditable: "true",
       placeholder: `${area.name} 메모를 입력하세요.`,
     });
-    Object.assign(textarea.style, {
-      background: state.isDarkMode ? "#1A1A1A" : "#FFF",
-      color: c.text,
-      border: `2px solid ${c.border}`,
-      minHeight: "140px",
-      maxHeight: "300px",
-      padding: "12px 40px 30px 12px",
-      borderRadius: "8px",
-      fontSize: "13px",
-      lineHeight: "1.6",
-      whiteSpace: "pre-wrap",
-      wordBreak: "break-word",
-      outline: "none",
-      transition: "border-color 0.2s, box-shadow 0.2s",
-      cursor: "text",
-      overflowY: "auto",
-    });
+    textarea.style.color = c.text;
+    textarea.style.borderColor = c.border;
     // placeholder 표시용 클래스 관리 (contenteditable은 :empty가 <br>로 인해 동작 안 함)
     const _updateEmptyClass = () => {
       const isEmpty = textarea.innerText.trim() === '' || textarea.innerHTML === '' || textarea.innerHTML === '<br>';
@@ -6199,13 +6254,7 @@ function renderMemoTab() {
       id: "imsmassi-memo-capacity",
       className: "imsmassi-memo-capacity",
     });
-    Object.assign(capacityDiv.style, {
-      position: "absolute",
-      bottom: "8px",
-      right: "12px",
-      color: c.subText,
-      pointerEvents: "none",
-    });
+    capacityDiv.style.color = c.subText;
     capacityDiv.textContent = "0 B / 2 MB";
     editorSection.append(textarea, capacityDiv);
   }
@@ -6214,21 +6263,14 @@ function renderMemoTab() {
   const optionsBar = createElement("div", {
     className: "imsmassi-memo-options",
   });
-  optionsBar.style.justifyContent = "space-between";
   const addBtn = createElement("button", {
     className: "imsmassi-memo-option-btn",
-  });
-  Object.assign(addBtn.style, {
-    fontWeight: "600",
   });
   addBtn.textContent = "메모등록";
   addBtn.addEventListener("click", addMemo);
   const sideToggleBtn = createElement("button", {
     className: "imsmassi-memo-option-btn imsmassi-memo-side-toggle-btn",
     id: "imsmassi-memo-side-toggle-btn",
-  });
-  Object.assign(sideToggleBtn.style, {
-    fontWeight: "600",
   });
   sideToggleBtn.textContent = isExpanded ? "접기 ▸" : "펼치기 ◂";
   sideToggleBtn.addEventListener("click", toggleMemoSidePanel);
@@ -6251,24 +6293,11 @@ function renderMemoTab() {
     className: "imsmassi-memo-card",
     id: "memo-card-clipboard",
   });
-  Object.assign(clipboardCard.style, {
-    borderColor: c.border,
-    background: state.isDarkMode ? "#191F28" : "#FFF",
-    height: "320px",
-    minHeight: "240px",
-    maxHeight: "420px",
-    overflowY: "auto",
-  });
+  clipboardCard.style.borderColor = c.border;
   const clipboardCardHeader = createElement("div", {
     className: "imsmassi-memo-card-header",
   });
-  Object.assign(clipboardCardHeader.style, {
-    color: c.text,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    minHeight: "32px",
-  });
+  clipboardCardHeader.style.color = c.text;
   const clipboardTitleSpan = createElement("span");
   clipboardTitleSpan.textContent = "클립보드";
   clipboardCardHeader.appendChild(clipboardTitleSpan);
@@ -6284,32 +6313,17 @@ function renderMemoTab() {
     className: "imsmassi-memo-card",
     id: "memo-card-template",
   });
-  Object.assign(templateCard.style, {
-    borderColor: c.border,
-    background: state.isDarkMode ? "#191F28" : "#FFF",
-    height: "320px",
-    minHeight: "240px",
-    maxHeight: "420px",
-    overflowY: "auto",
-  });
+  templateCard.style.borderColor = c.border;
   const templateCardHeader = createElement("div", {
     className: "imsmassi-memo-card-header",
   });
-  Object.assign(templateCardHeader.style, {
-    color: c.text,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-  });
+  templateCardHeader.style.color = c.text;
   const templateTitleSpan = createElement("span");
   templateTitleSpan.textContent = "템플릿";
   const addTemplateBtn = createElement("button", {
     className: "imsmassi-memo-option-btn",
   });
-  Object.assign(addTemplateBtn.style, {
-    borderColor: area.color,
-    fontWeight: "600",
-  });
+  addTemplateBtn.style.borderColor = area.color;
   addTemplateBtn.textContent = "✚ 추가";
   addTemplateBtn.addEventListener("click", openAddTemplateModal);
   templateCardHeader.append(templateTitleSpan, addTemplateBtn);
@@ -6347,21 +6361,15 @@ function renderMemoTab() {
     filterBtn.addEventListener("click", () => setMemoFilter(val));
     filterBar.appendChild(filterBtn);
   });
-  const memoCountSpan = createElement("span");
-  Object.assign(memoCountSpan.style, { fontSize: "11px", marginLeft: "4px" });
+  const memoCountSpan = createElement("span", { className: "imsmassi-memo-count" });
   memoCountSpan.textContent = `메모 ${memos.length}건`;
   listHeader.append(filterBar, memoCountSpan);
   listArea.appendChild(listHeader);
 
   // 빈 메시지 헬퍼
   const makeEmptyMsg = (text) => {
-    const msg = createElement("div");
-    Object.assign(msg.style, {
-      color: c.subText,
-      fontSize: "13px",
-      textAlign: "center",
-      padding: "20px",
-    });
+    const msg = createElement("div", { className: "imsmassi-memo-empty-msg" });
+    msg.style.color = c.subText;
     msg.textContent = text;
     return msg;
   };
@@ -6463,7 +6471,9 @@ function updateMemoSidePanelState() {
   layout.classList.toggle("imsmassi-panel-hidden", isHidden);
   const toggle = document.getElementById("imsmassi-memo-side-toggle-btn");
   if (toggle) {
-    toggle.textContent = isHidden ? "펼치기 ◂" : "접기 ▸";
+    const iconEl = toggle.querySelector(".imsmassi-assistant-tab-icon");
+    if (iconEl) iconEl.textContent = isHidden ? "▸" : "◂";
+    toggle.title = isHidden ? "사이드 패널 펼치기" : "사이드 패널 접기";
   }
 }
 
@@ -6505,7 +6515,6 @@ function renderClipboardItemDOM(item) {
   const itemDiv = createElement("div", {
     className: "imsmassi-clipboard-item",
   });
-  itemDiv.style.background = state.isDarkMode ? "#252525" : "#F8F9FA";
   itemDiv.addEventListener("click", () => copyToClipboard(item.content));
 
   const deleteBtn = createElement("button", {
@@ -6521,7 +6530,7 @@ function renderClipboardItemDOM(item) {
   const contentDiv = createElement("div", {
     className: "imsmassi-clipboard-item-content",
   });
-  Object.assign(contentDiv.style, { color: c.text, paddingRight: "24px" });
+  contentDiv.style.color = c.text;
   contentDiv.textContent = item.content; // textContent로 XSS 방지
 
   const metaDiv = createElement("div", {
@@ -6556,13 +6565,8 @@ function renderClipboardTabDOM() {
   container.appendChild(header);
 
   if (items.length === 0) {
-    const empty = createElement("div");
-    Object.assign(empty.style, {
-      color: c.subText,
-      fontSize: "13px",
-      textAlign: "center",
-      padding: "20px",
-    });
+    const empty = createElement("div", { className: "imsmassi-memo-empty-msg" });
+    empty.style.color = c.subText;
     empty.textContent = "복사 기록이 없습니다";
     container.appendChild(empty);
   } else {
@@ -6595,7 +6599,6 @@ function renderTemplateItemDOM(template) {
   const c = getColors();
 
   const itemDiv = createElement("div", { className: "imsmassi-template-item" });
-  itemDiv.style.background = state.isDarkMode ? "#252525" : "#F8F9FA";
   itemDiv.addEventListener("click", () => useTemplate(template.id));
 
   const deleteBtn = createElement("button", {
@@ -6622,7 +6625,6 @@ function renderTemplateItemDOM(template) {
   const headerDiv = createElement("div", {
     className: "imsmassi-template-item-header",
   });
-  headerDiv.style.paddingRight = "52px";
   const titleSpan = createElement("span", {
     className: "imsmassi-template-item-title",
   });
@@ -6638,11 +6640,8 @@ function renderTemplateItemDOM(template) {
   const contentDiv = createElement("div", {
     className: "imsmassi-template-item-content",
   });
-  Object.assign(contentDiv.style, {
-    background: state.isDarkMode ? "#1E1E1E" : "#FFF",
-    color: c.subText,
-    borderColor: c.border,
-  });
+  contentDiv.style.color = c.subText;
+  contentDiv.style.borderColor = c.border;
   contentDiv.textContent = template.content; // textContent로 XSS 방지
 
   itemDiv.append(deleteBtn, editBtn, headerDiv, contentDiv);
@@ -6683,14 +6682,14 @@ function renderTimeTab() {
   let chartHtml = "";
   data.items.forEach((item) => {
     chartHtml += `
-      <div class="imsmassi-time-chart-item" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; margin-top: 6px; border-radius: 8px; background: ${state.isDarkMode ? "#1F1F1F" : "#F6F7F9"};">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="width: 4px; height: 16px; border-radius: 2px; background: ${item.color}; display: inline-block;"></span>
-          <span style="color: ${c.text}; font-size: 13px; font-weight: 600;">${item.name}</span>
+      <div class="imsmassi-time-chart-item">
+        <div class="imsmassi-time-chart-item-left">
+          <span class="imsmassi-time-chart-accent" style="background: ${item.color};"></span>
+          <span class="imsmassi-time-chart-name" style="color: ${c.text};">${item.name}</span>
         </div>
-        <div style="display: inline-flex; align-items: center; gap: 10px;">
-          <span style="color: ${c.text}; font-size: 12px; min-width: 72px; text-align: right;">${item.time}</span>
-          <span style="color: ${c.subText}; font-size: 11px; padding: 4px 8px; background: ${state.isDarkMode ? "#2E2E2E" : "#EDEFF2"}; border-radius: 8px; min-width: 38px; text-align: center;">${item.percent}%</span>
+        <div class="imsmassi-time-chart-right">
+          <span class="imsmassi-time-chart-duration" style="color: ${c.text};">${item.time}</span>
+          <span class="imsmassi-time-chart-percent" style="color: ${c.subText};">${item.percent}%</span>
         </div>
       </div>
     `;
@@ -6699,7 +6698,7 @@ function renderTimeTab() {
   let segmentBarHtml = "";
   data.items.forEach((item) => {
     segmentBarHtml += `
-      <div title="${item.name}" style="flex: ${item.percent};  height: 38px; border-radius: 6px; background: ${item.color};"></div>
+      <div title="${item.name}" class="imsmassi-time-segment-item" style="flex: ${item.percent}; background: ${item.color};"></div>
     `;
   });
 
@@ -6727,9 +6726,9 @@ function renderTimeTab() {
       <div class="imsmassi-time-summary" style="background: ${state.isDarkMode ? "#252525" : area.bgColor};">
         <div class="imsmassi-time-summary-label" style="color: ${c.subText};">${periodMap[state.timePeriod]} 총 업무 시간</div>
         <div class="imsmassi-time-summary-value" style="color: ${c.text};">${data.total}</div>
-        <div style="font-size: 12px; color: ${c.subText}; margin-top: 6px;">${periodDescMap[state.timePeriod]}</div>
-        <div style="display: flex; gap: 6px; margin: 12px 0 6px 0;">${segmentBarHtml}</div>
-        <div class="imsmassi-time-period-btns" style="display: flex; justify-content: center; gap: 8px; margin: 4px 0 0 0;">${periodBtnsHtml}</div>
+        <div class="imsmassi-time-summary-period-desc" style="color: ${c.subText};">${periodDescMap[state.timePeriod]}</div>
+        <div class="imsmassi-time-segment-bar">${segmentBarHtml}</div>
+        <div class="imsmassi-time-period-btns">${periodBtnsHtml}</div>
         <div class="imsmassi-time-summary-label" style="color: ${c.subText}; margin-top: 14px;">메뉴별 체류 시간</div>
         ${chartHtml}
       </div>
@@ -7305,10 +7304,13 @@ window.addEventListener("beforeunload", () => {
 });
 /**
  * [개발자 도구 전용] 특정 고급 설정 UI 항목 노출/숨김 개별 토글
- * @param {string} key - 'areaColor', 'timeInsight', 'markdown', 'debugLog', 'autoNav', 'lowSpec'
+ * @param {string} key - 'areaColor' | 'timeInsight' | 'markdown' | 'debugLog' | 'autoNav' | 'lowSpec' | 'theme' | 'sideTabs'
  * @param {boolean} visible - 노출 여부 (true: 표시, false: 숨김)
  *
  * 사용 예시 (브라우저 콘솔):
+ *   toggleAssistantHiddenUI('sideTabs', false);  // 좌측 사이드 탭 버튼 그룹 숨김
+ *   toggleAssistantHiddenUI('sideTabs', true);   // 좌측 사이드 탭 버튼 그룹 표시
+ *   toggleAssistantHiddenUI('theme', true);      // 푸터 테마 UI 표시
  *   toggleAssistantHiddenUI('lowSpec', true);    // 저사양 모드 섹션 표시
  *   toggleAssistantHiddenUI('areaColor', true);  // 업무 컬러 설정 표시
  *   toggleAssistantHiddenUI('markdown', false);  // 마크다운 단축키 숨김
@@ -7323,12 +7325,20 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
       debugLog: false,
       autoNav: false,
       lowSpec: false,
+      theme: false,
+      sideTabs: true,
     };
   }
 
   if (key in state.hiddenUI) {
     state.hiddenUI[key] = !!visible;
     console.log(`[Assistant] 설정 UI '${key}' 상태가 ${visible ? '표시' : '숨김'}로 변경되었습니다.`);
+
+    // sideTabs 변경 시 탭 사이드바 즉각 반영
+    if (key === "sideTabs") {
+      renderAssistantTabs();
+      return;
+    }
 
     // UI 즉각 반영 (설정 모달이 열려있거나 설정 탭인 경우 리렌더링)
     if (state.currentModal === "settings") {
@@ -7338,6 +7348,29 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
     }
   } else {
     console.warn(`[Assistant] 유효하지 않은 키입니다. 사용 가능한 키: ${Object.keys(state.hiddenUI).join(", ")}`);
+  }
+};
+
+/**
+ * [개발자 도구 전용] 모든 기능 설정 UI 항목을 한 번에 노출/숨김
+ * @param {boolean} visible - true: 전체 표시, false: 전체 숨김 (기본값: true)
+ *
+ * 사용 예시 (브라우저 콘솔):
+ *   showAllAssistantHiddenUI();       // 모두 표시
+ *   showAllAssistantHiddenUI(false);  // 모두 숨김
+ */
+window.showAllAssistantHiddenUI = function (visible = true) {
+  if (!state.hiddenUI) return;
+  Object.keys(state.hiddenUI).forEach((key) => {
+    state.hiddenUI[key] = !!visible;
+  });
+  console.log(`[Assistant] 모든 설정 UI 항목이 ${visible ? '표시' : '숨김'}로 변경되었습니다.`);
+  // sideTabs 포함 시 사이드바 즉각 반영
+  renderAssistantTabs();
+  if (state.currentModal === "settings") {
+    openModal("settings");
+  } else if (state.activeTab === "settings") {
+    renderAssistantContent();
   }
 };
 
@@ -7396,6 +7429,64 @@ function initPanelResize(panel) {
 }
 
 // ========================================
+// 패널 너비 리사이즈
+// ========================================
+/**
+ * 패널 왼쪽 가장자리를 드래그하여 너비 조절.
+ * right 앵커 고정 → 왼쪽으로 드래그 = 왼쪽 경계가 이동하며 너비 증가.
+ */
+function initPanelWidthResize(panel) {
+  // 헤더·푸터를 제외한 콘텐츠 영역(body-wrapper) 좌측에 핸들 부착
+  const bodyWrapper = document.getElementById('imsmassi-panel-body-wrapper') || panel;
+
+  const existing = bodyWrapper.querySelector('.imsmassi-panel-resize-handle-x')
+    || panel.querySelector('.imsmassi-panel-resize-handle-x');
+  if (existing) existing.remove();
+
+  const handle = document.createElement('div');
+  handle.className = 'imsmassi-panel-resize-handle-x';
+  handle.title = '너비 조절 (더블클릭: 기본값 복원)';
+  bodyWrapper.appendChild(handle);
+
+  const MAX_W_RATIO = 0.85;
+
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = panel.offsetWidth;
+
+    function onMove(ev) {
+      // 확장 상태(640px)일 때는 최솟값도 640, 기본(360px)일 때는 360
+      const MIN_W = panel.classList.contains('imsmassi-expanded') ? 640 : 360;
+      const delta = startX - ev.clientX; // 왼쪽으로 드래그 → 너비 증가
+      const newW = Math.min(
+        Math.max(startW + delta, MIN_W),
+        Math.floor(window.innerWidth * MAX_W_RATIO)
+      );
+      state.panelWidth = newW;
+      panel.style.width = `${newW}px`;
+    }
+
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      // DB 저장
+      workerSend('SAVE_UI_PREFS', { panelWidth: state.panelWidth });
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  // 더블클릭: 기본 너비 복원
+  handle.addEventListener('dblclick', () => {
+    state.panelWidth = null;
+    panel.style.width = '';
+    workerSend('SAVE_UI_PREFS', { panelWidth: null });
+  });
+}
+
+// ========================================
 // 온보딩 가이드 (5단계)
 // ========================================
 const AssistantGuide = {
@@ -7423,7 +7514,7 @@ const AssistantGuide = {
     },
     /* ─── STEP 2 : 메모 입력창 ──────────────────────────────────────────── */
     {
-      targetSelector: '.ql-editor, .imsmassi-memo-textarea',
+    targetSelector: '#memo-editor-wrapper .ql-editor, #memo-input, #memo-editor-wrapper, .imsmassi-memo-quill-wrapper',
       title: '화면 맞춤 메모 작성',
       description: '현재 보고 있는 화면과 관련된 메모를 작성해보세요. 제목·내용을 자유롭게 기록하고 빠르게 저장할 수 있습니다.',
       setup: async function () {
@@ -7462,7 +7553,7 @@ const AssistantGuide = {
     },
     /* ─── STEP 4 : 클립보드 & 템플릿 ────────────────────────────────────── */
     {
-      targetSelector: '#imsmassi-memo-side-toggle-btn',
+      targetSelector: '#memo-side-panel',
       title: '클립보드 & 템플릿',
       description: '사이드 패널에서 복사한 텍스트 기록을 확인하거나, 자주 쓰는 양식을 템플릿으로 저장해 원클릭으로 활용하세요.',
       setup: async function () {
@@ -7599,9 +7690,29 @@ const AssistantGuide = {
 
   _getTarget(selector) {
     if (!selector) return null;
-    for (const sel of selector.split(',').map((s) => s.trim())) {
-      const el = document.querySelector(sel);
-      if (el) return el;
+    // 어시스턴트 패널 내부를 먼저 탐색 (외부 시스템 DOM과 셀렉터 충돌 방지)
+    const panelEl =
+      document.getElementById('imsmassi-floating-panel') ||
+      document.getElementById('assistant-root');
+
+    const selList = selector.split(',').map((s) => s.trim());
+
+    // 1차: 패널 스코프 내 탐색
+    if (panelEl) {
+      for (const sel of selList) {
+        try {
+          const el = panelEl.querySelector(sel);
+          if (el) return el;
+        } catch (_) { /* 잘못된 selector는 무시 */ }
+      }
+    }
+
+    // 2차: document 전체 탐색 (sticky layer 등 패널 외부 요소)
+    for (const sel of selList) {
+      try {
+        const el = document.querySelector(sel);
+        if (el) return el;
+      } catch (_) { /* 잘못된 selector는 무시 */ }
     }
     return null;
   },
