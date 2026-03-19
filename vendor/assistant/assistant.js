@@ -1340,6 +1340,19 @@ function applyLowSpecMode() {
   root.classList.toggle("imsmassi-low-spec", !!state.settings?.lowSpecMode);
 }
 
+/**
+ * 현재 업무 영역의 컬러를 #assistant-root 에 CSS 변수로 주입합니다.
+ * 하위 모든 컴포넌트는 var(--imsmassi-area-color) 등을 통해 자동 참조합니다.
+ * @param {{ color: string, bgColor: string }} area - getArea() 반환값
+ */
+function applyAreaColorVars(area) {
+  const styleRoot = getAssistantStyleRoot();
+  if (!styleRoot || !area) return;
+  styleRoot.style.setProperty("--imsmassi-area-color", area.color);
+  styleRoot.style.setProperty("--imsmassi-area-bg", area.bgColor);
+  styleRoot.style.setProperty("--imsmassi-area-color-shadow", area.color + "33");
+}
+
 function showToast(message) {
   if (state.settings && state.settings.toastEnabled === false) return;
   let toast = document.getElementById("imsmassi-toast");
@@ -3601,11 +3614,7 @@ function showRightTopToast(title, content, areaId = "", duration = 6000) {
     if (existing) existing.remove();
     const newContainer = document.createElement("div");
     newContainer.id = "notification-toast-container";
-    newContainer.style.position = "fixed";
-    newContainer.style.top = "20px";
-    newContainer.style.right = "20px";
-    newContainer.style.zIndex = "3000";
-    newContainer.style.pointerEvents = "none";
+    // Task 4: position/z-index/pointer-events는 CSS #notification-toast-container에서 지정
     styleRoot.appendChild(newContainer);
     container = newContainer;
   }
@@ -3645,17 +3654,13 @@ function showBalloonNotification(title, content = "", duration = 6000) {
     if (existing) existing.remove();
     balloonContainer = document.createElement("div");
     balloonContainer.id = "balloon-notification-container";
-    balloonContainer.style.position = "fixed";
-    balloonContainer.style.bottom = "100px";
-    balloonContainer.style.right = "24px";
-    balloonContainer.style.zIndex = "3000";
-    balloonContainer.style.pointerEvents = "none";
+    // Task 4: position/z-index/pointer-events는 CSS #balloon-notification-container에서 지정
     styleRoot.appendChild(balloonContainer);
   }
 
   const balloonEl = document.createElement("div");
   balloonEl.className = "imsmassi-notification-balloon";
-  balloonEl.innerHTML = `<div>🔔</div><div style="margin-top: 4px;">${title}</div>`;
+  balloonEl.innerHTML = `<div>🔔</div><div class="imsmassi-notification-balloon-body">${title}</div>`;
 
   balloonContainer.appendChild(balloonEl);
 
@@ -4683,16 +4688,16 @@ function updateMemoCapacity() {
     sizeText = (currentSize / (1024 * 1024)).toFixed(2) + " MB";
   }
 
-  // 용량 초과 시 경고 색상
+  // Task 3: 직접 style.color 주입 → CSS 클래스 토글
   const c = getColors();
+  capacityDisplay.classList.remove("imsmassi-capacity-warning", "imsmassi-capacity-danger");
   if (percent > 90) {
-    capacityDisplay.style.color = "#E74C3C";
+    capacityDisplay.classList.add("imsmassi-capacity-danger");
     capacityDisplay.textContent = `⚠️ ${sizeText} / 2 MB (${percent}%)`;
   } else if (percent > 70) {
-    capacityDisplay.style.color = "#E67E22";
+    capacityDisplay.classList.add("imsmassi-capacity-warning");
     capacityDisplay.textContent = `${sizeText} / 2 MB (${percent}%)`;
   } else {
-    capacityDisplay.style.color = c.subText;
     capacityDisplay.textContent = `${sizeText} / 2 MB`;
   }
 
@@ -5417,6 +5422,9 @@ function renderSystemPreview() {
   const area = getArea();
   const c = getColors();
 
+  // Task 1: 데모 프리뷰에도 업무영역 커러 CSS 변수 적용
+  applyAreaColorVars(area);
+
   // 시스템 미리보기 컨테이너
   const preview = document.getElementById("imsmassi-system-preview");
   if (!preview) return;
@@ -5622,12 +5630,12 @@ function renderAssistant() {
   const area = getArea();
   const c = getColors();
 
-  // 플로팅 버튼 — 가시성 + 테마 색상 항상 동기화
+  // Task 1: 업무영역 컬러를 #assistant-root CSS 변수로 주입
+  applyAreaColorVars(area);
+
+  // 플로팅 버튼 — 가시성만 JS로 관리, 색상은 CSS var(--imsmassi-primary) 참조
   const floatingBtn = document.getElementById("imsmassi-floating-btn");
   if (floatingBtn) {
-    floatingBtn.style.backgroundColor = state.isDarkMode
-      ? theme.primaryDark
-      : theme.primary;
     floatingBtn.classList.toggle("imsmassi-hidden", !!state.assistantOpen);
   }
 
@@ -5642,8 +5650,7 @@ function renderAssistant() {
     // fallback: 구 구조 대응
     panel.classList.toggle("imsmassi-hidden", !state.assistantOpen);
   }
-  panel.style.background = c.bg;
-  panel.style.border = `1px solid ${c.border}`;
+  // 배경/테두리는 CSS var(--imsmassi-bg), var(--imsmassi-border) 참조
   // 저장된 높이 복원
   if (state.panelHeight) {
     panel.style.height = `${state.panelHeight}px`;
@@ -5665,34 +5672,17 @@ function renderAssistant() {
 
   if (!state.assistantOpen) return;
 
-  // 헤더
+  // 헤더 — background/color 는 CSS(.imsmassi-assistant-header) 에서 var 참조
   const header = document.getElementById("imsmassi-assistant-header");
   if (!header) return;
-  header.style.background = state.isDarkMode
-    ? theme.primaryDark
-    : theme.primary;
-  header.style.color = c.headerText;
-  const closeBtn = document.querySelector(".imsmassi-assistant-close");
-  if (closeBtn) closeBtn.style.color = c.headerText;
   const dashboardBtn = document.getElementById("assistant-dashboard-btn");
   if (dashboardBtn) {
-    dashboardBtn.style.borderColor = c.headerText;
     updateDashboardButton();
   }
 
-  // 푸터
+  // 푸터 — background/border/color 는 CSS(.imsmassi-assistant-footer) 에서 var 참조
   const footer = document.getElementById("imsmassi-assistant-footer");
   if (!footer) return;
-  footer.style.background = state.isDarkMode ? "#252525" : "#FAFAFA";
-  footer.style.borderTopColor = c.border;
-  footer.style.color = c.subText;
-  footer.querySelectorAll(".imsmassi-assistant-footer-btn").forEach((el) => {
-    el.style.borderColor = c.border;
-    el.style.color = c.subText;
-  });
-  footer.querySelectorAll(".imsmassi-assistant-footer-group").forEach((el) => {
-    el.style.borderColor = c.border;
-  });
 
   const footerModes = document.getElementById(
     "imsmassi-assistant-footer-modes",
@@ -5757,15 +5747,15 @@ function updateFooterStorageInfo(colors) {
   const limitMB = state.storageLimit.toFixed(0);
   let statusText = `${usedMB}MB / ${limitMB}MB`;
 
+  // Task 3: 직접 style.color → CSS 클래스 토글
+  storageInfo.classList.remove("imsmassi-capacity-warning", "imsmassi-capacity-danger");
   if (usagePercent >= 80) {
     statusText = `⚠️ ${usedMB}MB / ${limitMB}MB`;
-    storageInfo.style.color = "#E74C3C";
+    storageInfo.classList.add("imsmassi-capacity-danger");
   } else if (state.settings.lowSpecMode) {
     statusText = `⚡ 저사양 | ${usedMB}MB / ${limitMB}MB`;
-    storageInfo.style.color = "#E67E22";
+    storageInfo.classList.add("imsmassi-capacity-warning");
     storageInfo.title = `저사양 모드 활성 | ${usedMB}MB / ${limitMB}MB 사용 중`;
-  } else {
-    storageInfo.style.color = colors.subText;
   }
 
   storageInfo.textContent = statusText;
@@ -5836,10 +5826,6 @@ function renderAssistantTabs() {
     const isActive = state.activeTab === tab.id;
     const btn = createElement("button", {
       className: `imsmassi-assistant-tab${isActive ? " imsmassi-active" : ""}`,
-      style: {
-        borderLeftColor: isActive ? area.color : "transparent", // 바깥쪽 활성 인디케이터
-        color: isActive ? area.color : c.subText,
-      },
       onclick: () => setActiveTab(tab.id),
     });
     const iconSpan = createElement("span", {
@@ -5848,7 +5834,6 @@ function renderAssistantTabs() {
     iconSpan.textContent = tab.icon;
     const labelSpan = createElement("span", {
       className: "imsmassi-assistant-tab-label",
-      style: { fontWeight: isActive ? "600" : "400" },
     });
     labelSpan.textContent = tab.label;
     btn.appendChild(iconSpan);
@@ -5870,7 +5855,7 @@ function renderAssistantTabs() {
     className: "imsmassi-assistant-tab-label",
   });
   toggleLabelSpan.textContent = "사이드";
-  sideToggleBtn.style.color = c.subText;
+  // 색상은 CSS .imsmassi-assistant-tab-toggle-btn { color: var(--imsmassi-sub-text) } 에서 연결
   sideToggleBtn.appendChild(toggleIconSpan);
   sideToggleBtn.appendChild(toggleLabelSpan);
   sideToggleBtn.addEventListener("click", () => {
@@ -5939,19 +5924,16 @@ function renderAssistantContent(previousTab) {
   };
 
   if (shouldAnimate) {
-    content.style.transition = "opacity 0.18s ease, transform 0.18s ease";
-    content.style.opacity = "0";
-    content.style.transform = "translateY(6px)";
+    // Task 3: 직접 style 조작 → CSS 클래스 토글로 변경
+    content.classList.add("imsmassi-content-transitioning", "imsmassi-content-out");
     setTimeout(() => {
       renderContent();
       requestAnimationFrame(() => {
-        content.style.opacity = "1";
-        content.style.transform = "translateY(0)";
+        content.classList.remove("imsmassi-content-out");
       });
     }, 120);
   } else {
-    content.style.opacity = "1";
-    content.style.transform = "none";
+    content.classList.remove("imsmassi-content-out", "imsmassi-content-transitioning");
     renderContent();
   }
 }
@@ -5976,7 +5958,7 @@ function renderMemoItemDOM(memo) {
   });
   if (memo.pinned) {
     item.classList.add("imsmassi-memo-item-pinned");
-    item.style.setProperty("--memo-pin-border", area.color);
+    // --memo-pin-border는 CSS .imsmassi-memo-item-pinned { --memo-pin-border: var(--imsmassi-area-color) }에서 자동 연결
   } else {
     item.classList.add("imsmassi-memo-item-normal");
   }
@@ -6108,11 +6090,7 @@ function renderMemoItemDOM(memo) {
     draggable: "false",
     title: `포스트잇 ${hasStickyNote ? "제거" : "추가"}`,
   });
-  // 동적 컬러값(area.color)은 CSS 변수로 주입
-  if (!hasStickyNote) {
-    screenBtn.style.setProperty("--screen-btn-color", area.color);
-    screenBtn.style.setProperty("--screen-btn-shadow", `${area.color}55`);
-  }
+  // --screen-btn-color/shadow는 CSS .imsmassi-screen-btn:not(.imsmassi-screen-btn-active)에서 var(--imsmassi-area-color)로 자동 연결
   screenBtn.textContent = hasStickyNote ? "스티커삭제" : "스티커추가";
   screenBtn.addEventListener("click", () => createStickyNoteForMemo(memo.id));
   screenBtn.addEventListener("mousedown", (e) => e.stopPropagation());
@@ -6199,16 +6177,7 @@ function renderMemoTab() {
       className: "imsmassi-memo-quill-wrapper",
       id: "memo-editor-wrapper",
     });
-    editorSection.style.setProperty("--memo-border-color", c.border);
-    editorSection.style.setProperty("--memo-focus-color", area.color);
-    editorSection.style.setProperty("--memo-focus-shadow", `${area.color}33`);
-    editorSection.style.setProperty(
-      "--memo-bg",
-      state.isDarkMode ? "#191F28" : "#FFF",
-    );
-    editorSection.style.setProperty("--memo-text", c.text);
-    editorSection.style.setProperty("--memo-placeholder", c.subText);
-    editorSection.style.setProperty("--memo-icon-color", c.text);
+    // CSS .imsmassi-memo-quill-wrapper에서 --memo-* 변수가 var(--imsmassi-*)로 자동 연결되므로 JS 주입 불필요
     const editorDiv = createElement("div", {
       id: "imsmassi-memo-editor",
       className: "imsmassi-memo-editor",
@@ -6217,44 +6186,45 @@ function renderMemoTab() {
       id: "imsmassi-memo-capacity",
       className: "imsmassi-memo-capacity",
     });
-    capacityDiv.style.color = c.subText;
+    // 기본 색상은 CSS .imsmassi-memo-capacity { color: var(--imsmassi-sub-text) }
     capacityDiv.textContent = "0 B / 2 MB";
     editorSection.append(editorDiv, capacityDiv);
   } else {
-    editorSection = createElement("div");
-    editorSection.style.position = "relative";
+    editorSection = createElement("div", {
+      className: "imsmassi-memo-editor-fallback",
+    });
+    // position: relative는 CSS .imsmassi-memo-editor-fallback에서 지정
     const textarea = createElement("div", {
       className: "imsmassi-memo-textarea",
       id: "memo-input",
       contenteditable: "true",
       placeholder: `${area.name} 메모를 입력하세요.`,
     });
-    textarea.style.color = c.text;
-    textarea.style.borderColor = c.border;
+    // 기본 색상은 CSS .imsmassi-memo-textarea { color: var(--imsmassi-text); border-color: var(--imsmassi-border) }
     // placeholder 표시용 클래스 관리 (contenteditable은 :empty가 <br>로 인해 동작 안 함)
     const _updateEmptyClass = () => {
       const isEmpty = textarea.innerText.trim() === '' || textarea.innerHTML === '' || textarea.innerHTML === '<br>';
       textarea.classList.toggle('imsmassi-is-empty', isEmpty);
     };
     textarea.classList.add('imsmassi-is-empty'); // 초기 빈 상태
-    textarea.addEventListener("focus", () => textarea.classList.remove('imsmassi-is-empty'));
-    textarea.addEventListener("blur", _updateEmptyClass);
+    textarea.addEventListener("focus", () => {
+      textarea.classList.remove('imsmassi-is-empty');
+      // Task 3: 포커스 시 .imsmassi-focused 클래스를 추가 (border-color, box-shadow는 CSS에서 var 참조)
+      textarea.classList.add('imsmassi-focused');
+    });
+    textarea.addEventListener("blur", () => {
+      _updateEmptyClass();
+      // Task 3: 포커스 해제 시 .imsmassi-focused 클래스 제거
+      textarea.classList.remove('imsmassi-focused');
+    });
     textarea.addEventListener("paste", (e) => handleMemoPaste(e));
     textarea.addEventListener("keydown", (e) => handleMemoKeydown(e));
     textarea.addEventListener("input", () => { updateMemoCapacity(); _updateEmptyClass(); });
-    textarea.addEventListener("blur", () => {
-      textarea.style.borderColor = c.border;
-      textarea.style.boxShadow = "none";
-    });
-    textarea.addEventListener("focus", () => {
-      textarea.style.borderColor = area.color;
-      textarea.style.boxShadow = `0 0 0 2px ${area.color}33`;
-    });
     const capacityDiv = createElement("div", {
       id: "imsmassi-memo-capacity",
       className: "imsmassi-memo-capacity",
     });
-    capacityDiv.style.color = c.subText;
+    // 기본 색상은 CSS .imsmassi-memo-capacity { color: var(--imsmassi-sub-text) }
     capacityDiv.textContent = "0 B / 2 MB";
     editorSection.append(textarea, capacityDiv);
   }
@@ -6293,11 +6263,11 @@ function renderMemoTab() {
     className: "imsmassi-memo-card",
     id: "memo-card-clipboard",
   });
-  clipboardCard.style.borderColor = c.border;
+  // 기본 색상은 CSS .imsmassi-memo-card { border-color: var(--imsmassi-border) }
   const clipboardCardHeader = createElement("div", {
     className: "imsmassi-memo-card-header",
   });
-  clipboardCardHeader.style.color = c.text;
+  // 기본 색상은 CSS .imsmassi-memo-card-header { color: var(--imsmassi-text) }
   const clipboardTitleSpan = createElement("span");
   clipboardTitleSpan.textContent = "클립보드";
   clipboardCardHeader.appendChild(clipboardTitleSpan);
@@ -6313,17 +6283,17 @@ function renderMemoTab() {
     className: "imsmassi-memo-card",
     id: "memo-card-template",
   });
-  templateCard.style.borderColor = c.border;
+  // 기본 색상은 CSS .imsmassi-memo-card { border-color: var(--imsmassi-border) }
   const templateCardHeader = createElement("div", {
     className: "imsmassi-memo-card-header",
   });
-  templateCardHeader.style.color = c.text;
+  // 기본 색상은 CSS .imsmassi-memo-card-header { color: var(--imsmassi-text) }
   const templateTitleSpan = createElement("span");
   templateTitleSpan.textContent = "템플릿";
   const addTemplateBtn = createElement("button", {
-    className: "imsmassi-memo-option-btn",
+    className: "imsmassi-memo-option-btn imsmassi-template-add-btn",
   });
-  addTemplateBtn.style.borderColor = area.color;
+  // 테두리 색상은 CSS .imsmassi-template-add-btn { border-color: var(--imsmassi-area-color) }
   addTemplateBtn.textContent = "✚ 추가";
   addTemplateBtn.addEventListener("click", openAddTemplateModal);
   templateCardHeader.append(templateTitleSpan, addTemplateBtn);
@@ -6343,20 +6313,20 @@ function renderMemoTab() {
   const listHeader = createElement("div", {
     className: "imsmassi-memo-list-header",
   });
-  listHeader.style.color = c.subText;
+  // 기본 색상은 CSS .imsmassi-memo-list-header { color: var(--imsmassi-sub-text) }
 
   const filterBar = createElement("div", {
     className: "imsmassi-memo-filter-bar",
   });
   [
-    ["menu", "현재 메뉴"],
+    ["menu", "현재 화면"],
     ["area", "현재 업무"],
     ["all", "전체"],
   ].forEach(([val, label]) => {
     const filterBtn = createElement("button", {
       className: `imsmassi-memo-filter-btn${currentFilter === val ? " imsmassi-memo-filter-active" : ""}`,
     });
-    filterBtn.style.setProperty("--filter-color", area.color);
+    // --filter-color는 CSS .imsmassi-memo-filter-btn { --filter-color: var(--imsmassi-area-color) }에서 자동 연결
     filterBtn.textContent = label;
     filterBtn.addEventListener("click", () => setMemoFilter(val));
     filterBar.appendChild(filterBtn);
@@ -6369,7 +6339,7 @@ function renderMemoTab() {
   // 빈 메시지 헬퍼
   const makeEmptyMsg = (text) => {
     const msg = createElement("div", { className: "imsmassi-memo-empty-msg" });
-    msg.style.color = c.subText;
+    // 기본 색상은 CSS .imsmassi-memo-empty-msg { color: var(--imsmassi-sub-text) }
     msg.textContent = text;
     return msg;
   };
@@ -6394,7 +6364,7 @@ function renderMemoTab() {
     const unpinnedSubheader = createElement("div", {
       className: "imsmassi-memo-list-subheader",
     });
-    unpinnedSubheader.style.color = c.subText;
+    // 기본 색상은 CSS .imsmassi-memo-list-subheader { color: var(--imsmassi-sub-text) }
     unpinnedSubheader.textContent = `일반 메모 (${unpinnedMemos.length}건)`;
     unpinnedCol.appendChild(unpinnedSubheader);
     if (unpinnedMemos.length === 0) {
@@ -6411,7 +6381,7 @@ function renderMemoTab() {
     const pinnedSubheader = createElement("div", {
       className: "imsmassi-memo-list-subheader",
     });
-    pinnedSubheader.style.color = c.subText;
+    // 기본 색상은 CSS .imsmassi-memo-list-subheader { color: var(--imsmassi-sub-text) }
     pinnedSubheader.textContent = `고정 메모 (${pinnedMemos.length}건)`;
     pinnedCol.appendChild(pinnedSubheader);
     if (pinnedMemos.length === 0) {
@@ -6520,7 +6490,7 @@ function renderClipboardItemDOM(item) {
   const deleteBtn = createElement("button", {
     className: "imsmassi-memo-delete-btn",
   });
-  deleteBtn.style.color = c.subText;
+  // 기본 색상은 CSS .imsmassi-memo-delete-btn { color: var(--imsmassi-sub-text) }
   deleteBtn.textContent = "✕";
   deleteBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -6530,13 +6500,13 @@ function renderClipboardItemDOM(item) {
   const contentDiv = createElement("div", {
     className: "imsmassi-clipboard-item-content",
   });
-  contentDiv.style.color = c.text;
+  // 기본 색상은 CSS .imsmassi-clipboard-item-content { color: var(--imsmassi-text) }
   contentDiv.textContent = item.content; // textContent로 XSS 방지
 
   const metaDiv = createElement("div", {
     className: "imsmassi-clipboard-item-meta",
   });
-  metaDiv.style.color = c.subText;
+  // 기본 색상은 CSS .imsmassi-clipboard-item-meta { color: var(--imsmassi-sub-text) }
   const areaSpan = createElement("span");
   areaSpan.textContent = areaName;
   const timeSpan = createElement("span");
@@ -6558,7 +6528,7 @@ function renderClipboardTabDOM() {
   const header = createElement("div", {
     className: "imsmassi-clipboard-header",
   });
-  header.style.color = c.subText;
+  // 기본 색상은 CSS .imsmassi-clipboard-header { color: var(--imsmassi-sub-text) }
   const headerSpan = createElement("span");
   headerSpan.textContent = "최근 복사 히스토리";
   header.appendChild(headerSpan);
@@ -6566,7 +6536,7 @@ function renderClipboardTabDOM() {
 
   if (items.length === 0) {
     const empty = createElement("div", { className: "imsmassi-memo-empty-msg" });
-    empty.style.color = c.subText;
+    // 기본 색상은 CSS .imsmassi-memo-empty-msg { color: var(--imsmassi-sub-text) }
     empty.textContent = "복사 기록이 없습니다";
     container.appendChild(empty);
   } else {
@@ -6576,7 +6546,7 @@ function renderClipboardTabDOM() {
   }
 
   const hint = createElement("div", { className: "imsmassi-clipboard-hint" });
-  hint.style.color = c.subText;
+  // 기본 색상은 CSS .imsmassi-clipboard-hint { color: var(--imsmassi-sub-text) }
   hint.textContent = "클릭하면 클립보드에 복사됩니다";
   container.appendChild(hint);
   return container;
@@ -6604,7 +6574,7 @@ function renderTemplateItemDOM(template) {
   const deleteBtn = createElement("button", {
     className: "imsmassi-memo-delete-btn",
   });
-  deleteBtn.style.color = c.subText;
+  // 기본 색상은 CSS .imsmassi-memo-delete-btn { color: var(--imsmassi-sub-text) }
   deleteBtn.textContent = "✕";
   deleteBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -6615,7 +6585,7 @@ function renderTemplateItemDOM(template) {
     className: "imsmassi-template-edit-btn",
     title: "수정",
   });
-  editBtn.style.color = c.subText;
+  // 기본 색상은 CSS .imsmassi-template-edit-btn { color: var(--imsmassi-sub-text) }
   editBtn.textContent = "✎";
   editBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -6628,20 +6598,19 @@ function renderTemplateItemDOM(template) {
   const titleSpan = createElement("span", {
     className: "imsmassi-template-item-title",
   });
-  titleSpan.style.color = c.text;
+  // 기본 색상은 CSS .imsmassi-template-item-title { color: var(--imsmassi-text) }
   titleSpan.textContent = template.title;
   const countSpan = createElement("span", {
     className: "imsmassi-template-item-count",
   });
-  countSpan.style.color = c.subText;
+  // 기본 색상은 CSS .imsmassi-template-item-count { color: var(--imsmassi-sub-text) }
   countSpan.textContent = `사용 ${template.count}회`;
   headerDiv.append(titleSpan, countSpan);
 
   const contentDiv = createElement("div", {
     className: "imsmassi-template-item-content",
   });
-  contentDiv.style.color = c.subText;
-  contentDiv.style.borderColor = c.border;
+  // 기본 색상은 CSS .imsmassi-template-item-content { color/border: var(--imsmassi-sub-text/border) }
   contentDiv.textContent = template.content; // textContent로 XSS 방지
 
   itemDiv.append(deleteBtn, editBtn, headerDiv, contentDiv);
@@ -6658,7 +6627,7 @@ function renderTemplateTabDOM() {
   const listHeader = createElement("div", {
     className: "imsmassi-template-list-header",
   });
-  listHeader.style.color = c.subText;
+  // 기본 색상은 CSS .imsmassi-template-list-header { color: var(--imsmassi-sub-text) }
   listHeader.textContent = `자주 쓰는 문구 (${state.templates.length}건)`;
   container.appendChild(listHeader);
 
@@ -6685,11 +6654,11 @@ function renderTimeTab() {
       <div class="imsmassi-time-chart-item">
         <div class="imsmassi-time-chart-item-left">
           <span class="imsmassi-time-chart-accent" style="background: ${item.color};"></span>
-          <span class="imsmassi-time-chart-name" style="color: ${c.text};">${item.name}</span>
+          <span class="imsmassi-time-chart-name">${item.name}</span>
         </div>
         <div class="imsmassi-time-chart-right">
-          <span class="imsmassi-time-chart-duration" style="color: ${c.text};">${item.time}</span>
-          <span class="imsmassi-time-chart-percent" style="color: ${c.subText};">${item.percent}%</span>
+          <span class="imsmassi-time-chart-duration">${item.time}</span>
+          <span class="imsmassi-time-chart-percent">${item.percent}%</span>
         </div>
       </div>
     `;
@@ -6707,7 +6676,6 @@ function renderTimeTab() {
     const isActive = state.timePeriod === key;
     periodBtnsHtml += `
       <button class="imsmassi-time-period-btn ${isActive ? "imsmassi-active" : ""}"
-              style="min-width: 64px; padding: 6px 12px; border: 1px solid ${isActive ? area.color : c.border}; background: ${isActive ? (state.isDarkMode ? "#F5F5F5" : "#F5F5F5") : "transparent"}; color: ${isActive ? "#111" : c.subText}; border-radius: 8px; cursor: pointer; font-weight: ${isActive ? "600" : "500"}; font-size: 12px; transition: all 0.2s;"
               onclick="setTimePeriod('${key}')">
         ${label}
       </button>
@@ -6723,13 +6691,13 @@ function renderTimeTab() {
 
   return `
     <div>
-      <div class="imsmassi-time-summary" style="background: ${state.isDarkMode ? "#252525" : area.bgColor};">
-        <div class="imsmassi-time-summary-label" style="color: ${c.subText};">${periodMap[state.timePeriod]} 총 업무 시간</div>
-        <div class="imsmassi-time-summary-value" style="color: ${c.text};">${data.total}</div>
-        <div class="imsmassi-time-summary-period-desc" style="color: ${c.subText};">${periodDescMap[state.timePeriod]}</div>
+      <div class="imsmassi-time-summary">
+        <div class="imsmassi-time-summary-label">${periodMap[state.timePeriod]} 총 업무 시간</div>
+        <div class="imsmassi-time-summary-value">${data.total}</div>
+        <div class="imsmassi-time-summary-period-desc">${periodDescMap[state.timePeriod]}</div>
         <div class="imsmassi-time-segment-bar">${segmentBarHtml}</div>
         <div class="imsmassi-time-period-btns">${periodBtnsHtml}</div>
-        <div class="imsmassi-time-summary-label" style="color: ${c.subText}; margin-top: 14px;">메뉴별 체류 시간</div>
+        <div class="imsmassi-time-summary-label" style="margin-top: 14px;">메뉴별 체류 시간</div>
         ${chartHtml}
       </div>
     </div>
@@ -6754,28 +6722,25 @@ function renderAreaColorSection() {
       const sub2 = custom.sub2 ?? def.sub2;
 
       return `
-      <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid ${c.border};">
-        <div style="display:flex;align-items:center;gap:4px;min-width:70px;max-width:100px;flex-shrink:0;">
-          <span style="width:8px;height:8px;border-radius:50%;background:${primary};display:inline-block;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.1);"></span>
-          <span style="font-size:10px;color:${c.text};font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${getAreaName(area.id, area.id)}">${getAreaName(area.id, area.id)}</span>
+      <div class="imsmassi-area-color-row">
+        <div class="imsmassi-area-color-row-name-wrap">
+          <span class="imsmassi-area-color-row-dot" style="background:${primary};"></span>
+          <span class="imsmassi-area-color-row-name" title="${getAreaName(area.id, area.id)}">${getAreaName(area.id, area.id)}</span>
         </div>
-        <label style="display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;">
-          <span style="font-size:9px;color:${c.subText};">메인</span>
-          <input type="color" value="${primary}" onchange="onAreaColorChange('${area.id}','primary',this.value)"
-            style="width:30px;height:22px;border:1px solid ${c.border};padding:1px;cursor:pointer;border-radius:3px;background:none;">
+        <label class="imsmassi-area-color-label-wrap">
+          <span class="imsmassi-area-color-label-text">메인</span>
+          <input type="color" value="${primary}" onchange="onAreaColorChange('${area.id}','primary',this.value)" class="imsmassi-area-color-input">
         </label>
-        <label style="display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;">
-          <span style="font-size:9px;color:${c.subText};">서브1</span>
-          <input type="color" value="${sub1}" onchange="onAreaColorChange('${area.id}','sub1',this.value)"
-            style="width:30px;height:22px;border:1px solid ${c.border};padding:1px;cursor:pointer;border-radius:3px;background:none;">
+        <label class="imsmassi-area-color-label-wrap">
+          <span class="imsmassi-area-color-label-text">서브1</span>
+          <input type="color" value="${sub1}" onchange="onAreaColorChange('${area.id}','sub1',this.value)" class="imsmassi-area-color-input">
         </label>
-        <label style="display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;">
-          <span style="font-size:9px;color:${c.subText};">서브2</span>
-          <input type="color" value="${sub2}" onchange="onAreaColorChange('${area.id}','sub2',this.value)"
-            style="width:30px;height:22px;border:1px solid ${c.border};padding:1px;cursor:pointer;border-radius:3px;background:none;">
+        <label class="imsmassi-area-color-label-wrap">
+          <span class="imsmassi-area-color-label-text">서브2</span>
+          <input type="color" value="${sub2}" onchange="onAreaColorChange('${area.id}','sub2',this.value)" class="imsmassi-area-color-input">
         </label>
-        <div style="flex:1;"></div>
-        ${hasCustom ? `<button onclick="resetAreaColors('${area.id}')" title="기본값으로 초기화" style="font-size:10px;background:none;border:1px solid ${c.border};border-radius:3px;padding:2px 6px;cursor:pointer;color:${c.subText};">↩</button>` : ""}
+        <div class="imsmassi-area-color-spacer"></div>
+        ${hasCustom ? `<button onclick="resetAreaColors('${area.id}')" title="기본값으로 초기화" class="imsmassi-area-color-reset-btn">↩</button>` : ""}
       </div>
     `;
     })
@@ -6903,7 +6868,7 @@ function renderDashboardTab() {
       const memoPreview = getMemoPlainText(memo);
       recentMemosHtml += `
       <div class="imsmassi-recent-memo-item" onclick="setSelectedArea('${memo.createdAreaId}'); goToMemoTab();">
-        <div class="imsmassi-recent-memo-menu" style="color: ${area.color};">${areaName}</div>
+        <div class="imsmassi-recent-memo-menu">${areaName}</div>
         <div class="imsmassi-recent-memo-text">${memoPreview}</div>
       </div>
     `;
@@ -7059,52 +7024,18 @@ document.addEventListener("copy", async (e) => {
 // 초기 스타일 설정 (로딩 중 깨짐 방지)
 // ========================================
 function initializeStyles() {
-  const theme = getTheme();
-  const c = getColors();
-
   // 이식(embedded) 모드에서 호스트 페이지 바닥화면 보호:
   // getAssistantRoot()가 mf_VFrames_Root 등 호스트 컨테이너를 반환할 수 있으므로
   // #assistant-root 스코프 요소에만 배경/글자색을 적용하고, 호스트 컨테이너에는 미적용.
   const root = getAssistantRoot();
   if (!root) return;
-  const assistantScopeEl = document.getElementById("assistant-root");
-  // #assistant-root가 존재하면 이식 모드 → 호스트 컨테이너에 배경색 적용 금지
-  // #assistant-root가 없거나 root 자체가 #assistant-root인 경우(standalone)만 적용
-  if (!assistantScopeEl || root === assistantScopeEl) {
-    root.style.backgroundColor = c.bg;
-    root.style.color = c.text;
-  }
+
+  // data-theme, dark-mode 클래스는 CSS 변수로 자동 처리
+  // (handleStateUpdate에서 dataset.theme, classList.toggle 처리 참조)
   applyLowSpecMode();
 
-  // 시스템 미리보기 초기 스타일
-  const preview = document.getElementById("imsmassi-system-preview");
-  if (preview) {
-    preview.style.background = c.bg;
-    preview.style.border = `1px solid ${c.border}`;
-  }
-
-  // 헤더 초기 스타일
-  const header = document.getElementById("imsmassi-header");
-  if (header) {
-    header.style.background = state.isDarkMode
-      ? theme.primaryDark
-      : theme.primary;
-    header.style.color = c.headerText;
-  }
-
-  // 플로팅 패널 초기 스타일
-  const panel = document.getElementById("imsmassi-floating-panel");
-  if (panel) {
-    panel.style.background = c.bg;
-  }
-
-  // 카드 배경색
-  const cards = document.querySelectorAll(".imsmassi-card");
-  cards.forEach((card) => {
-    card.style.background = c.bg;
-    card.style.color = c.text;
-    card.style.borderColor = c.border;
-  });
+  // 현재 업무영역 CSS 변수 초기 적용
+  applyAreaColorVars(getArea());
 }
 
 // ========================================
