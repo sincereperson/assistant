@@ -1160,7 +1160,7 @@ let state = {
     autoNav: false,
     lowSpec: false,
     theme: false,    // 푸터 테마/모드 전환 UI 노출 여부
-    sideTabs: true,  // 좌측 사이드 탭 버튼 그룹 (기본값 true: 표시)
+    sideTabs: false,  // 좌측 사이드 탭 버튼 그룹 (기본값 false: 표시)
   },
 };
 
@@ -6437,6 +6437,13 @@ function updateMemoSidePanelState() {
   const floatingPanel = document.getElementById("imsmassi-floating-panel");
   if (!floatingPanel || !layout) return;
   const isHidden = !state.isMemoPanelExpanded;
+  // 펼칠 때 저장된 너비가 확장 기본값(640px)보다 작으면 inline 너비를 초기화하여
+  // CSS .imsmassi-expanded { width: 640px } 가 자연스럽게 적용되도록 방어 처리
+  if (!isHidden && state.panelWidth && state.panelWidth < 640) {
+    state.panelWidth = null;
+    floatingPanel.style.width = "";
+    workerSend("SAVE_UI_PREFS", { panelWidth: null });
+  }
   floatingPanel.classList.toggle("imsmassi-expanded", !isHidden);
   layout.classList.toggle("imsmassi-panel-hidden", isHidden);
   const toggle = document.getElementById("imsmassi-memo-side-toggle-btn");
@@ -7257,7 +7264,7 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
       autoNav: false,
       lowSpec: false,
       theme: false,
-      sideTabs: true,
+      sideTabs: false,
     };
   }
 
