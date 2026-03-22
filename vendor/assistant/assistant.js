@@ -6329,7 +6329,10 @@ function renderMemoTab() {
     className: "imsmassi-memo-option-btn imsmassi-template-add-btn",
   });
   // 테두리 색상은 CSS .imsmassi-template-add-btn { border-color: var(--imsmassi-area-color) }
-  addTemplateBtn.textContent = "✚ 추가";
+  addTemplateBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" >
+<path d="M13 8L8 8L3 8" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M8.00488 13.0059L8.00488 8.00586L8.00488 3.00586" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg> 새 템플릿 추가`;
   addTemplateBtn.addEventListener("click", openAddTemplateModal);
   templateCardHeader.append(templateTitleSpan, addTemplateBtn);
   const templateBody = createElement("div", {
@@ -6526,7 +6529,7 @@ function updateDashboardButton() {
   const dashboardBtn = document.getElementById("assistant-dashboard-btn");
   if (!dashboardBtn) return;
   dashboardBtn.textContent =
-    state.activeTab === "dashboard" ? "↩ 메인" : "대시보드";
+    state.activeTab === "dashboard" ? "메인" : "대시보드";
   dashboardBtn.title =
     state.activeTab === "dashboard" ? "메인으로 돌아가기" : "대시보드";
   dashboardBtn.classList.toggle(

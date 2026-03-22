@@ -307,13 +307,14 @@ body {
   padding: 4px 8px;
   border: 0;
   border-radius: 30px;
-  background: #e5e8eb;
-  color: #333d4b;
+  background: var(--blue-gray-200);
+  color: var(--blue-gray-800);
   cursor: pointer;
+  font-size: 12px;
 }
-#assistant-root .imsmassi-assistant-header-btn.imsmassi-active {
-  background: rgba(255, 255, 255, 0.32);
-  font-weight: 600;
+#assistant-root.imsmassi-dark-mode .imsmassi-assistant-header-btn {
+  background: var(--blue-gray-700);
+  color: var(--blue-gray-400);
 }
 #assistant-root .imsmassi-assistant-close {
   background: none;
@@ -593,16 +594,18 @@ body {
   justify-content: space-between;
 }
 #assistant-root .imsmassi-memo-option-btn {
-  padding: 7px 10px;
-  border: 1px solid;
+  padding: 0 10px;
+  border: 1px solid var(--blue-gray-700);
+  height: 30px;
   border-radius: 4px;
-  background: #333d4b;
+  background: var(--blue-gray-800);
   cursor: pointer;
   color: #fff;
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-option-btn {
   color: #333d4b;
-  background: #d1d6db;
+  background: var(--blue-gray-200);
+  border-color: var(--blue-gray-700);
 }
 
 #assistant-root .imsmassi-memo-list-header {
@@ -619,6 +622,7 @@ body {
 #assistant-root .imsmassi-memo-filter-btn {
   flex: 1 1 75px;
   padding: 10px 0;
+  max-width: 75px;
   border: 0;
   border-radius: 12px;
   background: transparent;
@@ -919,8 +923,6 @@ body {
   margin-bottom: 8px;
   font-size: 13px;
   font-weight: 600;
-  padding-bottom: 6px;
-  border-bottom: 1px dashed rgba(0, 0, 0, 0.08);
   min-height: 32px;
 }
 #assistant-root .imsmassi-memo-card-body {
@@ -2235,7 +2237,7 @@ body {
 }
 #assistant-root .imsmassi-todo-item {
   padding: 8px 10px;
-  border-radius: 12px;
+  border-radius: 8px;
   margin-bottom: 4px;
   display: flex;
   align-items: center;
@@ -2245,12 +2247,15 @@ body {
   width: 16px;
   height: 16px;
   border-radius: 12px;
-  border: 2px solid;
+  border: 1px solid var(--blue-gray-700);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-todo-checkbox {
+  border-color: var(--gray-0);
 }
 #assistant-root .imsmassi-todo-checkbox.imsmassi-checked {
   border: none;
@@ -2267,7 +2272,7 @@ body {
 }
 #assistant-root .imsmassi-recent-memo-item {
   padding: 8px 10px;
-  border-radius: 12px;
+  border-radius: 8x;
   margin-bottom: 4px;
   cursor: pointer;
 }
@@ -2807,13 +2812,17 @@ body {
 }
 /* 할 일 아이템 */
 #assistant-root .imsmassi-todo-item {
-  background: #f8f9fa;
+  background: var(--gray-0);
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-todo-item {
   background: #191f28;
 }
 #assistant-root .imsmassi-todo-checkbox.imsmassi-checked-done {
-  background: #5ba55b;
+  background: var(--imsmassi-primary);
+}
+#assistant-root.imsmassi-dark-mode
+  .imsmassi-todo-checkbox.imsmassi-checked-done {
+  background: var(--imsmassi-primary-dark);
 }
 #assistant-root .imsmassi-todo-text-pending {
   color: #333;
@@ -2857,7 +2866,7 @@ body {
 }
 /* 최근 메모 */
 #assistant-root .imsmassi-recent-memo-item {
-  background: #f8f9fa;
+  background: var(--gray-0);
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-recent-memo-item {
   background: #191f28;
@@ -3222,7 +3231,7 @@ body {
   justify-content: space-between;
   padding: 8px 10px;
   margin-top: 6px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #f6f7f9;
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-time-chart-item {
@@ -3270,11 +3279,14 @@ body {
 }
 #assistant-root .imsmassi-time-segment-item {
   height: 38px;
-  border-radius: 12px;
+  border-radius: 8px;
 }
 #assistant-root .imsmassi-time-summary-period-desc {
   font-size: 13px;
   margin-top: 6px;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-time-summary-period-desc {
+  color: var(--gray-0);
 }
 
 /* ========== 메모 공통 유틸리티 ========== */
@@ -3443,9 +3455,16 @@ body {
 
 /* ── Task 2: 템플릿 추가 버튼 area-color 액센트 ── */
 #assistant-root .imsmassi-memo-option-btn.imsmassi-template-add-btn {
-  border-color: var(--imsmassi-area-color);
-  color: var(--imsmassi-area-color);
-  background: transparent;
+  background: var(--blue-gray-800);
+  color: var(--gray-0);
+  line-height: 30px;
+}
+#assistant-root .imsmassi-memo-option-btn.imsmassi-template-add-btn svg {
+  position: relative;
+  top: 3px;
+}
+#assistant-root .imsmassi-memo-option-btn.imsmassi-template-add-btn svg path {
+  stroke: var(--blue-gray-200);
 }
 
 /* ── Task 2: 클립보드 아이템 ── */
@@ -3539,7 +3558,7 @@ body {
   border: 1px solid var(--imsmassi-border);
   background: transparent;
   color: var(--imsmassi-sub-text);
-  border-radius: 12px;
+  border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
   transition: all 0.2s;
@@ -3554,6 +3573,9 @@ body {
 /* ── Task 2: 대시보드 최근 메모 업무영역 색상 ── */
 #assistant-root .imsmassi-recent-memo-menu {
   color: var(--imsmassi-area-color);
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-recent-memo-menu {
+  color: var(--gray-0);
 }
 
 /* ── Task 2: 업무 컬러 설정 행 (imsmassi-area-color-row-* 하위 요소 신규 클래스) ── */
@@ -3618,6 +3640,7 @@ body {
   --blue-gray-400: #b0b8c1;
   --blue-gray-500: #8b95a1;
   --blue-gray-700: #4e5968;
+  --blue-gray-800: #333d4b;
   --blue-gray-900: #191f28;
 }
 
