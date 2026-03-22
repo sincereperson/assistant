@@ -1,64 +1,69 @@
-﻿/* ============================================================
+﻿@import url("../asset/font/pretendard.css");
+
+/* ============================================================
    테마 토큰 — CSS 커스텀 프로퍼티 (Single Source of Truth)
    JS의 themes 객체 / getColors() 데이터가 모두 이곳에서 관리됩니다.
    테마 변경: #assistant-root[data-theme="..."]  |  다크모드: .imsmassi-dark-mode
    ============================================================ */
 
 /* ── 기본값: classic 테마 + 라이트 모드 ── */
+* {
+  font-family: "Pretendard" !important;
+}
 #assistant-root {
   /* 테마 컬러 */
-  --imsmassi-primary:          #4A90A4;
-  --imsmassi-primary-light:    #E8F4F8;
-  --imsmassi-primary-dark:     #2E5A6A;
+  --imsmassi-primary: #7ce0d3;
+  --imsmassi-primary-light: #e8f4f8;
+  --imsmassi-primary-dark: #2e5a6a;
   /* 패널 배경/텍스트/경계 */
-  --imsmassi-bg:               #FFFFFF;
-  --imsmassi-sub-bg:           #F8F9FA;
-  --imsmassi-text:             #191F28;
-  --imsmassi-sub-text:         #666666;
-  --imsmassi-border:           #E0E0E0;
+  --imsmassi-bg: #ffffff;
+  --imsmassi-sub-bg: #f8f9fa;
+  --imsmassi-text: #191f28;
+  --imsmassi-sub-text: #666666;
+  --imsmassi-border: #e0e0e0;
   /* 헤더 텍스트 */
-  --imsmassi-header-text:      #FFFFFF;
-  --imsmassi-header-sub-text:  rgba(255, 255, 255, 0.8);
+  --imsmassi-header-text: #ffffff;
+  --imsmassi-header-sub-text: rgba(255, 255, 255, 0.8);
 }
 
 /* ── 다크 모드 공통 오버라이드 (테마와 독립) ── */
 #assistant-root.imsmassi-dark-mode {
-  --imsmassi-bg:               #2B2F35;
-  --imsmassi-sub-bg:           #191F28;
-  --imsmassi-text:             #E0E0E0;
-  --imsmassi-sub-text:         #A0A0A0;
-  --imsmassi-border:           #404040;
+  --imsmassi-bg: #2b2f35;
+  --imsmassi-sub-bg: #191f28;
+  --imsmassi-text: #e0e0e0;
+  --imsmassi-sub-text: #a0a0a0;
+  --imsmassi-border: #404040;
   /* 다크에서는 헤더 텍스트 항상 흰색 유지 */
-  --imsmassi-header-text:      #FFFFFF;
-  --imsmassi-header-sub-text:  rgba(255, 255, 255, 0.8);
+  --imsmassi-header-text: #ffffff;
+  --imsmassi-header-sub-text: rgba(255, 255, 255, 0.8);
 }
 
 /* ── earthbrown 테마 ── */
 #assistant-root[data-theme="earthbrown"] {
-  --imsmassi-primary:          #C9BEAA;
-  --imsmassi-primary-light:    #D6CEC0;
-  --imsmassi-primary-dark:     #9A9387;
+  --imsmassi-primary: #c9beaa;
+  --imsmassi-primary-light: #d6cec0;
+  --imsmassi-primary-dark: #9a9387;
 }
 
 /* ── oceangreen 테마 ── */
 #assistant-root[data-theme="oceangreen"] {
-  --imsmassi-primary:          #7CE0D3;
-  --imsmassi-primary-light:    #A9E9E1;
-  --imsmassi-primary-dark:     #44A79E;
+  --imsmassi-primary: #7ce0d3;
+  --imsmassi-primary-light: #a9e9e1;
+  --imsmassi-primary-dark: #44a79e;
 }
 
 /* ── lightbeige 테마: 헤더 배경이 밝으므로 텍스트 반전 ── */
 #assistant-root[data-theme="lightbeige"] {
-  --imsmassi-primary:          #FBF1E6;
-  --imsmassi-primary-light:    #FAF3EB;
-  --imsmassi-primary-dark:     #D6CEC5;
-  --imsmassi-header-text:      #191F28;
-  --imsmassi-header-sub-text:  #666666;
+  --imsmassi-primary: #fbf1e6;
+  --imsmassi-primary-light: #faf3eb;
+  --imsmassi-primary-dark: #d6cec5;
+  --imsmassi-header-text: #191f28;
+  --imsmassi-header-sub-text: #666666;
 }
 /* lightbeige 다크모드에서도 헤더 텍스트는 어두운 계열 유지 */
 #assistant-root.imsmassi-dark-mode[data-theme="lightbeige"] {
-  --imsmassi-header-text:      #191F28;
-  --imsmassi-header-sub-text:  #555555;
+  --imsmassi-header-text: #191f28;
+  --imsmassi-header-sub-text: #555555;
 }
 
 /* 다크모드: 설정탭 셀렉트박스/토글버튼 스타일 */
@@ -122,7 +127,6 @@
   padding: 0;
 }
 #assistant-root {
-  font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   background-color: transparent;
   transition: background-color 0.3s;
   position: fixed;
@@ -160,7 +164,6 @@
   height: 56px;
   border-radius: 50%;
   border: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   cursor: pointer;
   z-index: 2001;
   display: flex;
@@ -183,7 +186,6 @@
   background: #e74c3c;
   top: 6px;
   right: 6px;
-  box-shadow: 0 0 0 2px #fff;
   display: none;
 }
 #assistant-root
@@ -215,15 +217,13 @@
   min-height: 300px;
   max-height: calc(100vh - 64px);
   border-radius: 14px;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18);
   display: flex;
   flex-direction: column;
   overflow: hidden; /* 롤백: visible → hidden (내부 스크롤 정상화) */
   transition:
     width 0.25s cubic-bezier(0.4, 1, 0.4, 1),
-    box-shadow 0.25s,
     background 0.25s;
-  will-change: width, box-shadow, background;
+  will-change: width, background;
 }
 /* 리사이즈 핸들 */
 #assistant-root .imsmassi-panel-resize-handle {
@@ -238,7 +238,7 @@
   border-radius: 14px 14px 0 0;
 }
 #assistant-root .imsmassi-panel-resize-handle::after {
-  content: '';
+  content: "";
   display: block;
   width: 36px;
   height: 3px;
@@ -263,7 +263,7 @@
   border-radius: 14px 0 0 14px;
 }
 #assistant-root .imsmassi-panel-resize-handle-x::after {
-  content: '';
+  content: "";
   display: block;
   width: 3px;
   height: 36px;
@@ -374,27 +374,23 @@
   border-right: none; /* 패널과 맞닿는 면은 테두리 없음 */
   border-radius: 8px 0 0 8px;
   background: rgba(248, 249, 251, 0.94);
-  box-shadow: -2px 1px 7px rgba(0, 0, 0, 0.10);
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  transition: background 0.15s, box-shadow 0.15s;
+  transition: background 0.15s;
 }
 #assistant-root .imsmassi-assistant-tab:hover {
   background: #fff;
-  box-shadow: -3px 2px 10px rgba(0, 0, 0, 0.14);
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-assistant-tab {
   background: rgba(38, 42, 52, 0.94);
   border-top-color: rgba(255, 255, 255, 0.09);
   border-bottom-color: rgba(255, 255, 255, 0.09);
-  box-shadow: -2px 1px 7px rgba(0, 0, 0, 0.28);
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-assistant-tab:hover {
   background: rgba(52, 57, 70, 0.98);
-  box-shadow: -3px 2px 10px rgba(0, 0, 0, 0.38);
 }
 #assistant-root .imsmassi-assistant-tab-icon {
   font-size: 15px;
@@ -410,11 +406,9 @@
 #assistant-root .imsmassi-assistant-tab.imsmassi-active {
   border-left-color: currentColor; /* area.color 로 JS에서 세팅 */
   background: #fff;
-  box-shadow: -4px 2px 12px rgba(0, 0, 0, 0.16);
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-assistant-tab.imsmassi-active {
   background: rgba(55, 61, 75, 0.99);
-  box-shadow: -4px 2px 12px rgba(0, 0, 0, 0.40);
 }
 
 /* ── 사이드 패널 접기/펼치기 버튼: 하단 고정, 색상 연하게 구분 ── */
@@ -428,30 +422,28 @@
   border-right: none;
   border-radius: 8px 0 0 8px;
   background: rgba(235, 237, 241, 0.88);
-  box-shadow: -2px 1px 5px rgba(0, 0, 0, 0.08);
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  transition: background 0.15s, opacity 0.15s;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
   opacity: 0.72;
 }
 #assistant-root .imsmassi-assistant-tab-toggle-btn:hover {
   opacity: 1;
   background: rgba(248, 249, 251, 0.98);
-  box-shadow: -3px 2px 8px rgba(0, 0, 0, 0.12);
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-assistant-tab-toggle-btn {
   background: rgba(30, 33, 41, 0.88);
-  border-top-color: rgba(255, 255, 255, 0.10);
+  border-top-color: rgba(255, 255, 255, 0.1);
   border-left-color: rgba(255, 255, 255, 0.07);
   border-bottom-color: rgba(255, 255, 255, 0.07);
-  box-shadow: -2px 1px 5px rgba(0, 0, 0, 0.30);
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-assistant-tab-toggle-btn:hover {
   background: rgba(46, 51, 63, 0.96);
-  box-shadow: -3px 2px 8px rgba(0, 0, 0, 0.40);
 }
 #assistant-root .imsmassi-assistant-footer {
   padding: 8px 12px;
@@ -542,6 +534,7 @@
   gap: 16px;
   align-items: start;
   position: relative;
+  height: 100%;
 }
 #assistant-root
   .imsmassi-memo-layout.imsmassi-panel-hidden
@@ -549,8 +542,16 @@
   display: none;
 }
 #assistant-root .imsmassi-memo-main {
+  position: fixed;
+  right: 35px;
+  bottom: 80px;
   min-width: 0;
   width: 100%;
+  z-index: 1;
+  max-width: 330px;
+}
+#assistant-root .imsmassi-expanded .imsmassi-memo-main {
+  max-width: 610px;
 }
 #assistant-root .imsmassi-memo-side {
   min-width: 0;
@@ -584,21 +585,21 @@
 }
 
 #assistant-root .imsmassi-memo-options {
+  position: absolute;
+  right: 0;
+  bottom: 24px;
   display: flex;
-  gap: 8px;
-  margin: 12px 0 16px 0;
   flex-wrap: wrap;
   justify-content: space-between;
 }
 #assistant-root .imsmassi-memo-option-btn {
-  padding: 4px 10px;
+  padding: 7px 10px;
   font-size: 12px;
   border: 1px solid;
   border-radius: 4px;
   background: #333d4b;
   cursor: pointer;
   color: #fff;
-  font-weight: 600;
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-option-btn {
   color: #333d4b;
@@ -606,46 +607,35 @@
 }
 
 #assistant-root .imsmassi-memo-list-header {
-  font-size: 13px;
+  font-size: 14px;
   margin-bottom: 8px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
   flex-wrap: wrap;
 }
 #assistant-root .imsmassi-memo-filter-bar {
   display: flex;
-  gap: 4px;
+  width: 70%;
+  gap: 10px;
 }
 #assistant-root .imsmassi-memo-filter-btn {
-  padding: 3px 9px;
-  font-size: 12px;
-  border: 1px solid #191f28;
+  flex: 1 1 75px;
+  padding: 10px 0;
+  font-size: 14px;
+  border: 0;
   border-radius: 4px;
   background: transparent;
   cursor: pointer;
-  color: #191f28;
-  opacity: 0.55;
-  transition:
-    opacity 0.15s,
-    background 0.15s,
-    color 0.15s;
-  white-space: nowrap;
+  color: var(--blue-gray-900);
+  transition: all 0.15s ease-out;
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-filter-btn {
   color: #e5e8eb;
   border-color: #e5e8eb;
 }
-#assistant-root .imsmassi-memo-filter-btn:hover {
-  opacity: 0.85;
-}
+#assistant-root .imsmassi-memo-filter-btn:hover,
 #assistant-root .imsmassi-memo-filter-btn.imsmassi-memo-filter-active {
-  background: var(--filter-color);
-  color: #fff;
-  border-color: var(--filter-color);
-  opacity: 1;
-  font-weight: 600;
+  background: var(--imsmassi-primary);
 }
 #assistant-root .imsmassi-memo-list-split {
   display: grid;
@@ -676,28 +666,6 @@
   flex-direction: column;
   width: 100%;
   max-width: 100%;
-  transition: box-shadow 0.3s;
-}
-#assistant-root .imsmassi-memo-item.imsmassi-memo-item-highlight {
-  box-shadow:
-    0 0 0 3px #f5a623,
-    0 0 16px 4px rgba(245, 166, 35, 0.45);
-  animation: memoHighlightFade 1.8s ease forwards;
-}
-@keyframes memoHighlightFade {
-  0% {
-    box-shadow:
-      0 0 0 3px #f5a623,
-      0 0 20px 6px rgba(245, 166, 35, 0.55);
-  }
-  60% {
-    box-shadow:
-      0 0 0 3px #f5a623,
-      0 0 12px 3px rgba(245, 166, 35, 0.35);
-  }
-  100% {
-    box-shadow: none;
-  }
 }
 #assistant-root .imsmassi-memo-item-header {
   display: flex;
@@ -760,7 +728,6 @@
 }
 #assistant-root .imsmassi-memo-drag-handle {
   cursor: grab;
-  background: rgba(0, 0, 0, 0.04);
   padding: 4px 6px;
   border-radius: 6px;
 }
@@ -812,7 +779,6 @@
   border-radius: 6px;
   border: none;
   background: transparent;
-  box-shadow: none;
   outline: none;
   width: 100%;
   max-width: 100%;
@@ -829,7 +795,6 @@
   border-radius: 6px;
   border: none;
   background: transparent;
-  box-shadow: none;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -842,16 +807,14 @@
 
 #assistant-root .imsmassi-memo-quill-wrapper {
   position: relative;
-  border: 1.5px solid var(--memo-border-color);
+  border: 1px solid var(--imsmassi-primary);
   border-radius: 4px;
   overflow: hidden;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
-  background: var(--memo-bg);
+  background: var(--blue-gray-50);
 }
 #assistant-root .imsmassi-memo-quill-wrapper .ql-container {
   border: none;
-  background: var(--memo-bg);
-  color: var(--memo-text);
+  background: var(--blue-gray-50);
   min-height: 140px;
   max-height: 300px;
   overflow-y: auto;
@@ -860,21 +823,18 @@
   color: var(--memo-text);
   font-size: 14px;
   line-height: 1.6;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   padding: 12px;
   min-height: 140px;
   box-sizing: border-box;
 }
 #assistant-root .imsmassi-memo-quill-wrapper.imsmassi-focused {
-  border-color: var(--memo-focus-color);
-  box-shadow: 0 0 0 2px var(--memo-focus-shadow);
+  border: 1px solid var(--imsmassi-primary);
 }
 #assistant-root .imsmassi-memo-editor {
   min-height: 140px;
 }
 #assistant-root .imsmassi-memo-quill-wrapper .ql-editor.ql-blank::before {
-  color: var(--memo-placeholder);
+  color: var(--blue-gray-500);
 }
 /* contenteditable div placeholder (Quill 미사용 모드) */
 /* :empty는 <br>이 삽입된 contenteditable에서 동작 안 하므로 JS 클래스 방식 사용 */
@@ -916,17 +876,16 @@
   .ql-editor.ql-blank::before {
   color: #a0a0a0;
 }
-:root{
+:root {
   --memo-bg-color: #fff;
 }
-:root #assistant-root.imsmassi-dark-mode{
+:root #assistant-root.imsmassi-dark-mode {
   --memo-bg-color: #191f28;
 }
 #assistant-root .imsmassi-memo-card {
   border: 1px solid;
   border-radius: 12px;
   padding: 10px 10px 12px;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.06);
   height: 320px;
   min-height: 240px;
   max-height: 420px;
@@ -938,7 +897,7 @@
   flex-direction: column;
   background: var(--memo-bg-color);
 }
-#assistant-root.imsmassi-dark-mode .imsmassi-memo-card{
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-card {
   background: var(--memo-bg-color);
 }
 #assistant-root .imsmassi-memo-card-header {
@@ -1045,7 +1004,6 @@
   font-size: 14px;
   margin-bottom: 12px;
   resize: none;
-  font-family: inherit;
 }
 #assistant-root .imsmassi-modal-textarea:focus {
   outline: none;
@@ -1135,7 +1093,6 @@
   transform: translateX(400px);
   transition: all 0.3s ease;
   pointer-events: auto;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   max-width: 320px;
 }
 #assistant-root .imsmassi-notification-toast.imsmassi-show {
@@ -1181,7 +1138,6 @@
   transform-origin: bottom imsmassi-right;
   transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   pointer-events: auto;
-  box-shadow: 0 4px 16px rgba(255, 107, 107, 0.4);
   max-width: 200px;
   text-align: center;
   line-height: 1.4;
@@ -1213,12 +1169,10 @@
   cursor: pointer;
   font-weight: 600;
   transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
 }
 #assistant-root .imsmassi-test-button:hover {
   background: #5f3dc4;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.5);
 }
 #assistant-root .imsmassi-test-button:active {
   transform: translateY(0);
@@ -1310,7 +1264,6 @@
   border-radius: 12px;
   padding: 20px;
   margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 #assistant-root .imsmassi-flex {
   display: flex;
@@ -1404,7 +1357,6 @@
 #assistant-root .imsmassi-system-preview {
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   position: relative;
 }
 #assistant-root .imsmassi-header {
@@ -1613,10 +1565,9 @@
   white-space: pre-wrap;
   word-break: break-word;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s;
   cursor: text;
   overflow-y: auto;
-  font-family: inherit;
 }
 #assistant-root .imsmassi-memo-capacity {
   font-size: 11px;
@@ -1673,7 +1624,6 @@
   opacity: 1;
 }
 #assistant-root .imsmassi-memo-header-pin-btn {
-  background: rgba(0, 0, 0, 0.08);
   border: none;
   cursor: pointer;
   font-size: 12px;
@@ -1684,10 +1634,20 @@
   align-items: center;
   justify-content: center;
   line-height: 1;
-  opacity: 0.7;
+  background: none;
 }
 #assistant-root .imsmassi-memo-header-pin-btn:hover {
   opacity: 1;
+}
+#assistant-root .imsmassi-memo-header-pin-btn svg path {
+  fill: var(--blue-gray-400);
+}
+#assistant-root
+  .imsmassi-memo-item-pinned
+  .imsmassi-memo-header-pin-btn
+  svg
+  path {
+  fill: var(--imsmassi-primary);
 }
 #assistant-root .imsmassi-memo-header-action-btn {
   background: rgba(0, 0, 0, 0.08);
@@ -1729,7 +1689,6 @@
   background: var(--area-sub2, #fff9c4);
   border: 1px solid var(--area-sub1, #e6d98a);
   border-left: 4px solid var(--area-primary, #f1c40f);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15);
   border-radius: 8px;
   padding: 0;
   resize: both;
@@ -1833,7 +1792,6 @@
 #sticky-layer span,
 #sticky-layer button {
   box-sizing: border-box !important;
-  font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif !important;
 }
 #sticky-layer div,
 #sticky-layer span {
@@ -1902,7 +1860,6 @@
   background: var(--area-sub2, #fff9c4) !important;
   border: 1px solid var(--area-sub1, #e6d98a) !important;
   border-left: 4px solid var(--area-primary, #f1c40f) !important;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15) !important;
   border-radius: 8px !important;
   padding: 0 !important;
   resize: none !important;
@@ -2006,7 +1963,7 @@
   color: #3d3d3d !important;
   line-height: 1.4 !important;
   word-break: break-word !important;
-  overflow: hidden !important;  /* quill-better-table 리사이즈 핸들(position:absolute)이
+  overflow: hidden !important; /* quill-better-table 리사이즈 핸들(position:absolute)이
                                    컨테이너 경계를 벗어나 스크롤을 유발하는 것 차단 */
   padding: 6px 10px 12px !important;
   flex: 1 !important;
@@ -2059,7 +2016,6 @@
   line-height: 1 !important;
   margin: 0 !important;
   padding: 0 !important;
-  box-shadow: none !important;
   outline: none !important;
 }
 #sticky-layer .imsmassi-sticky-note-btn:hover {
@@ -2123,7 +2079,6 @@
   min-width: 100%;
   border-collapse: collapse;
   font-size: 10.5px;
-  font-family: inherit;
 }
 #assistant-root .ql-editor td,
 #assistant-root .ql-editor th,
@@ -2141,7 +2096,6 @@
   vertical-align: middle;
   line-height: 1.2;
   max-width: 200px;
-  font-family: inherit;
 }
 #assistant-root .ql-editor th,
 #assistant-root .imsmassi-memo-item-content th,
@@ -2512,7 +2466,6 @@
 #assistant-root .imsmassi-screen-btn-active {
   background: transparent;
   color: #999;
-  box-shadow: none;
 }
 #assistant-root .imsmassi-reminder-btn-active {
   color: #e67e22;
@@ -2796,7 +2749,6 @@
   border-radius: 50%;
   display: inline-block;
   flex-shrink: 0;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
 }
 #assistant-root .imsmassi-area-color-name {
   font-size: 11px;
@@ -2986,14 +2938,17 @@
   pointer-events: all;
 }
 
-/* 스포트라이트: box-shadow로 주변을 어둡게 */
+/* 스포트라이트 */
 .imsmassi-guide-spotlight {
   position: fixed;
   z-index: 99999;
   border-radius: 8px;
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.65);
   pointer-events: none;
-  transition: top 0.3s ease, left 0.3s ease, width 0.3s ease, height 0.3s ease;
+  transition:
+    top 0.3s ease,
+    left 0.3s ease,
+    width 0.3s ease,
+    height 0.3s ease;
 }
 
 /* 툴팁 말풍선 */
@@ -3001,19 +2956,26 @@
   position: fixed;
   z-index: 100000;
   width: 290px;
-  background: #1E2A3B;
+  background: #1e2a3b;
   color: #fff;
   border-radius: 14px;
   padding: 20px 22px 18px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
   pointer-events: all;
-  transition: top 0.3s ease, left 0.3s ease;
+  transition:
+    top 0.3s ease,
+    left 0.3s ease;
   animation: imsmassi-guide-fadein 0.25s ease;
 }
 
 @keyframes imsmassi-guide-fadein {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0);   }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 진행 점(dot) */
@@ -3029,7 +2991,10 @@
   height: 6px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.28);
-  transition: background 0.2s, width 0.2s, border-radius 0.2s;
+  transition:
+    background 0.2s,
+    width 0.2s,
+    border-radius 0.2s;
   flex-shrink: 0;
 }
 
@@ -3076,7 +3041,9 @@
   border-radius: 7px;
   border: none;
   cursor: pointer;
-  transition: opacity 0.15s, background 0.15s;
+  transition:
+    opacity 0.15s,
+    background 0.15s;
   line-height: 1;
 }
 
@@ -3087,12 +3054,12 @@
 /* 건너뛰기 */
 .imsmassi-guide-btn-skip {
   background: transparent;
-  color: rgba(255, 255, 255, 0.40);
+  color: rgba(255, 255, 255, 0.4);
   padding: 7px 2px;
 }
 
 .imsmassi-guide-btn-skip:hover {
-  color: rgba(255, 255, 255, 0.70);
+  color: rgba(255, 255, 255, 0.7);
   opacity: 1;
 }
 
@@ -3110,12 +3077,12 @@
 
 /* 마지막 단계: 시작하기 */
 .imsmassi-guide-btn-finish {
-  background: #4A8CFF;
+  background: #4a8cff;
   color: #fff;
 }
 
 .imsmassi-guide-btn-finish:hover {
-  background: #3570E0;
+  background: #3570e0;
   opacity: 1;
 }
 
@@ -3259,9 +3226,15 @@
 #assistant-root .imsmassi-btn-danger:hover {
   opacity: 0.85;
 }
-#assistant-root .imsmassi-btn-primary  { background: #191f28; }
-#assistant-root .imsmassi-btn-secondary { background: #5ba55b; }
-#assistant-root .imsmassi-btn-danger    { background: #e74c3c; }
+#assistant-root .imsmassi-btn-primary {
+  background: #191f28;
+}
+#assistant-root .imsmassi-btn-secondary {
+  background: #5ba55b;
+}
+#assistant-root .imsmassi-btn-danger {
+  background: #e74c3c;
+}
 
 /* 가이드 재보기 버튼 */
 #assistant-root .imsmassi-btn-guide {
@@ -3276,7 +3249,9 @@
   cursor: pointer;
   transition: opacity 0.15s;
 }
-#assistant-root .imsmassi-btn-guide:hover { opacity: 0.85; }
+#assistant-root .imsmassi-btn-guide:hover {
+  opacity: 0.85;
+}
 
 /* 이용 가이드 섹션 행 */
 #assistant-root .imsmassi-guide-section-row {
@@ -3361,8 +3336,8 @@
 
 /* ========== 메모 공통 유틸리티 ========== */
 #assistant-root .imsmassi-memo-count {
-  font-size: 12px;
-  margin-left: 4px;
+  font-size: 14px;
+  margin-left: auto;
 }
 #assistant-root .imsmassi-memo-empty-msg {
   font-size: 14px;
@@ -3398,9 +3373,8 @@
 
 /* ── Task 1: 업무영역 컬러 CSS 변수 기본값 (applyAreaColorVars()로 재정의됨) ── */
 #assistant-root {
-  --imsmassi-area-color:        #4A90A4;
-  --imsmassi-area-bg:           #E8F4F8;
-  --imsmassi-area-color-shadow: rgba(74, 144, 164, 0.2);
+  --imsmassi-area-color: #4a90a4;
+  --imsmassi-area-bg: #e8f4f8;
 }
 
 /* ── Task 4: 토스트 컨테이너 포지셔닝 ── */
@@ -3426,14 +3400,13 @@
 /* ── Task 3: 포커스 상태 클래스 ── */
 #assistant-root .imsmassi-memo-textarea.imsmassi-focused {
   border-color: var(--imsmassi-area-color) !important;
-  box-shadow: 0 0 0 2px var(--imsmassi-area-color-shadow) !important;
 }
 /* ── Task 3: 용량 경고/위험 클래스 ── */
 #assistant-root .imsmassi-capacity-warning {
-  color: #E67E22 !important;
+  color: #e67e22 !important;
 }
 #assistant-root .imsmassi-capacity-danger {
-  color: #E74C3C !important;
+  color: #e74c3c !important;
 }
 
 /* ── Task 2: 탭 사이드바 활성 상태 (area-color 참조) ── */
@@ -3445,7 +3418,9 @@
   border-left-color: var(--imsmassi-area-color);
   color: var(--imsmassi-area-color);
 }
-#assistant-root .imsmassi-assistant-tab.imsmassi-active .imsmassi-assistant-tab-label {
+#assistant-root
+  .imsmassi-assistant-tab.imsmassi-active
+  .imsmassi-assistant-tab-label {
   font-weight: 600;
 }
 #assistant-root .imsmassi-assistant-tab-toggle-btn {
@@ -3462,8 +3437,8 @@
 
 /* ── Task 2: 패널 기본 색상 ── */
 #assistant-root .imsmassi-floating-panel {
-  background: var(--imsmassi-bg);
-  border: 1px solid var(--imsmassi-border);
+  background: var(--primitive-gray-100);
+  border: 1px solid var(--primitive-gray-200);
 }
 
 /* ── Task 2: 어시스턴트 헤더 ── */
@@ -3483,7 +3458,7 @@
 
 /* ── Task 2: 어시스턴트 푸터 ── */
 #assistant-root .imsmassi-assistant-footer {
-  background: #FAFAFA;
+  background: #fafafa;
   border-top-color: var(--imsmassi-border);
   color: var(--imsmassi-sub-text);
 }
@@ -3500,16 +3475,15 @@
 
 /* ── Task 2: 메모 에디터 (Quill 래퍼) — CSS 변수를 CSS 변수로 연결 ── */
 #assistant-root .imsmassi-memo-quill-wrapper {
-  --memo-border-color:  var(--imsmassi-border);
-  --memo-focus-color:   var(--imsmassi-area-color);
-  --memo-focus-shadow:  var(--imsmassi-area-color-shadow);
-  --memo-bg:            var(--imsmassi-bg);
-  --memo-text:          var(--imsmassi-text);
-  --memo-placeholder:   var(--imsmassi-sub-text);
-  --memo-icon-color:    var(--imsmassi-text);
+  --memo-border-color: var(--imsmassi-border);
+  --memo-focus-color: var(--imsmassi-area-color);
+  --memo-bg: var(--imsmassi-bg);
+  --memo-text: var(--imsmassi-text);
+  --memo-placeholder: var(--imsmassi-sub-text);
+  --memo-icon-color: var(--imsmassi-text);
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-quill-wrapper {
-  --memo-bg: #191F28;
+  --memo-bg: #191f28;
 }
 
 /* ── Task 2: 메모 textarea ── */
@@ -3595,8 +3569,7 @@
 
 /* ── Task 2: 스크린(스티커) 버튼 비활성 색상 ── */
 #assistant-root .imsmassi-screen-btn:not(.imsmassi-screen-btn-active) {
-  --screen-btn-color:  var(--imsmassi-area-color);
-  --screen-btn-shadow: var(--imsmassi-area-color-shadow);
+  --screen-btn-color: var(--imsmassi-area-color);
 }
 
 /* ── Task 2: 시간 차트 색상 ── */
@@ -3637,7 +3610,7 @@
 }
 #assistant-root .imsmassi-time-period-btn.imsmassi-active {
   border-color: var(--imsmassi-area-color);
-  background: #F5F5F5;
+  background: #f5f5f5;
   color: #111;
   font-weight: 600;
 }
@@ -3662,7 +3635,6 @@
   border-radius: 50%;
   display: inline-block;
   flex-shrink: 0;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
 }
 #assistant-root .imsmassi-area-color-row-name {
   font-size: 10px;
@@ -3687,7 +3659,9 @@
 
 /* ── Task 2: 콘텐츠 탭 전환 애니메이션 클래스 ── */
 #assistant-root .imsmassi-content-transitioning {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
 }
 #assistant-root .imsmassi-content-out {
   opacity: 0;
@@ -3696,4 +3670,49 @@
 /* ── fallback 에디터 섹션 (non-Quill) ── */
 #assistant-root .imsmassi-memo-editor-fallback {
   position: relative;
+}
+
+:root {
+  --primitive-gray-100: #f4f4f4;
+  --primitive-gray-200: #ececec;
+  --blue-gray-50: #f9fafb;
+  --blue-gray-200: #e5e8eb;
+  --blue-gray-400: #b0b8c1;
+  --blue-gray-500: #8b95a1;
+  --blue-gray-700: #4e5968;
+  --blue-gray-900: #191f28;
+}
+
+/* SY LEE CSS */
+:root #assistant-root.imsmassi-dark-mode {
+  --primitive-gray-100: #272f3b;
+  --primitive-gray-200: #4e5968;
+}
+
+.btn_collapse_expand {
+  position: absolute;
+  top: 50%;
+  left: -27px;
+  border: 1px solid var(--primitive-gray-200);
+  border-right: 0;
+  border-radius: 10px 0 0 10px;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 65px;
+  background: var(--primitive-gray-100);
+  background-size: 8px 16px;
+  font-size: 0;
+  letter-spacing: -9999px;
+  outline: none;
+}
+.btn_collapse_expand:active,
+.btn_collapse_expand:focus {
+  outline: none;
+  border: 0;
+}
+.btn_collapse_expand g {
+  stroke: var(--blue-gray-700);
+}
+#assistant-root.imsmassi-dark-mode .btn_collapse_expand g {
+  stroke: var(--blue-gray-200);
 }

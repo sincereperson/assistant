@@ -64,7 +64,7 @@ function handleStateUpdate(newState) {
   if (!_guideTriggered && state.hasSeenGuide === false) {
     _guideTriggered = true;
     setTimeout(() => {
-      if (typeof AssistantGuide !== 'undefined') AssistantGuide.start();
+      if (typeof AssistantGuide !== "undefined") AssistantGuide.start();
     }, 800);
   }
 }
@@ -829,7 +829,7 @@ let db;
 // ========================================
 // 테마별 표시명 메타데이터 (색상 값은 assistant.css 커스텀 프로퍼티로 이관)
 const themes = {
-  classic:    { name: "클래식" },
+  classic: { name: "클래식" },
   earthbrown: { name: "어스 브라운" },
   oceangreen: { name: "오션 그린" },
   lightbeige: { name: "라이트 베이지" },
@@ -838,10 +838,14 @@ const themes = {
 // 테마 선택 UI에서 비활성 테마의 닷(dot) 표식에 사용하는 정적 스와치
 // (활성 테마는 getTheme()로 CSS var에서 읽으므로 이곳에 포함하지 않아도 됨)
 const THEME_SWATCHES = {
-  classic:    { primary: "#4A90A4", light: "#E8F4F8", border: "" },
+  classic: { primary: "#4A90A4", light: "#E8F4F8", border: "" },
   earthbrown: { primary: "#C9BEAA", light: "#D6CEC0", border: "" },
   oceangreen: { primary: "#7CE0D3", light: "#A9E9E1", border: "" },
-  lightbeige: { primary: "#FBF1E6", light: "#FAF3EB", border: "1px solid #ccc" },
+  lightbeige: {
+    primary: "#FBF1E6",
+    light: "#FAF3EB",
+    border: "1px solid #ccc",
+  },
 };
 
 const businessAreas = [
@@ -1159,8 +1163,8 @@ let state = {
     debugLog: false,
     autoNav: false,
     lowSpec: false,
-    theme: false,    // 푸터 테마/모드 전환 UI 노출 여부
-    sideTabs: false,  // 좌측 사이드 탭 버튼 그룹 (기본값 false: 표시)
+    theme: false, // 푸터 테마/모드 전환 UI 노출 여부
+    sideTabs: false, // 좌측 사이드 탭 버튼 그룹 (기본값 false: 표시)
   },
 };
 
@@ -1239,10 +1243,10 @@ function getTheme() {
   const v = (name, fallback) =>
     cs ? cs.getPropertyValue(name).trim() || fallback : fallback;
   return {
-    name:         meta.name,
-    primary:      v("--imsmassi-primary",       "#4A90A4"),
+    name: meta.name,
+    primary: v("--imsmassi-primary", "#4A90A4"),
     primaryLight: v("--imsmassi-primary-light", "#E8F4F8"),
-    primaryDark:  v("--imsmassi-primary-dark",  "#2E5A6A"),
+    primaryDark: v("--imsmassi-primary-dark", "#2E5A6A"),
   };
 }
 
@@ -1323,13 +1327,13 @@ function getColors() {
   const v = (name, fallback) =>
     cs ? cs.getPropertyValue(name).trim() || fallback : fallback;
   return {
-    bg:            v("--imsmassi-bg",               "#FFFFFF"),
-    subBg:         v("--imsmassi-sub-bg",           "#F8F9FA"),
-    text:          v("--imsmassi-text",             "#191F28"),
-    subText:       v("--imsmassi-sub-text",         "#666666"),
-    border:        v("--imsmassi-border",           "#E0E0E0"),
-    headerText:    v("--imsmassi-header-text",      "#FFFFFF"),
-    headerSubText: v("--imsmassi-header-sub-text",  "rgba(255,255,255,0.8)"),
+    bg: v("--imsmassi-bg", "#FFFFFF"),
+    subBg: v("--imsmassi-sub-bg", "#F8F9FA"),
+    text: v("--imsmassi-text", "#191F28"),
+    subText: v("--imsmassi-sub-text", "#666666"),
+    border: v("--imsmassi-border", "#E0E0E0"),
+    headerText: v("--imsmassi-header-text", "#FFFFFF"),
+    headerSubText: v("--imsmassi-header-sub-text", "rgba(255,255,255,0.8)"),
   };
 }
 
@@ -1350,7 +1354,10 @@ function applyAreaColorVars(area) {
   if (!styleRoot || !area) return;
   styleRoot.style.setProperty("--imsmassi-area-color", area.color);
   styleRoot.style.setProperty("--imsmassi-area-bg", area.bgColor);
-  styleRoot.style.setProperty("--imsmassi-area-color-shadow", area.color + "33");
+  styleRoot.style.setProperty(
+    "--imsmassi-area-color-shadow",
+    area.color + "33",
+  );
 }
 
 function showToast(message) {
@@ -1534,18 +1541,18 @@ function initMemoEditor() {
   const area = getArea();
   memoQuill = new Quill(editor, {
     theme: "bubble",
-    placeholder: `${area?.name || ''} 메모를 입력하세요.`,
+    placeholder: `${area?.name || ""} 메모를 입력하세요.`,
     modules: modules,
   });
 
   // 테이블 셀 내부 커서 선택 시 bubble 툴팁 없애기
-  memoQuill.on('selection-change', function (range) {
+  memoQuill.on("selection-change", function (range) {
     if (!range) return;
     const tooltip = memoQuill.theme?.tooltip;
     if (!tooltip) return;
     try {
       const [leaf] = memoQuill.getLeaf(range.index);
-      if (leaf?.domNode?.closest?.('td, th')) {
+      if (leaf?.domNode?.closest?.("td, th")) {
         tooltip.hide();
       }
     } catch (_) {}
@@ -2423,9 +2430,10 @@ function initStickyNoteRichText() {
 async function saveStickyNoteRichText(memoId, quillInst) {
   const memo = state.memos?.[memoId];
   // quillInst: selection-change 클로저에서 직접 전달된 것 우선, 없으면 map fallback
-  const quill = (quillInst && document.body.contains(quillInst.root))
-    ? quillInst
-    : stickyNoteQuillMap[memoId];
+  const quill =
+    quillInst && document.body.contains(quillInst.root)
+      ? quillInst
+      : stickyNoteQuillMap[memoId];
   if (!memo || !quill) return;
   // 좌비 인스턴스 방어 (DOM에서 제거된 quill root)
   if (!document.body.contains(quill.root)) return;
@@ -2845,7 +2853,6 @@ function relocateStickyLayer() {
     _stickyLayerScrollAC = null;
   }
 
-
   // ② 전환 중 포스트잇 즉시 숨김 (순간이동 방지)
   layer.style.visibility = "hidden";
   layer.innerHTML = "";
@@ -2874,8 +2881,10 @@ function relocateStickyLayer() {
     // ④ Scroll 리스너: 스크롤 시 sticky-layer bounds 재동기화
     // capture:true 로 window 하위 모든 스크롤 이벤트를 단일 리스너로 포착
     _stickyLayerScrollAC = new AbortController();
-    window.addEventListener('scroll', _syncStickyLayerBounds, {
-      passive: true, capture: true, signal: _stickyLayerScrollAC.signal
+    window.addEventListener("scroll", _syncStickyLayerBounds, {
+      passive: true,
+      capture: true,
+      signal: _stickyLayerScrollAC.signal,
     });
 
     console.log(
@@ -3503,7 +3512,7 @@ function getTodosFromReminders() {
 //당일 리마인더 (Task 2.1: done 완료 항목 제외 / Task 2.2: isToday 엄격 필터 - 미래 날짜 제외)
 function getTodayReminders() {
   const filtered = getTodosFromReminders().filter(
-    (todo) => todo.isToday === true && !todo.done
+    (todo) => todo.isToday === true && !todo.done,
   );
   return filtered;
 }
@@ -4312,7 +4321,7 @@ function getSettingsHtml(closeHandler) {
         <!-- 기능 설정 -->
         <div class="imsmassi-settings-section">
           <div class="imsmassi-settings-section-title">기능 설정</div>
-          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.areaColor ? 'flex' : 'none'};">
+          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.areaColor ? "flex" : "none"};">
             <div>
               <span class="imsmassi-settings-label">업무 컬러 설정 표시</span>
               <div class="imsmassi-settings-desc">대시보드 내 업무 컬러 설정 섹션 표시</div>
@@ -4323,7 +4332,7 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.timeInsight ? 'flex' : 'none'};">
+          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.timeInsight ? "flex" : "none"};">
             <div>
               <span class="imsmassi-settings-label">시간 인사이트 표시</span>
               <div class="imsmassi-settings-desc">대시보드 내 시간 인사이트 섹션 표시</div>
@@ -4334,7 +4343,7 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.markdown ? 'flex' : 'none'};">
+          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.markdown ? "flex" : "none"};">
             <div>
               <span class="imsmassi-settings-label">마크다운 단축키</span>
               <div class="imsmassi-settings-desc">**굵게**, *기울임*, ~~취소선~~ 등</div>
@@ -4345,7 +4354,7 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.debugLog ? 'flex' : 'none'};">
+          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.debugLog ? "flex" : "none"};">
             <div>
               <span class="imsmassi-settings-label">디버그 로그</span>
               <div class="imsmassi-settings-desc">콘솔 로그 출력 on/off</div>
@@ -4356,7 +4365,7 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div class="imsmassi-settings-row" style="display: ${state.hiddenUI.autoNav ? 'flex' : 'none'};">
+          <div class="imsmassi-settings-row" style="display: ${state.hiddenUI.autoNav ? "flex" : "none"};">
             <div>
               <span class="imsmassi-settings-label">대시보드 자동 이동</span>
               <div class="imsmassi-settings-desc">알림 설정 후 대시보드로 이동</div>
@@ -4369,7 +4378,7 @@ function getSettingsHtml(closeHandler) {
         </div>
 
         <!-- 성능 설정 -->
-        <div class="imsmassi-settings-section" style="display: ${state.hiddenUI.lowSpec ? 'block' : 'none'};">
+        <div class="imsmassi-settings-section" style="display: ${state.hiddenUI.lowSpec ? "block" : "none"};">
           <div class="imsmassi-settings-section-title">성능 설정</div>
           <div class="imsmassi-settings-row">
             <div>
@@ -4690,7 +4699,10 @@ function updateMemoCapacity() {
 
   // Task 3: 직접 style.color 주입 → CSS 클래스 토글
   const c = getColors();
-  capacityDisplay.classList.remove("imsmassi-capacity-warning", "imsmassi-capacity-danger");
+  capacityDisplay.classList.remove(
+    "imsmassi-capacity-warning",
+    "imsmassi-capacity-danger",
+  );
   if (percent > 90) {
     capacityDisplay.classList.add("imsmassi-capacity-danger");
     capacityDisplay.textContent = `⚠️ ${sizeText} / 2 MB (${percent}%)`;
@@ -5379,7 +5391,7 @@ function renderControlPanel() {
     const isActive = state.currentTheme === key;
     const sw = THEME_SWATCHES[key] || THEME_SWATCHES.classic;
     const dotColor = isActive ? theme.primary : sw.primary;
-    const bgColor  = isActive ? theme.primaryLight : sw.light;
+    const bgColor = isActive ? theme.primaryLight : sw.light;
     const borderStyle = sw.border ? `border: ${sw.border};` : "";
     themeBtnsHtml += `
       <button class="imsmassi-theme-btn ${isActive ? "imsmassi-active" : ""}"
@@ -5404,7 +5416,7 @@ function renderControlPanel() {
     const isActive = state.currentTheme === key;
     const sw = THEME_SWATCHES[key] || THEME_SWATCHES.classic;
     const dotColor = isActive ? theme.primary : sw.primary;
-    const bgColor  = isActive ? theme.primaryLight : sw.light;
+    const bgColor = isActive ? theme.primaryLight : sw.light;
     const borderStyle = sw.border ? `border: ${sw.border};` : "";
     themeBtnsHtml += `
       <button class="imsmassi-theme-btn ${isActive ? "imsmassi-active" : ""}"
@@ -5748,7 +5760,10 @@ function updateFooterStorageInfo(colors) {
   let statusText = `${usedMB}MB / ${limitMB}MB`;
 
   // Task 3: 직접 style.color → CSS 클래스 토글
-  storageInfo.classList.remove("imsmassi-capacity-warning", "imsmassi-capacity-danger");
+  storageInfo.classList.remove(
+    "imsmassi-capacity-warning",
+    "imsmassi-capacity-danger",
+  );
   if (usagePercent >= 80) {
     statusText = `⚠️ ${usedMB}MB / ${limitMB}MB`;
     storageInfo.classList.add("imsmassi-capacity-danger");
@@ -5845,7 +5860,9 @@ function renderAssistantTabs() {
   const sideToggleBtn = createElement("button", {
     className: "imsmassi-assistant-tab-toggle-btn",
     id: "imsmassi-memo-side-toggle-btn",
-    title: state.isMemoPanelExpanded ? "사이드 패널 접기" : "사이드 패널 펼치기",
+    title: state.isMemoPanelExpanded
+      ? "사이드 패널 접기"
+      : "사이드 패널 펼치기",
   });
   const toggleIconSpan = createElement("span", {
     className: "imsmassi-assistant-tab-icon",
@@ -5925,7 +5942,10 @@ function renderAssistantContent(previousTab) {
 
   if (shouldAnimate) {
     // Task 3: 직접 style 조작 → CSS 클래스 토글로 변경
-    content.classList.add("imsmassi-content-transitioning", "imsmassi-content-out");
+    content.classList.add(
+      "imsmassi-content-transitioning",
+      "imsmassi-content-out",
+    );
     setTimeout(() => {
       renderContent();
       requestAnimationFrame(() => {
@@ -5933,7 +5953,10 @@ function renderAssistantContent(previousTab) {
       });
     }, 120);
   } else {
-    content.classList.remove("imsmassi-content-out", "imsmassi-content-transitioning");
+    content.classList.remove(
+      "imsmassi-content-out",
+      "imsmassi-content-transitioning",
+    );
     renderContent();
   }
 }
@@ -5980,7 +6003,9 @@ function renderMemoItemDOM(memo) {
     draggable: "false",
     title: memo.pinned ? "고정 해제" : "고정",
   });
-  pinBtn.textContent = "📌";
+  pinBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" >
+<path d="M13.7196 3.4493C14.0681 2.92084 14.8139 2.84541 15.2615 3.29305L20.3074 8.33895C20.7551 8.78659 20.6797 9.53239 20.1512 9.88094L15.7781 12.7657C15.5882 12.891 15.4465 13.0774 15.3768 13.294L13.6854 18.544C13.4561 19.2558 12.556 19.4732 12.0272 18.9444L9.04865 15.9659L9.04768 15.9679L4.44709 20.5675C4.05657 20.958 3.42355 20.958 3.03303 20.5675C2.6427 20.1769 2.64257 19.5439 3.03303 19.1534L7.63361 14.5538L7.63459 14.5518L4.65607 11.5733C4.12754 11.0445 4.34484 10.1444 5.05647 9.91512L10.3074 8.22372C10.5239 8.15391 10.7105 8.01219 10.8358 7.82235L13.7196 3.4493Z" />
+</svg>`;
   pinBtn.addEventListener("click", () =>
     togglePin(memo.id).catch((e) => console.error("고정 실패:", e)),
   );
@@ -6063,7 +6088,7 @@ function renderMemoItemDOM(memo) {
     className: "imsmassi-memo-item-tags imsmassi-memo-item-footer",
   });
 
-  const createdAreaName = memo.menuId; 
+  const createdAreaName = memo.menuId;
 
   const originBadge = createElement("span", {
     className: "imsmassi-memo-origin-badge",
@@ -6100,7 +6125,7 @@ function renderMemoItemDOM(memo) {
     draggable: "false",
     title: memo.reminder ? "리마인더 수정" : "리마인더 설정",
   });
-  reminderBtn.textContent = "알림";
+  reminderBtn.textContent = "알림설정";
   reminderBtn.addEventListener("click", () => openReminderModal(memo.id));
   reminderBtn.addEventListener("mousedown", (e) => e.stopPropagation());
 
@@ -6203,23 +6228,29 @@ function renderMemoTab() {
     // 기본 색상은 CSS .imsmassi-memo-textarea { color: var(--imsmassi-text); border-color: var(--imsmassi-border) }
     // placeholder 표시용 클래스 관리 (contenteditable은 :empty가 <br>로 인해 동작 안 함)
     const _updateEmptyClass = () => {
-      const isEmpty = textarea.innerText.trim() === '' || textarea.innerHTML === '' || textarea.innerHTML === '<br>';
-      textarea.classList.toggle('imsmassi-is-empty', isEmpty);
+      const isEmpty =
+        textarea.innerText.trim() === "" ||
+        textarea.innerHTML === "" ||
+        textarea.innerHTML === "<br>";
+      textarea.classList.toggle("imsmassi-is-empty", isEmpty);
     };
-    textarea.classList.add('imsmassi-is-empty'); // 초기 빈 상태
+    textarea.classList.add("imsmassi-is-empty"); // 초기 빈 상태
     textarea.addEventListener("focus", () => {
-      textarea.classList.remove('imsmassi-is-empty');
+      textarea.classList.remove("imsmassi-is-empty");
       // Task 3: 포커스 시 .imsmassi-focused 클래스를 추가 (border-color, box-shadow는 CSS에서 var 참조)
-      textarea.classList.add('imsmassi-focused');
+      textarea.classList.add("imsmassi-focused");
     });
     textarea.addEventListener("blur", () => {
       _updateEmptyClass();
       // Task 3: 포커스 해제 시 .imsmassi-focused 클래스 제거
-      textarea.classList.remove('imsmassi-focused');
+      textarea.classList.remove("imsmassi-focused");
     });
     textarea.addEventListener("paste", (e) => handleMemoPaste(e));
     textarea.addEventListener("keydown", (e) => handleMemoKeydown(e));
-    textarea.addEventListener("input", () => { updateMemoCapacity(); _updateEmptyClass(); });
+    textarea.addEventListener("input", () => {
+      updateMemoCapacity();
+      _updateEmptyClass();
+    });
     const capacityDiv = createElement("div", {
       id: "imsmassi-memo-capacity",
       className: "imsmassi-memo-capacity",
@@ -6319,19 +6350,44 @@ function renderMemoTab() {
     className: "imsmassi-memo-filter-bar",
   });
   [
-    ["menu", "현재 화면"],
-    ["area", "현재 업무"],
-    ["all", "전체"],
-  ].forEach(([val, label]) => {
+    [
+      "menu",
+      "현재 화면",
+      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+<path d="M20 9H11C9.89543 9 9 9.89543 9 11V20C9 21.1046 9.89543 22 11 22H20C21.1046 22 22 21.1046 22 20V11C22 9.89543 21.1046 9 20 9Z" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M5 15H4C3.46957 15 2.96086 14.7893 2.58579 14.4142C2.21071 14.0391 2 13.5304 2 13V4C2 3.46957 2.21071 2.96086 2.58579 2.58579C2.96086 2.21071 3.46957 2 4 2H13C13.5304 2 14.0391 2.21071 14.4142 2.58579C14.7893 2.96086 15 3.46957 15 4V5" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`,
+    ],
+    [
+      "area",
+      "현재 업무",
+      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+<path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M17 7H14V12H17V7Z" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M10 7H7V16H10V7Z" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`,
+    ],
+    [
+      "all",
+      "전체",
+      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+<path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M9 21V9" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M3 9H21" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`,
+    ],
+  ].forEach(([val, label, icon]) => {
     const filterBtn = createElement("button", {
       className: `imsmassi-memo-filter-btn${currentFilter === val ? " imsmassi-memo-filter-active" : ""}`,
     });
     // --filter-color는 CSS .imsmassi-memo-filter-btn { --filter-color: var(--imsmassi-area-color) }에서 자동 연결
-    filterBtn.textContent = label;
+    filterBtn.innerHTML = icon + "<br>" + label;
     filterBtn.addEventListener("click", () => setMemoFilter(val));
     filterBar.appendChild(filterBtn);
   });
-  const memoCountSpan = createElement("span", { className: "imsmassi-memo-count" });
+  const memoCountSpan = createElement("span", {
+    className: "imsmassi-memo-count",
+  });
   memoCountSpan.textContent = `메모 ${memos.length}건`;
   listHeader.append(filterBar, memoCountSpan);
   listArea.appendChild(listHeader);
@@ -6542,7 +6598,9 @@ function renderClipboardTabDOM() {
   container.appendChild(header);
 
   if (items.length === 0) {
-    const empty = createElement("div", { className: "imsmassi-memo-empty-msg" });
+    const empty = createElement("div", {
+      className: "imsmassi-memo-empty-msg",
+    });
     // 기본 색상은 CSS .imsmassi-memo-empty-msg { color: var(--imsmassi-sub-text) }
     empty.textContent = "복사 기록이 없습니다";
     container.appendChild(empty);
@@ -7270,7 +7328,9 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
 
   if (key in state.hiddenUI) {
     state.hiddenUI[key] = !!visible;
-    console.log(`[Assistant] 설정 UI '${key}' 상태가 ${visible ? '표시' : '숨김'}로 변경되었습니다.`);
+    console.log(
+      `[Assistant] 설정 UI '${key}' 상태가 ${visible ? "표시" : "숨김"}로 변경되었습니다.`,
+    );
 
     // sideTabs 변경 시 탭 사이드바 즉각 반영
     if (key === "sideTabs") {
@@ -7285,7 +7345,9 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
       renderAssistantContent();
     }
   } else {
-    console.warn(`[Assistant] 유효하지 않은 키입니다. 사용 가능한 키: ${Object.keys(state.hiddenUI).join(", ")}`);
+    console.warn(
+      `[Assistant] 유효하지 않은 키입니다. 사용 가능한 키: ${Object.keys(state.hiddenUI).join(", ")}`,
+    );
   }
 };
 
@@ -7302,7 +7364,9 @@ window.showAllAssistantHiddenUI = function (visible = true) {
   Object.keys(state.hiddenUI).forEach((key) => {
     state.hiddenUI[key] = !!visible;
   });
-  console.log(`[Assistant] 모든 설정 UI 항목이 ${visible ? '표시' : '숨김'}로 변경되었습니다.`);
+  console.log(
+    `[Assistant] 모든 설정 UI 항목이 ${visible ? "표시" : "숨김"}로 변경되었습니다.`,
+  );
   // sideTabs 포함 시 사이드바 즉각 반영
   renderAssistantTabs();
   if (state.currentModal === "settings") {
@@ -7321,18 +7385,18 @@ window.showAllAssistantHiddenUI = function (visible = true) {
  */
 function initPanelResize(panel) {
   // 기존 핸들이 있으면 제거
-  const existing = panel.querySelector('.imsmassi-panel-resize-handle');
+  const existing = panel.querySelector(".imsmassi-panel-resize-handle");
   if (existing) existing.remove();
 
-  const handle = document.createElement('div');
-  handle.className = 'imsmassi-panel-resize-handle';
-  handle.title = '높이 조절 (더블클릭: 기본값 복원)';
+  const handle = document.createElement("div");
+  handle.className = "imsmassi-panel-resize-handle";
+  handle.title = "높이 조절 (더블클릭: 기본값 복원)";
   panel.prepend(handle);
 
   const MIN_H = 300;
   const MAX_H_OFFSET = 64; // bottom 24px + 상단 여유 40px
 
-  handle.addEventListener('mousedown', (e) => {
+  handle.addEventListener("mousedown", (e) => {
     e.preventDefault();
     const startY = e.clientY;
     const startH = panel.offsetHeight;
@@ -7341,28 +7405,28 @@ function initPanelResize(panel) {
       const delta = startY - ev.clientY; // 위로 드래그 → 높이 증가
       const newH = Math.min(
         Math.max(startH + delta, MIN_H),
-        window.innerHeight - MAX_H_OFFSET
+        window.innerHeight - MAX_H_OFFSET,
       );
       state.panelHeight = newH;
       panel.style.height = `${newH}px`;
     }
 
     function onUp() {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
       // DB 저장
-      workerSend('SAVE_UI_PREFS', { panelHeight: state.panelHeight });
+      workerSend("SAVE_UI_PREFS", { panelHeight: state.panelHeight });
     }
 
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
   });
 
   // 더블클릭: 기본 높이 복원
-  handle.addEventListener('dblclick', () => {
+  handle.addEventListener("dblclick", () => {
     state.panelHeight = null;
-    panel.style.height = '';
-    workerSend('SAVE_UI_PREFS', { panelHeight: null });
+    panel.style.height = "";
+    workerSend("SAVE_UI_PREFS", { panelHeight: null });
   });
 }
 
@@ -7375,52 +7439,54 @@ function initPanelResize(panel) {
  */
 function initPanelWidthResize(panel) {
   // 헤더·푸터를 제외한 콘텐츠 영역(body-wrapper) 좌측에 핸들 부착
-  const bodyWrapper = document.getElementById('imsmassi-panel-body-wrapper') || panel;
+  const bodyWrapper =
+    document.getElementById("imsmassi-panel-body-wrapper") || panel;
 
-  const existing = bodyWrapper.querySelector('.imsmassi-panel-resize-handle-x')
-    || panel.querySelector('.imsmassi-panel-resize-handle-x');
+  const existing =
+    bodyWrapper.querySelector(".imsmassi-panel-resize-handle-x") ||
+    panel.querySelector(".imsmassi-panel-resize-handle-x");
   if (existing) existing.remove();
 
-  const handle = document.createElement('div');
-  handle.className = 'imsmassi-panel-resize-handle-x';
-  handle.title = '너비 조절 (더블클릭: 기본값 복원)';
+  const handle = document.createElement("div");
+  handle.className = "imsmassi-panel-resize-handle-x";
+  handle.title = "너비 조절 (더블클릭: 기본값 복원)";
   bodyWrapper.appendChild(handle);
 
   const MAX_W_RATIO = 0.85;
 
-  handle.addEventListener('mousedown', (e) => {
+  handle.addEventListener("mousedown", (e) => {
     e.preventDefault();
     const startX = e.clientX;
     const startW = panel.offsetWidth;
 
     function onMove(ev) {
       // 확장 상태(640px)일 때는 최솟값도 640, 기본(360px)일 때는 360
-      const MIN_W = panel.classList.contains('imsmassi-expanded') ? 640 : 360;
+      const MIN_W = panel.classList.contains("imsmassi-expanded") ? 640 : 360;
       const delta = startX - ev.clientX; // 왼쪽으로 드래그 → 너비 증가
       const newW = Math.min(
         Math.max(startW + delta, MIN_W),
-        Math.floor(window.innerWidth * MAX_W_RATIO)
+        Math.floor(window.innerWidth * MAX_W_RATIO),
       );
       state.panelWidth = newW;
       panel.style.width = `${newW}px`;
     }
 
     function onUp() {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
       // DB 저장
-      workerSend('SAVE_UI_PREFS', { panelWidth: state.panelWidth });
+      workerSend("SAVE_UI_PREFS", { panelWidth: state.panelWidth });
     }
 
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
   });
 
   // 더블클릭: 기본 너비 복원
-  handle.addEventListener('dblclick', () => {
+  handle.addEventListener("dblclick", () => {
     state.panelWidth = null;
-    panel.style.width = '';
-    workerSend('SAVE_UI_PREFS', { panelWidth: null });
+    panel.style.width = "";
+    workerSend("SAVE_UI_PREFS", { panelWidth: null });
   });
 }
 
@@ -7434,9 +7500,10 @@ const AssistantGuide = {
   steps: [
     /* ─── STEP 1 : 플로팅 버튼 ──────────────────────────────────────────── */
     {
-      targetSelector: '#imsmassi-floating-btn',
-      title: '어시스턴트 시작하기',
-      description: '화면 우측 하단의 이 버튼을 클릭하면 솔로몬 어시스턴트가 열립니다. 업무 중 언제든 메모를 기록할 수 있습니다.',
+      targetSelector: "#imsmassi-floating-btn",
+      title: "어시스턴트 시작하기",
+      description:
+        "화면 우측 하단의 이 버튼을 클릭하면 솔로몬 어시스턴트가 열립니다. 업무 중 언제든 메모를 기록할 수 있습니다.",
       setup: async function () {
         AssistantGuide._removeDemoPostit();
         // 패널이 열려 있으면 닫아야 플로팅 버튼이 보임
@@ -7452,14 +7519,16 @@ const AssistantGuide = {
     },
     /* ─── STEP 2 : 메모 입력창 ──────────────────────────────────────────── */
     {
-    targetSelector: '#memo-editor-wrapper .ql-editor, #memo-input, #memo-editor-wrapper, .imsmassi-memo-quill-wrapper',
-      title: '화면 맞춤 메모 작성',
-      description: '현재 보고 있는 화면과 관련된 메모를 작성해보세요. 제목·내용을 자유롭게 기록하고 빠르게 저장할 수 있습니다.',
+      targetSelector:
+        "#memo-editor-wrapper .ql-editor, #memo-input, #memo-editor-wrapper, .imsmassi-memo-quill-wrapper",
+      title: "화면 맞춤 메모 작성",
+      description:
+        "현재 보고 있는 화면과 관련된 메모를 작성해보세요. 제목·내용을 자유롭게 기록하고 빠르게 저장할 수 있습니다.",
       setup: async function () {
         AssistantGuide._removeDemoPostit();
         await AssistantGuide._ensurePanel();
-        if (state.activeTab !== 'memo') {
-          setActiveTab('memo');
+        if (state.activeTab !== "memo") {
+          setActiveTab("memo");
           await AssistantGuide._wait(350);
         }
         if (state.isMemoPanelExpanded) {
@@ -7471,12 +7540,13 @@ const AssistantGuide = {
     /* ─── STEP 3 : 포스트잇 데모 ────────────────────────────────────────── */
     {
       targetSelector: '[data-guide-demo="postit"]',
-      title: '📌 포스트잇(스티커) 기능',
-      description: '메모를 포스트잇처럼 화면 위에 띄워두세요! 위치와 크기를 자유롭게 조절하며 업무 내용을 한눈에 확인할 수 있습니다.',
+      title: "📌 포스트잇(스티커) 기능",
+      description:
+        "메모를 포스트잇처럼 화면 위에 띄워두세요! 위치와 크기를 자유롭게 조절하며 업무 내용을 한눈에 확인할 수 있습니다.",
       setup: async function () {
         await AssistantGuide._ensurePanel();
-        if (state.activeTab !== 'memo') {
-          setActiveTab('memo');
+        if (state.activeTab !== "memo") {
+          setActiveTab("memo");
           await AssistantGuide._wait(350);
         }
         if (state.isMemoPanelExpanded) {
@@ -7491,14 +7561,15 @@ const AssistantGuide = {
     },
     /* ─── STEP 4 : 클립보드 & 템플릿 ────────────────────────────────────── */
     {
-      targetSelector: '#memo-side-panel',
-      title: '클립보드 & 템플릿',
-      description: '사이드 패널에서 복사한 텍스트 기록을 확인하거나, 자주 쓰는 양식을 템플릿으로 저장해 원클릭으로 활용하세요.',
+      targetSelector: "#memo-side-panel",
+      title: "클립보드 & 템플릿",
+      description:
+        "사이드 패널에서 복사한 텍스트 기록을 확인하거나, 자주 쓰는 양식을 템플릿으로 저장해 원클릭으로 활용하세요.",
       setup: async function () {
         AssistantGuide._removeDemoPostit();
         await AssistantGuide._ensurePanel();
-        if (state.activeTab !== 'memo') {
-          setActiveTab('memo');
+        if (state.activeTab !== "memo") {
+          setActiveTab("memo");
           await AssistantGuide._wait(350);
         }
         // step 4는 사이드 패널을 열어서 보여줌
@@ -7510,9 +7581,10 @@ const AssistantGuide = {
     },
     /* ─── STEP 5 : 리마인더 (대시보드) ──────────────────────────────────── */
     {
-      targetSelector: '#imsmassi-dashboard-today',
-      title: '⏰ 잊지 않게 리마인더',
-      description: '메모에 알림을 설정하면 지정한 시간에 알림이 울리고, 대시보드 할 일 목록에도 자동으로 나타납니다!',
+      targetSelector: "#imsmassi-dashboard-today",
+      title: "⏰ 잊지 않게 리마인더",
+      description:
+        "메모에 알림을 설정하면 지정한 시간에 알림이 울리고, 대시보드 할 일 목록에도 자동으로 나타납니다!",
       setup: async function () {
         AssistantGuide._removeDemoPostit();
         await AssistantGuide._ensurePanel();
@@ -7520,11 +7592,11 @@ const AssistantGuide = {
           toggleMemoSidePanel();
           await AssistantGuide._wait(200);
         }
-        setActiveTab('dashboard');
+        setActiveTab("dashboard");
         await AssistantGuide._wait(450);
-        const todayEl = document.getElementById('imsmassi-dashboard-today');
+        const todayEl = document.getElementById("imsmassi-dashboard-today");
         if (todayEl) {
-          todayEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          todayEl.scrollIntoView({ behavior: "smooth", block: "start" });
           await AssistantGuide._wait(200);
         }
       },
@@ -7548,7 +7620,7 @@ const AssistantGuide = {
     this.currentStep = 0;
     this._createDOM();
     await this._gotoStep(0);
-    console.log('[Assistant] 온보딩 가이드 시작');
+    console.log("[Assistant] 온보딩 가이드 시작");
   },
 
   async next() {
@@ -7597,7 +7669,7 @@ const AssistantGuide = {
   async _gotoStep(idx) {
     this.currentStep = idx;
     const step = this.steps[idx];
-    if (typeof step.setup === 'function') {
+    if (typeof step.setup === "function") {
       await step.setup();
     }
     // 가이드가 skip/finish 됐으면 렌더 중단
@@ -7608,32 +7680,32 @@ const AssistantGuide = {
   // ── DOM 생성/렌더 ──────────────────────────────────────────────────────────────
   _createDOM() {
     this._cleanup();
-    this.overlayEl = document.createElement('div');
-    this.overlayEl.className = 'imsmassi-guide-overlay';
+    this.overlayEl = document.createElement("div");
+    this.overlayEl.className = "imsmassi-guide-overlay";
 
-    this.spotlightEl = document.createElement('div');
-    this.spotlightEl.className = 'imsmassi-guide-spotlight';
+    this.spotlightEl = document.createElement("div");
+    this.spotlightEl.className = "imsmassi-guide-spotlight";
 
-    this.tooltipEl = document.createElement('div');
-    this.tooltipEl.className = 'imsmassi-guide-tooltip';
+    this.tooltipEl = document.createElement("div");
+    this.tooltipEl.className = "imsmassi-guide-tooltip";
 
     document.body.appendChild(this.overlayEl);
     document.body.appendChild(this.spotlightEl);
     document.body.appendChild(this.tooltipEl);
 
     this._resizeHandler = () => this._positionElements();
-    window.addEventListener('resize', this._resizeHandler);
-    window.addEventListener('scroll', this._resizeHandler, true);
+    window.addEventListener("resize", this._resizeHandler);
+    window.addEventListener("scroll", this._resizeHandler, true);
   },
 
   _getTarget(selector) {
     if (!selector) return null;
     // 어시스턴트 패널 내부를 먼저 탐색 (외부 시스템 DOM과 셀렉터 충돌 방지)
     const panelEl =
-      document.getElementById('imsmassi-floating-panel') ||
-      document.getElementById('assistant-root');
+      document.getElementById("imsmassi-floating-panel") ||
+      document.getElementById("assistant-root");
 
-    const selList = selector.split(',').map((s) => s.trim());
+    const selList = selector.split(",").map((s) => s.trim());
 
     // 1차: 패널 스코프 내 탐색
     if (panelEl) {
@@ -7641,7 +7713,9 @@ const AssistantGuide = {
         try {
           const el = panelEl.querySelector(sel);
           if (el) return el;
-        } catch (_) { /* 잘못된 selector는 무시 */ }
+        } catch (_) {
+          /* 잘못된 selector는 무시 */
+        }
       }
     }
 
@@ -7650,7 +7724,9 @@ const AssistantGuide = {
       try {
         const el = document.querySelector(sel);
         if (el) return el;
-      } catch (_) { /* 잘못된 selector는 무시 */ }
+      } catch (_) {
+        /* 잘못된 selector는 무시 */
+      }
     }
     return null;
   },
@@ -7666,9 +7742,11 @@ const AssistantGuide = {
     const target = this._getTarget(step.targetSelector);
     this._positionSpotlight(target, false);
 
-    const dots = Array.from({ length: total }, (_, i) =>
-      `<span class="imsmassi-guide-dot${i === this.currentStep ? ' imsmassi-guide-dot-active' : ''}"></span>`
-    ).join('');
+    const dots = Array.from(
+      { length: total },
+      (_, i) =>
+        `<span class="imsmassi-guide-dot${i === this.currentStep ? " imsmassi-guide-dot-active" : ""}"></span>`,
+    ).join("");
 
     this.tooltipEl.innerHTML = `
       <div class="imsmassi-guide-progress">${dots}</div>
@@ -7677,9 +7755,9 @@ const AssistantGuide = {
       <div class="imsmassi-guide-controls">
         <button class="imsmassi-guide-btn imsmassi-guide-btn-skip" onclick="AssistantGuide.skip()">건너뛰기</button>
         <div class="imsmassi-guide-nav">
-          ${!isFirst ? `<button class="imsmassi-guide-btn imsmassi-guide-btn-prev" onclick="AssistantGuide.prev()">이전</button>` : ''}
-          <button class="imsmassi-guide-btn imsmassi-guide-btn-next${isLast ? ' imsmassi-guide-btn-finish' : ''}" onclick="AssistantGuide.next()">
-            ${isLast ? '시작하기 🎉' : '다음 →'}
+          ${!isFirst ? `<button class="imsmassi-guide-btn imsmassi-guide-btn-prev" onclick="AssistantGuide.prev()">이전</button>` : ""}
+          <button class="imsmassi-guide-btn imsmassi-guide-btn-next${isLast ? " imsmassi-guide-btn-finish" : ""}" onclick="AssistantGuide.next()">
+            ${isLast ? "시작하기 🎉" : "다음 →"}
           </button>
         </div>
       </div>
@@ -7708,8 +7786,8 @@ const AssistantGuide = {
   _positionSpotlight(target, animate = true) {
     if (!this.spotlightEl) return;
     const transition = animate
-      ? 'transition:top 0.3s ease,left 0.3s ease,width 0.3s ease,height 0.3s ease'
-      : 'transition:none';
+      ? "transition:top 0.3s ease,left 0.3s ease,width 0.3s ease,height 0.3s ease"
+      : "transition:none";
     if (!target) {
       this.spotlightEl.style.cssText =
         `position:fixed;top:50%;left:50%;width:0;height:0;border-radius:8px;` +
@@ -7719,17 +7797,17 @@ const AssistantGuide = {
     const r = target.getBoundingClientRect();
     const p = this._padding;
     this.spotlightEl.style.cssText = [
-      'position:fixed',
+      "position:fixed",
       `top:${r.top - p}px`,
       `left:${r.left - p}px`,
       `width:${r.width + p * 2}px`,
       `height:${r.height + p * 2}px`,
-      'border-radius:8px',
-      'box-shadow:0 0 0 9999px rgba(0,0,0,0.65)',
-      'z-index:99999',
-      'pointer-events:none',
+      "border-radius:8px",
+      "box-shadow:0 0 0 9999px rgba(0,0,0,0.65)",
+      "z-index:99999",
+      "pointer-events:none",
       transition,
-    ].join(';');
+    ].join(";");
   },
 
   _positionTooltip(target) {
@@ -7749,48 +7827,52 @@ const AssistantGuide = {
       const r = target.getBoundingClientRect();
       const cx = r.left + r.width / 2;
       if (r.bottom + p + gap + th <= vh) {
-        top = r.bottom + p + gap; left = cx - tw / 2;
+        top = r.bottom + p + gap;
+        left = cx - tw / 2;
       } else if (r.top - p - gap - th >= 0) {
-        top = r.top - p - gap - th; left = cx - tw / 2;
+        top = r.top - p - gap - th;
+        left = cx - tw / 2;
       } else if (r.right + p + gap + tw <= vw) {
-        top = r.top + r.height / 2 - th / 2; left = r.right + p + gap;
+        top = r.top + r.height / 2 - th / 2;
+        left = r.right + p + gap;
       } else {
-        top = r.top + r.height / 2 - th / 2; left = r.left - p - gap - tw;
+        top = r.top + r.height / 2 - th / 2;
+        left = r.left - p - gap - tw;
       }
       left = Math.max(16, Math.min(left, vw - tw - 16));
-      top  = Math.max(16, Math.min(top,  vh - th - 16));
+      top = Math.max(16, Math.min(top, vh - th - 16));
     }
     this.tooltipEl.style.left = `${left}px`;
-    this.tooltipEl.style.top  = `${top}px`;
+    this.tooltipEl.style.top = `${top}px`;
   },
 
   // ── 데모 포스트잇 ──────────────────────────────────────────────────────────────
   _createDemoPostit() {
     this._removeDemoPostit();
-    const el = document.createElement('div');
-    el.setAttribute('data-guide-demo', 'postit');
+    const el = document.createElement("div");
+    el.setAttribute("data-guide-demo", "postit");
     // 픽셀 좌표로 직접 정렬: transform/animation 충돌 방지
     const postitW = 230;
     const postitH = 120;
-    const postitTop  = Math.round(window.innerHeight / 2 - postitH / 2);
-    const postitLeft = Math.round(window.innerWidth  / 2 - postitW / 2);
+    const postitTop = Math.round(window.innerHeight / 2 - postitH / 2);
+    const postitLeft = Math.round(window.innerWidth / 2 - postitW / 2);
     el.style.cssText = [
-      'position:fixed',
+      "position:fixed",
       `top:${postitTop}px`,
       `left:${postitLeft}px`,
       `width:${postitW}px`,
-      'min-height:90px',
-      'background:#FFFDE7',
-      'border-radius:10px',
-      'border-top:4px solid #FFD54F',
-      'box-shadow:0 6px 24px rgba(0,0,0,0.22)',
-      'padding:14px 18px 16px',
-      'z-index:98000',
-      'font-size:13px',
-      'color:#333',
-      'line-height:1.6',
-      'pointer-events:none',
-    ].join(';');
+      "min-height:90px",
+      "background:#FFFDE7",
+      "border-radius:10px",
+      "border-top:4px solid #FFD54F",
+      "box-shadow:0 6px 24px rgba(0,0,0,0.22)",
+      "padding:14px 18px 16px",
+      "z-index:98000",
+      "font-size:13px",
+      "color:#333",
+      "line-height:1.6",
+      "pointer-events:none",
+    ].join(";");
     el.innerHTML = `
       <div style="font-weight:700;margin-bottom:6px;color:#E65100;font-size:12px;">📌 [예시] 계약 검토 체크리스트</div>
       <div style="font-size:12px;color:#555;">
@@ -7808,7 +7890,9 @@ const AssistantGuide = {
       this._demoPostitEl.remove();
       this._demoPostitEl = null;
     }
-    document.querySelectorAll('[data-guide-demo="postit"]').forEach((el) => el.remove());
+    document
+      .querySelectorAll('[data-guide-demo="postit"]')
+      .forEach((el) => el.remove());
   },
 
   // ── 종료 & 정리 ────────────────────────────────────────────────────────────────
@@ -7816,20 +7900,28 @@ const AssistantGuide = {
     this._active = false;
     this._removeDemoPostit();
     this._cleanup();
-    workerSend('MARK_GUIDE_SEEN', {});
+    workerSend("MARK_GUIDE_SEEN", {});
     state.hasSeenGuide = true;
-    console.log('[Assistant] 온보딩 가이드 완료');
+    console.log("[Assistant] 온보딩 가이드 완료");
   },
 
   _cleanup() {
-    if (this.overlayEl)   { this.overlayEl.remove();   this.overlayEl   = null; }
-    if (this.spotlightEl) { this.spotlightEl.remove();  this.spotlightEl = null; }
-    if (this.tooltipEl)   { this.tooltipEl.remove();   this.tooltipEl   = null; }
+    if (this.overlayEl) {
+      this.overlayEl.remove();
+      this.overlayEl = null;
+    }
+    if (this.spotlightEl) {
+      this.spotlightEl.remove();
+      this.spotlightEl = null;
+    }
+    if (this.tooltipEl) {
+      this.tooltipEl.remove();
+      this.tooltipEl = null;
+    }
     if (this._resizeHandler) {
-      window.removeEventListener('resize', this._resizeHandler);
-      window.removeEventListener('scroll', this._resizeHandler, true);
+      window.removeEventListener("resize", this._resizeHandler);
+      window.removeEventListener("scroll", this._resizeHandler, true);
       this._resizeHandler = null;
     }
   },
-
 };

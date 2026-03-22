@@ -124,14 +124,10 @@
     <!-- ========== 패널 외부 래퍼 (탭 사이드바 + 패널) ========== -->
     <!-- overflow:visible 여기서만 관리 → 내부 패널은 overflow:hidden 유지 가능 -->
     <div id="imsmassi-panel-outer" class="imsmassi-panel-outer imsmassi-hidden">
-
       <!-- 탭 사이드바: 패널의 형제 노드 (패널 overflow 영향 받지 않음) -->
       <div class="imsmassi-assistant-tabs" id="imsmassi-assistant-tabs"></div>
 
-      <div
-        class="imsmassi-floating-panel"
-        id="imsmassi-floating-panel"
-      >
+      <div class="imsmassi-floating-panel" id="imsmassi-floating-panel">
         <!-- 헤더 -->
         <div class="imsmassi-assistant-header" id="imsmassi-assistant-header">
           <div class="imsmassi-assistant-title">
@@ -156,16 +152,34 @@
             </button>
           </div>
         </div>
+        <button class="btn_collapse_expand">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            height="18"
+            viewBox="0 0 10 18"
+            width="10"
+          >
+            <g
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.2"
+            >
+              <path d="m8.59961.599609-8.000001 8.000001" />
+              <path d="m8.59961 16.5996-8.000001-7.99999" />
+            </g>
+          </svg>
+        </button>
 
         <!-- 바디 래퍼 (탭은 panel-outer 레벨로 분리) -->
-        <div class="imsmassi-panel-body-wrapper" id="imsmassi-panel-body-wrapper">
-
+        <div
+          class="imsmassi-panel-body-wrapper"
+          id="imsmassi-panel-body-wrapper"
+        >
           <!-- 콘텐츠 영역 -->
           <div
             class="imsmassi-assistant-content"
             id="imsmassi-assistant-content"
           ></div>
-
         </div>
 
         <!-- 푸터 -->
@@ -189,8 +203,8 @@
           </div>
         </div>
       </div>
-
-    </div><!-- /#imsmassi-panel-outer -->
+    </div>
+    <!-- /#imsmassi-panel-outer -->
 
     <!-- ========== 모달 ========== -->
     <div
