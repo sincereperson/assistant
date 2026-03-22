@@ -3873,7 +3873,7 @@ function buildReminderModal(data) {
   if (memoForReminder && memoForReminder.reminderRepeat) reminderRepeat = true;
 
   const title = createElement("div", { className: "imsmassi-modal-title" });
-  title.textContent = "⏰ 리마인더 설정";
+  title.innerHTML = `리마인더 설정`;
 
   const titleLabel = createElement("label", {
     className: "imsmassi-modal-label",
@@ -4428,9 +4428,9 @@ function getSettingsHtml(closeHandler) {
           </div>
           <div class="imsmassi-storage-hint">${usagePercent >= 80 ? "⚠️ 용량이 부족합니다. 오래된 데이터를 정리해주세요." : "정상적으로 사용 중입니다."}</div>
           <div class="imsmassi-storage-actions">
-            <button class="imsmassi-modal-btn imsmassi-btn-primary" onclick="exportAllData()">📤 내보내기</button>
-            <button class="imsmassi-modal-btn imsmassi-btn-secondary" onclick="importData()">📥 가져오기</button>
-            <button class="imsmassi-modal-btn imsmassi-btn-danger" onclick="clearOldData()">🗑️ 정리</button>
+            <button class="imsmassi-modal-btn imsmassi-btn-primary" onclick="exportAllData()">내보내기</button>
+            <button class="imsmassi-modal-btn imsmassi-btn-secondary" onclick="importData()">가져오기</button>
+            <button class="imsmassi-modal-btn imsmassi-btn-danger" onclick="clearOldData()">캐시정리</button>
           </div>
         </div>
 
@@ -4440,7 +4440,7 @@ function getSettingsHtml(closeHandler) {
             <div class="imsmassi-settings-label" style="font-weight: 600;">이용 가이드</div>
             <div class="imsmassi-settings-desc" style="margin-top: 2px;">어시스턴트 주요 기능 안내를 다시 확인해보세요</div>
           </div>
-          <button class="imsmassi-modal-btn imsmassi-btn-guide" onclick="AssistantGuide.replay()">📖 다시보기</button>
+          <button class="imsmassi-modal-btn imsmassi-btn-guide" onclick="AssistantGuide.replay()">다시보기</button>
         </div>
 
       `;
@@ -4780,7 +4780,9 @@ function openDeleteConfirmModal(memoId) {
     );
     if (reminderDisplay && memo.reminder) {
       reminderDisplay.innerHTML = `<div style="padding: 8px 12px; background: rgba(230, 126, 34, 0.1); border-left: 3px solid #E67E22; border-radius: 4px; margin: 8px 0; font-size: 13px;">
-        <strong>⏰ 알림 설정됨:</strong><br>
+        <strong><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+<path d="M5.83301 0C9.05467 0 11.666 2.61135 11.666 5.83301C11.666 9.05467 9.05467 11.666 5.83301 11.666C2.61135 11.666 0 9.05467 0 5.83301C3.5436e-07 2.61135 2.61135 3.54372e-07 5.83301 0ZM5.83301 2.25C5.51084 2.25 5.25 2.51084 5.25 2.83301V5.83301C5.25 6.05396 5.37464 6.25568 5.57227 6.35449L7.90527 7.52148C8.19343 7.66556 8.5444 7.5489 8.68848 7.26074C8.83255 6.97259 8.71491 6.62162 8.42676 6.47754L6.41602 5.47266V2.83301C6.41602 2.51084 6.15517 2.25 5.83301 2.25Z" fill="#0074EB"/>
+</svg> 알림 설정됨:</strong><br>
         ${memo.reminder}
       </div>`;
     } else if (reminderDisplay) {
@@ -6037,7 +6039,9 @@ function renderMemoItemDOM(memo) {
     const reminderBadge = createElement("span", {
       className: "imsmassi-memo-reminder-badge",
     });
-    reminderBadge.textContent = `⏰ ${reminderTime}`;
+    reminderBadge.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+<path d="M5.83301 0C9.05467 0 11.666 2.61135 11.666 5.83301C11.666 9.05467 9.05467 11.666 5.83301 11.666C2.61135 11.666 0 9.05467 0 5.83301C3.5436e-07 2.61135 2.61135 3.54372e-07 5.83301 0ZM5.83301 2.25C5.51084 2.25 5.25 2.51084 5.25 2.83301V5.83301C5.25 6.05396 5.37464 6.25568 5.57227 6.35449L7.90527 7.52148C8.19343 7.66556 8.5444 7.5489 8.68848 7.26074C8.83255 6.97259 8.71491 6.62162 8.42676 6.47754L6.41602 5.47266V2.83301C6.41602 2.51084 6.15517 2.25 5.83301 2.25Z" fill="#0074EB"/>
+</svg> ${reminderTime}`;
     headerLeft.appendChild(reminderBadge);
   }
 
