@@ -7,13 +7,10 @@
    ============================================================ */
 
 /* ── 기본값: classic 테마 + 라이트 모드 ── */
-body {
-  font-size: 13px;
-  font-family: "Pretendard" !important;
-}
 #assistant-root {
+  font-size: 13px;
   /* 테마 컬러 */
-  --imsmassi-primary: #7ce0d3;
+  --imsmassi-primary: #4A90A4;
   --imsmassi-primary-light: #e8f4f8;
   --imsmassi-primary-dark: #7ce0d380;
   /* 패널 배경/텍스트/경계 */
@@ -262,18 +259,95 @@ body {
   gap: 6px;
 }
 #assistant-root .imsmassi-assistant-header-btn {
-  padding: 4px 8px;
+  padding: 4px 10px;
   border: 0;
   border-radius: 30px;
   background: var(--blue-gray-200);
   color: var(--blue-gray-800);
   cursor: pointer;
   font-size: 12px;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+#assistant-root .imsmassi-assistant-header-btn:hover {
+  background: var(--blue-gray-300);
+}
+#assistant-root .imsmassi-assistant-header-btn.imsmassi-active {
+  background: var(--blue-gray-700);
+  color: #fff;
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-assistant-header-btn {
   background: var(--blue-gray-700);
   color: var(--blue-gray-400);
 }
+#assistant-root.imsmassi-dark-mode .imsmassi-assistant-header-btn:hover {
+  background: var(--blue-gray-600);
+  color: #fff;
+}
+
+/* ── 헤더 탭 그룹 (동적 생성 3-탭 토글) ── */
+#assistant-root .imsmassi-header-tab-group {
+  display: flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 20px;
+  padding: 3px;
+  gap: 2px;
+}
+#assistant-root:not(.imsmassi-dark-mode) .imsmassi-header-tab-group {
+  background: rgba(0, 0, 0, 0.10);
+}
+#assistant-root .imsmassi-header-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+#assistant-root .imsmassi-header-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+}
+#assistant-root .imsmassi-header-tab-btn.imsmassi-active {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  font-weight: 600;
+}
+#assistant-root:not(.imsmassi-dark-mode) .imsmassi-header-tab-btn {
+  color: rgba(0, 0, 0, 0.40);
+}
+#assistant-root:not(.imsmassi-dark-mode) .imsmassi-header-tab-btn:hover {
+  background: rgba(0, 0, 0, 0.07);
+  color: rgba(0, 0, 0, 0.75);
+}
+#assistant-root:not(.imsmassi-dark-mode) .imsmassi-header-tab-btn.imsmassi-active {
+  background: rgba(0, 0, 0, 0.13);
+  color: rgba(0, 0, 0, 0.85);
+}
+#assistant-root .imsmassi-tab-icon {
+  width: 14px;
+  height: 14px;
+  background-size: 14px 14px;
+  background-repeat: no-repeat;
+  background-position: center;
+  display: inline-block;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+#assistant-root .imsmassi-tab-label {
+  line-height: 1;
+}
+
 #assistant-root .imsmassi-assistant-close {
   background: none;
   border: none;
@@ -283,7 +357,7 @@ body {
 }
 
 #assistant-root .imsmassi-assistant-tabs {
-  display: none;
+  display: none !important;
 }
 
 /* ============================================================
@@ -301,7 +375,7 @@ body {
 
 /* 탭 컨테이너: 단순 플렉스 부모 역할, 어떤 배경/테두리도 없음 */
 #assistant-root .imsmassi-assistant-tabs {
-  display: flex;
+  display: none !important;
   flex-direction: column;
   width: 48px;
   flex-shrink: 0;
@@ -319,7 +393,7 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 14px;
-  padding-top: 0;
+  padding-top: 10px;
   min-width: 0;
 }
 
@@ -353,8 +427,21 @@ body {
   background: rgba(52, 57, 70, 0.98);
 }
 #assistant-root .imsmassi-assistant-tab-icon {
-  font-size: 15px;
-  line-height: 1;
+  width: 20px;
+  height: 20px;
+  background-size: 20px 20px;
+  background-repeat: no-repeat;
+  background-position: center;
+  flex-shrink: 0;
+}
+#assistant-root .imsmassi-icon-memo {
+  background-image: url(../asset/images/memo.svg);
+}
+#assistant-root .imsmassi-icon-dashboard {
+  background-image: url(../asset/images/dashboard.svg);
+}
+#assistant-root .imsmassi-icon-settings {
+  background-image: url(../asset/images/settings.svg);
 }
 #assistant-root .imsmassi-assistant-tab-label {
   line-height: 1.2;
@@ -488,11 +575,12 @@ body {
 
 #assistant-root .imsmassi-memo-layout {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
   position: relative;
   height: 100%;
+  min-width: 0;
 }
 #assistant-root
   .imsmassi-memo-layout.imsmassi-panel-hidden
@@ -505,11 +593,11 @@ body {
   bottom: 80px;
   min-width: 0;
   width: 100%;
+  max-width: 330px; /* 기본 패널 너비(360px) - 여백: JS 리사이즈 시 인라인 style.maxWidth로 덮어씀 */
   z-index: 1;
-  max-width: 330px;
 }
 #assistant-root .imsmassi-expanded .imsmassi-memo-main {
-  max-width: 610px;
+  max-width: 610px; /* 확장 패널 너비(640px) - 여백 */
 }
 #assistant-root .imsmassi-memo-side {
   min-width: 0;
@@ -522,6 +610,7 @@ body {
 #assistant-root .imsmassi-memo-list-area {
   grid-column: 1 / -1;
   padding-bottom: 150px;
+  min-width: 0;
 }
 #assistant-root .imsmassi-memo-side-content {
   display: flex;
@@ -633,6 +722,7 @@ body {
   flex-direction: column;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
 }
 #assistant-root .imsmassi-memo-item-header {
   display: flex;
@@ -650,9 +740,10 @@ body {
   cursor: text;
   border-radius: 3px;
   min-width: 20px;
-  max-width: 160px;
+  flex: 1;
   overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
   display: inline-block;
   vertical-align: middle;
   color: var(--blue-gray-900);
@@ -730,6 +821,10 @@ body {
   background: transparent;
   color: var(--blue-gray-700);
   height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-action-btn {
   color: var(--blue-gray-400);
@@ -740,6 +835,12 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+#assistant-root .imsmassi-action-label {
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 #assistant-root .imsmassi-memo-inline-text {
@@ -780,6 +881,9 @@ body {
   border-radius: 12px;
   overflow: hidden;
   background: var(--blue-gray-50);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 #assistant-root .imsmassi-memo-quill-wrapper .ql-container {
   border: none;
@@ -884,6 +988,11 @@ body {
   font-weight: 600;
   min-height: 32px;
 }
+#assistant-root .imsmassi-memo-card-header > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 #assistant-root .imsmassi-memo-card-body {
   max-height: 300px;
   overflow: auto;
@@ -935,7 +1044,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
+  z-index: 99997; /* sticky-layer(1500)보다 위, 토스트(99998)보다 아래 */
 }
 #assistant-root .imsmassi-modal {
   background: #fff;
@@ -950,10 +1059,52 @@ body {
   width: 380px;
 }
 #assistant-root .imsmassi-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 16px;
   color: #333;
+}
+#assistant-root .imsmassi-modal-icon {
+  width: 18px;
+  height: 18px;
+  background-size: 18px 18px;
+  background-repeat: no-repeat;
+  background-position: center;
+  flex-shrink: 0;
+  display: inline-block;
+}
+#assistant-root .imsmassi-icon-star {
+  background-image: url(../asset/images/star.svg);
+}
+#assistant-root .imsmassi-icon-edit {
+  background-image: url(../asset/images/edit.svg);
+}
+#assistant-root .imsmassi-icon-warning {
+  background-image: url(../asset/images/warning.svg);
+}
+#assistant-root .imsmassi-icon-save {
+  background-image: url(../asset/images/save.svg);
+}
+#assistant-root .imsmassi-icon-bell {
+  background-image: url(../asset/images/bell.svg);
+}
+#assistant-root .imsmassi-icon-clipboard {
+  background-image: url(../asset/images/clipboard.svg);
+}
+#assistant-root .imsmassi-icon-template {
+  background-image: url(../asset/images/template.svg);
+}
+#assistant-root .imsmassi-icon-settings {
+  background-image: url(../asset/images/settings.svg);
+}
+#assistant-root .imsmassi-icon-performance {
+  background-image: url(../asset/images/icon_fix.svg);
+}
+#assistant-root .imsmassi-icon-cleanup {
+  background-image: url(../asset/images/trash.svg);
 }
 #assistant-root .imsmassi-modal-input {
   width: 100%;
@@ -1551,32 +1702,28 @@ body {
   position: absolute;
   top: 8px;
   right: 8px;
-  background: none;
   border: none;
   cursor: pointer;
   opacity: 0.5;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  background: url(../asset/images/close.svg) center / 12px no-repeat;
 }
 #assistant-root .imsmassi-memo-delete-btn:hover {
   opacity: 1;
 }
 #assistant-root .imsmassi-memo-header-delete-btn {
-  background: transparent;
   border: none;
   cursor: pointer;
   width: 16px;
   height: 16px;
   border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   line-height: 1;
-  color: var(--blue-gray-700);
+  background: url(../asset/images/close.svg) center / 12px no-repeat;
 }
 #assistant-root .imsmassi-memo-header-delete-btn:hover {
   opacity: 1;
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-memo-header-delete-btn {
-  color: var(--blue-gray-200);
 }
 #assistant-root .imsmassi-memo-header-pin-btn {
   border: none;
@@ -1584,24 +1731,16 @@ body {
   width: 16px;
   height: 16px;
   border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   line-height: 1;
-  background: none;
+  -webkit-mask: url(../asset/images/icon_fix.svg) center / 14px no-repeat;
+  mask: url(../asset/images/icon_fix.svg) center / 14px no-repeat;
+  background-color: var(--blue-gray-400);
 }
 #assistant-root .imsmassi-memo-header-pin-btn:hover {
   opacity: 1;
 }
-#assistant-root .imsmassi-memo-header-pin-btn svg path {
-  fill: var(--blue-gray-400);
-}
-#assistant-root
-  .imsmassi-memo-item-pinned
-  .imsmassi-memo-header-pin-btn
-  svg
-  path {
-  fill: var(--imsmassi-primary);
+#assistant-root .imsmassi-memo-item-pinned .imsmassi-memo-header-pin-btn {
+  background-color: var(--imsmassi-primary);
 }
 #assistant-root .imsmassi-memo-header-action-btn {
   background: rgba(0, 0, 0, 0.08);
@@ -2103,11 +2242,13 @@ body {
   position: absolute;
   top: 8px;
   right: 28px;
-  background: none;
   border: none;
   cursor: pointer;
-  font-size: 13px;
   opacity: 0.6;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  background: url(../asset/images/edit.svg) center / 14px no-repeat;
 }
 #assistant-root .imsmassi-template-edit-btn:hover {
   opacity: 1;
@@ -2356,6 +2497,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 #assistant-root .imsmassi-memo-header-right {
   display: inline-flex;
@@ -2365,6 +2509,11 @@ body {
 #assistant-root .imsmassi-memo-reminder-badge {
   color: #e67e22;
   pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  flex-wrap: nowrap;
   flex-shrink: 0;
 }
 #assistant-root .imsmassi-memo-origin-badge {
@@ -2389,14 +2538,27 @@ body {
   justify-content: space-between;
 }
 #assistant-root .imsmassi-screen-btn {
-  padding: 0 10px;
-  border-radius: 4px;
   height: 30px;
+  width: auto;
+  border-radius: 4px;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0.55;
+}
+#assistant-root .imsmassi-screen-btn:hover {
+  opacity: 1;
 }
 #assistant-root .imsmassi-screen-btn-active {
   background: transparent;
-  color: #999;
+  color: var(--imsmassi-area-color);
+  font-weight: 600;
+  opacity: 1;
 }
 #assistant-root .imsmassi-reminder-btn-active {
   color: #e67e22;
@@ -2507,6 +2669,9 @@ body {
   margin-bottom: 16px;
 }
 #assistant-root .imsmassi-settings-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
   color: #333;
   margin-bottom: 12px;
@@ -2722,7 +2887,12 @@ body {
   margin-bottom: 16px;
 }
 #assistant-root .imsmassi-dashboard-banner-icon {
-  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  background-size: 20px 20px;
+  background-repeat: no-repeat;
+  background-position: center;
+  flex-shrink: 0;
 }
 #assistant-root .imsmassi-dashboard-banner-body {
   flex: 1;
@@ -3656,4 +3826,71 @@ body {
 /* 패널이 펼쳐졌을 때 화살표 방향 반전 (:has() - panel은 button의 형제) */
 #assistant-root .imsmassi-panel-outer:has(.imsmassi-floating-panel.imsmassi-expanded) .imsmassi-btn-collapse-expand svg {
   transform: rotate(180deg);
+}
+
+/* ================================================================
+   아이콘 시스템 ── CSS background url() / mask-image 방식
+   파일 경로: ../asset/images/*.svg
+   ================================================================ */
+
+/* 알림 설정 버튼 (종 모양) */
+#assistant-root .imsmassi-reminder-btn {
+  height: 30px;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0.55;
+}
+#assistant-root .imsmassi-reminder-btn:hover {
+  opacity: 1;
+}
+
+/* 스티키 노트 닫기 버튼 */
+#assistant-root .imsmassi-sticky-btn-close,
+#sticky-layer .imsmassi-sticky-btn-close {
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 스티키 노트 펼치기 버튼 (□ 사각형 CSS 드로잉) */
+#assistant-root .imsmassi-sticky-btn-expand,
+#sticky-layer .imsmassi-sticky-btn-expand {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+#assistant-root .imsmassi-sticky-btn-expand::before,
+#sticky-layer .imsmassi-sticky-btn-expand::before {
+  content: "" !important;
+  display: block !important;
+  width: 8px !important;
+  height: 8px !important;
+  border: 1.5px solid currentColor !important;
+  border-radius: 1px !important;
+  background: transparent !important;
+}
+
+/* 스티키 노트 최소화 버튼 (— 가로선 CSS 드로잉) */
+#assistant-root .imsmassi-sticky-btn-minimize,
+#sticky-layer .imsmassi-sticky-btn-minimize {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+#assistant-root .imsmassi-sticky-btn-minimize::before,
+#sticky-layer .imsmassi-sticky-btn-minimize::before {
+  content: "" !important;
+  display: block !important;
+  width: 8px !important;
+  height: 1.5px !important;
+  background: currentColor !important;
+  border: none !important;
 }

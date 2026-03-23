@@ -278,8 +278,9 @@ class AssistantDB {
     const memos = await this.getAllMemos();
     const templates = await this.getAllTemplates();
     const settings = await this.getAllSettings();
+    const clipboard = await this.getClipboardItems(500); // Issue 4: 클립보드 포함
     const filteredSettings = settings.filter(s => !['menu_time_stats', 'time_buckets'].includes(s.key));
-    return { version: '1.0', exportDate: new Date().toISOString(), data: { memos, templates, settings: filteredSettings } };
+    return { version: '1.0', exportDate: new Date().toISOString(), data: { memos, templates, settings: filteredSettings, clipboard } };
   }
 
   async importData(importedData) {
@@ -399,8 +400,10 @@ const state = {
   nextTemplateId: 10,
   nextClipboardId: 10,
   hasSeenGuide: null,
-  panelHeight: null, // px, null = CSS 기본값
-  panelWidth: null,  // px, null = CSS 기본값
+  panelHeight: null,          // px, null = CSS 기본값
+  panelWidth: null,           // px, null = CSS 기본값
+  panelWidthCollapsed: null,  // 접힌 상태 저장 너비
+  panelWidthExpanded: null,   // 펼친 상태 저장 너비
 };
 
 // ========================================
@@ -507,8 +510,10 @@ function getSnapshot(port) {
     nextTemplateId:      state.nextTemplateId,
     userInfo:            state.userInfo,
     hasSeenGuide:        state.hasSeenGuide,
-    panelHeight:         state.panelHeight,
-    panelWidth:          state.panelWidth,
+    panelHeight:            state.panelHeight,
+    panelWidth:             state.panelWidth,
+    panelWidthCollapsed:    state.panelWidthCollapsed,
+    panelWidthExpanded:     state.panelWidthExpanded,
   };
 }
 
@@ -781,6 +786,11 @@ async function loadStateFromDB() {
       showTimeTab: settings.showTimeTab !== undefined ? settings.showTimeTab : state.settings.showTimeTab,
       showAreaColorSection: settings.showAreaColorSection !== undefined ? settings.showAreaColorSection : state.settings.showAreaColorSection,
     };
+    // Issue 5 긴급패치: 업무컬러설정 / 시간인사이트 항상 false로 초기화 (DB 저장값 무시)
+    state.settings.showTimeTab = false;
+    state.settings.showAreaColorSection = false;
+    // 클립보드 캡처는 항상 활성화 (DB에 false가 저장된 경우에도 무시)
+    state.settings.enableClipboardCapture = true;
   }
 
   const stickyNotes = await db.getSetting('sticky_notes');
@@ -800,6 +810,10 @@ async function loadStateFromDB() {
   // 패널 너비 로드
   const savedPanelWidth = await db.getSetting('panelWidth');
   if (typeof savedPanelWidth === 'number') state.panelWidth = savedPanelWidth;
+  const savedPanelWidthCollapsed = await db.getSetting('panelWidthCollapsed');
+  if (typeof savedPanelWidthCollapsed === 'number') state.panelWidthCollapsed = savedPanelWidthCollapsed;
+  const savedPanelWidthExpanded = await db.getSetting('panelWidthExpanded');
+  if (typeof savedPanelWidthExpanded === 'number') state.panelWidthExpanded = savedPanelWidthExpanded;
 
   // userInfo 로드 (암호화된 채로 state에 보관, 복호화는 클라이언트에서)
   try {
@@ -1293,7 +1307,7 @@ async function handleRefreshClipboard(port) {
 }
 
 async function handleSaveUIPrefs(port, payload) {
-  const { isMemoPanelExpanded, memoFilter, panelHeight, panelWidth } = payload;
+  const { isMemoPanelExpanded, memoFilter, panelHeight, panelWidth, panelWidthCollapsed, panelWidthExpanded } = payload;
   if (typeof isMemoPanelExpanded === 'boolean') {
     state.isMemoPanelExpanded = isMemoPanelExpanded;
     await db.saveSetting('isMemoPanelExpanded', isMemoPanelExpanded);
@@ -1309,6 +1323,14 @@ async function handleSaveUIPrefs(port, payload) {
   if (panelWidth === null || typeof panelWidth === 'number') {
     state.panelWidth = panelWidth;
     await db.saveSetting('panelWidth', panelWidth);
+  }
+  if (panelWidthCollapsed === null || typeof panelWidthCollapsed === 'number') {
+    state.panelWidthCollapsed = panelWidthCollapsed;
+    await db.saveSetting('panelWidthCollapsed', panelWidthCollapsed);
+  }
+  if (panelWidthExpanded === null || typeof panelWidthExpanded === 'number') {
+    state.panelWidthExpanded = panelWidthExpanded;
+    await db.saveSetting('panelWidthExpanded', panelWidthExpanded);
   }
   broadcastState();
 }

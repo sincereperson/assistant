@@ -39,6 +39,11 @@ function workerSend(type, payload) {
 let _guideTriggered = false;
 
 function handleStateUpdate(newState) {
+  // Worker STATE_UPDATE가 덮어쓰면 안 되는 로컬 전용 상태값을 보존합니다.
+  // - memoDraftHtml/Text: 화면 전환(CONTEXT_CHANGE) 시 입력 중인 메모 초안이 사라지는 현상 방지
+  const savedDraftHtml = state.memoDraftHtml;
+  const savedDraftText = state.memoDraftText;
+
   // 드래그/리사이즈 중에는 로컬 stickyNotes 변경사항을 worker 스냅샷으로 덮어쓰지 않습니다.
   if (state.stickyDragActive || state.stickyResizeActive) {
     const saved = state.stickyNotes;
@@ -47,6 +52,10 @@ function handleStateUpdate(newState) {
   } else {
     Object.assign(state, newState);
   }
+
+  // 메모 초안 복원 (Worker는 draft를 관리하지 않으므로 로컬값 우선)
+  state.memoDraftHtml = savedDraftHtml;
+  state.memoDraftText = savedDraftText;
   // CSS 커스텀 프로퍼티: state 복원 후 DOM에 테마/다크모드 반영
   const root = getAssistantStyleRoot();
   if (root) {
@@ -716,6 +725,7 @@ class AssistantDB {
     const memos = await this.getAllMemos();
     const templates = await this.getAllTemplates();
     const settings = await this.getAllSettings();
+    const clipboard = await this.getClipboardItems(500); // Issue 4: 클립보드 포함
     const filteredSettings = settings.filter(
       (setting) => !["menu_time_stats", "time_buckets"].includes(setting.key),
     );
@@ -727,6 +737,7 @@ class AssistantDB {
         memos,
         templates,
         settings: filteredSettings,
+        clipboard,
       },
     };
   }
@@ -939,6 +950,12 @@ function createElement(tag, props = {}) {
 // ========================================
 // 탭 시스템 중앙 설정 (ASSISTANT_TABS)
 // ========================================
+/** ─── SVG 인라인 상수: CSS url()로 대체 불가한 경우만 유지 ─── */
+const ICONS = {
+  // 알림 배지: 브랜드 파란색(#0074EB) 고정값이 필요해 인라인 유지
+  time: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="none"><path d="M5.83301 0C9.05467 0 11.666 2.61135 11.666 5.83301C11.666 9.05467 9.05467 11.666 5.83301 11.666C2.61135 11.666 0 9.05467 0 5.83301C3.5436e-07 2.61135 2.61135 3.54372e-07 5.83301 0ZM5.83301 2.25C5.51084 2.25 5.25 2.51084 5.25 2.83301V5.83301C5.25 6.05396 5.37464 6.25568 5.57227 6.35449L7.90527 7.52148C8.19343 7.66556 8.5444 7.5489 8.68848 7.26074C8.83255 6.97259 8.71491 6.62162 8.42676 6.47754L6.41602 5.47266V2.83301C6.41602 2.51084 6.15517 2.25 5.83301 2.25Z" fill="#0074EB"/></svg>`,
+};
+
 /**
  * 각 탭의 id, icon, label, render 함수를 선언적으로 정의합니다.
  * 새로운 탭을 추가할 때는 이 객체에 항목을 추가하고
@@ -947,19 +964,16 @@ function createElement(tag, props = {}) {
 const ASSISTANT_TABS = {
   memo: {
     id: "memo",
-    icon: "📝",
     label: "메모",
     render: () => renderMemoTab(),
   },
   dashboard: {
     id: "dashboard",
-    icon: "📊",
     label: "대시보드",
     render: () => renderDashboardTab(),
   },
   settings: {
     id: "settings",
-    icon: "⚙️",
     label: "설정",
     render: () => renderSettingsTab(),
   },
@@ -1117,8 +1131,8 @@ let state = {
     backupReminder: false,
     // 최종 백업 날짜
     lastBackup: "2026-01-03",
-
-    enableClipboardCapture: false,
+    // 클립보드 캡처 활성화 (시스템 클립보드 변경 감지)
+    enableClipboardCapture: true,
     // 마크다운 단축키 활성화
     markdownEnabled: false,
     // 알림 설정 후 대시보드 자동 이동
@@ -1154,6 +1168,9 @@ let state = {
   panelHeight: null,
   // 패널 너비 (px, null이면 CSS 기본값 사용)
   panelWidth: null,
+  // 접힌/펼친 상태별 독립 너비 (640 임계값 방식 대체)
+  panelWidthCollapsed: null,
+  panelWidthExpanded: null,
 
   // 개발자 도구로 개별 온오프할 수 있는 설정 UI 노출 여부 (기본값 false: 숨김)
   hiddenUI: {
@@ -2199,7 +2216,7 @@ function renderStickyNotes() {
     const headerText = isCollapsed
       ? memo.title || collapsedPreview
       : memo.title || areaIdText;
-    const collapseIcon = isCollapsed ? "▢" : "—";
+    const collapseClass = isCollapsed ? "imsmassi-sticky-btn-expand" : "imsmassi-sticky-btn-minimize";
     const collapseTitle = isCollapsed ? "펼치기" : "최소화";
 
     const wrapperEl = document.createElement("div");
@@ -2246,8 +2263,8 @@ function renderStickyNotes() {
           style="outline:none; cursor:text; flex:1; min-width:0; overflow:hidden; white-space:nowrap;"
         >${memo.title || ""}</span>
         <div class="imsmassi-sticky-note-actions">
-          <button class="imsmassi-sticky-note-btn" onclick="toggleStickyNoteCollapse('${note.memoId}')" title="${collapseTitle}">${collapseIcon}</button>
-          <button class="imsmassi-sticky-note-btn" onclick="removeStickyNote('${note.memoId}')" title="닫기">✕</button>
+          <button class="imsmassi-sticky-note-btn ${collapseClass}" onclick="toggleStickyNoteCollapse('${note.memoId}')" title="${collapseTitle}"></button>
+          <button class="imsmassi-sticky-note-btn imsmassi-sticky-btn-close" onclick="removeStickyNote('${note.memoId}')" title="닫기">✕</button>
         </div>
       </div>
       ${
@@ -3402,10 +3419,10 @@ function getTodosFromReminders() {
   return todos;
 }
 
-//당일 리마인더 (Task 2.1: done 완료 항목 제외 / Task 2.2: isToday 엄격 필터 - 미래 날짜 제외)
+//당일 리마인더 (Issue 1 fix: done 항목도 리스트에 유지 — 체크 후 사라지지 않고 취소선으로 표시)
 function getTodayReminders() {
   const filtered = getTodosFromReminders().filter(
-    (todo) => todo.isToday === true && !todo.done,
+    (todo) => todo.isToday === true,
   );
   return filtered;
 }
@@ -3428,9 +3445,8 @@ function toggleTodo(memoId) {
 // 마지막으로 알림을 확인한 분 (중복 방지)
 let lastCheckedMinute = null;
 
-// 알림 권한 요청
+// 알림 권한 요청 (browserNotificationEnabled 설정과 무관하게 항상 요청)
 function requestNotificationPermission() {
-  if (!state.settings.browserNotificationEnabled) return;
   if (!("Notification" in window)) {
     console.log("⚠️ 이 브라우저는 Web Notification을 지원하지 않습니다.");
     return;
@@ -3465,7 +3481,8 @@ function requestNotificationPermission() {
 
 // 브라우저 알림 표시
 function sendBrowserNotification(title, options = {}) {
-  if (!state.settings.browserNotificationEnabled) return;
+  // browserNotificationEnabled 설정은 권한 요청에만 사용.
+  // 이미 권한이 granted 된 경우 설정값과 무관하게 항상 발송 (창이 닫혀도 알림 수신).
   if (!("Notification" in window)) {
     console.warn("이 브라우저는 Web Notification을 지원하지 않습니다.");
     return;
@@ -3485,8 +3502,13 @@ function sendBrowserNotification(title, options = {}) {
     } catch (error) {
       console.error("브라우저 알림 전송 실패:", error);
     }
-  } else if (Notification.permission !== "denied") {
-    console.log("알림 권한이 아직 설정되지 않았습니다.");
+  } else if (Notification.permission !== "denied" && state.settings.browserNotificationEnabled) {
+    // 권한 미설정 + 설정 활성화 시에만 권한 요청 후 발송
+    Notification.requestPermission().then((permission) => {
+      if (permission === "granted") {
+        sendBrowserNotification(title, options);
+      }
+    }).catch(() => {});
   }
 }
 
@@ -3592,7 +3614,8 @@ async function checkReminders() {
   if (!state.memos) return;
 
   const now = new Date();
-  const currentDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
+  // 로컬 날짜 사용 (toISOString()은 UTC라 한국 시간대에서 날짜가 밀림)
+  const currentDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`; // HH:MM
 
   // 같은 분에 여러 번 알림이 울리지 않도록 처리
@@ -3632,9 +3655,10 @@ async function checkReminders() {
 
         // 반복 알림이면 다음날로 이동
         if (memo.reminderRepeat) {
-          const nextDate = new Date(currentDate);
+          const nextDate = new Date(now);
           nextDate.setDate(nextDate.getDate() + 1);
-          const nextDateStr = nextDate.toISOString().split("T")[0];
+          // 로컬 날짜 사용
+          const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}-${String(nextDate.getDate()).padStart(2, "0")}`;
           const nextReminderStr = `${nextDateStr} ${reminderTime}`;
           // Worker에 SET_REMINDER 전송 (DB 업데이트 + 브로드캐스트)
           workerSend("SET_REMINDER", {
@@ -3688,13 +3712,18 @@ function testReminderNotification() {
   const content = "리마인더 알림 테스트 메시지입니다.";
   const areaId = state.selectedArea || "underwriting";
 
+  console.group("[testReminderNotification] 알림 테스트 시작");
+  console.log("Notification API 존재:", "Notification" in window);
+  console.log("Notification.permission:", typeof Notification !== "undefined" ? Notification.permission : "N/A");
+  console.log("browserNotificationEnabled:", state.settings.browserNotificationEnabled);
+
   showNotificationToast(title, content, areaId, 6000);
   sendBrowserNotification(title, {
     body: content,
     tag: `reminder-test-${Date.now()}`,
     requireInteraction: false,
   });
-  console.log("[testReminderNotification] 리마인더 알림 테스트 실행");
+  console.groupEnd();
 }
 
 // ========================================
@@ -3766,7 +3795,7 @@ function buildReminderModal(data) {
   if (memoForReminder && memoForReminder.reminderRepeat) reminderRepeat = true;
 
   const title = createElement("div", { className: "imsmassi-modal-title" });
-  title.innerHTML = `리마인더 설정`;
+  title.innerHTML = `<span class="imsmassi-modal-icon imsmassi-icon-bell"></span>리마인더 설정`;
 
   const titleLabel = createElement("label", {
     className: "imsmassi-modal-label",
@@ -3881,7 +3910,7 @@ function buildTemplateSuggestModal(data) {
   const encodedText = encodeURIComponent(suggestedText);
 
   const title = createElement("div", { className: "imsmassi-modal-title" });
-  title.textContent = "⭐ 템플릿 제안";
+  title.innerHTML = `<span class="imsmassi-modal-icon imsmassi-icon-star"></span>템플릿 제안`;
 
   const previewBox = createElement("div", {
     className: "imsmassi-template-suggest-preview",
@@ -3959,7 +3988,7 @@ function buildTemplateSuggestModal(data) {
 // ── 빌더: 템플릿 추가 모달 ─────────────────────────────
 function buildAddTemplateModal(data) {
   const title = createElement("div", { className: "imsmassi-modal-title" });
-  title.textContent = "새 템플릿 추가";
+  title.innerHTML = `<span class="imsmassi-modal-icon imsmassi-icon-template"></span>새 템플릿 추가`;
 
   const titleLabel = createElement("label", {
     className: "imsmassi-modal-label",
@@ -4009,7 +4038,7 @@ function buildAddTemplateModal(data) {
 // ── 빌더: 템플릿 수정 모달 ─────────────────────────────
 function buildEditTemplateModal(data) {
   const title = createElement("div", { className: "imsmassi-modal-title" });
-  title.textContent = "✎ 템플릿 수정";
+  title.innerHTML = `<span class="imsmassi-modal-icon imsmassi-icon-edit"></span>템플릿 수정`;
 
   const titleLabel = createElement("label", {
     className: "imsmassi-modal-label",
@@ -4067,7 +4096,7 @@ function buildDeleteConfirmModal(data) {
   const c = getColors();
 
   const title = createElement("div", { className: "imsmassi-modal-title" });
-  title.textContent = "⚠️ 메모 삭제";
+  title.innerHTML = `<span class="imsmassi-modal-icon imsmassi-icon-warning"></span>메모 삭제`;
 
   const bodyText = createElement("p", {
     className: "imsmassi-modal-body-text",
@@ -4119,7 +4148,7 @@ const MODAL_BUILDERS = {
 // ── 빌더: 전체 데이터 삭제 확인 모달 ─────────────────────────
 function buildClearAllDataConfirmModal() {
   const title = createElement("div", { className: "imsmassi-modal-title" });
-  title.textContent = "⚠️ 데이터 영구 삭제";
+  title.innerHTML = `<span class="imsmassi-modal-icon imsmassi-icon-warning"></span>데이터 영구 삭제`;
 
   const bodyText = createElement("p", { className: "imsmassi-modal-body-text" });
   bodyText.innerHTML = "저장된 <strong>모든 메모와 클립보드 기록</strong>을 완전히 삭제하시겠습니까?<br><span style='color:#E74C3C; font-size:12px;'>(설정 및 템플릿은 유지됩니다. 이 작업은 되돌릴 수 없습니다.)</span>";
@@ -4209,7 +4238,7 @@ function getSettingsHtml(closeHandler) {
   return `
         <!-- 알림 설정 -->
         <div class="imsmassi-settings-section">
-          <div class="imsmassi-settings-section-title">알림 설정</div>
+          <div class="imsmassi-settings-section-title"><span class="imsmassi-modal-icon imsmassi-icon-bell"></span>알림 설정</div>
 
           <div class="imsmassi-settings-row">
             <div>
@@ -4247,7 +4276,7 @@ function getSettingsHtml(closeHandler) {
 
         <!-- 기능 설정 -->
         <div class="imsmassi-settings-section">
-          <div class="imsmassi-settings-section-title">기능 설정</div>
+          <div class="imsmassi-settings-section-title"><span class="imsmassi-modal-icon imsmassi-icon-settings"></span>기능 설정</div>
           <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.areaColor ? "flex" : "none"};">
             <div>
               <span class="imsmassi-settings-label">업무 컬러 설정 표시</span>
@@ -4306,7 +4335,7 @@ function getSettingsHtml(closeHandler) {
 
         <!-- 성능 설정 -->
         <div class="imsmassi-settings-section" style="display: ${state.hiddenUI.lowSpec ? "block" : "none"};">
-          <div class="imsmassi-settings-section-title">성능 설정</div>
+          <div class="imsmassi-settings-section-title"><span class="imsmassi-modal-icon imsmassi-icon-performance"></span>성능 설정</div>
           <div class="imsmassi-settings-row">
             <div>
               <span class="imsmassi-settings-label">저사양 모드</span>
@@ -4321,7 +4350,7 @@ function getSettingsHtml(closeHandler) {
 
         <!-- 자동정리 설정 -->
         <div class="imsmassi-cleanup-section">
-          <div class="imsmassi-settings-section-title">자동 정리 설정</div>
+          <div class="imsmassi-settings-section-title"><span class="imsmassi-modal-icon imsmassi-icon-cleanup"></span>자동 정리 설정</div>
           <div class="imsmassi-cleanup-grid">
             <div class="imsmassi-cleanup-row">
               <span class="imsmassi-cleanup-label">클립보드 기록</span>
@@ -4547,7 +4576,27 @@ async function addMemo() {
   };
 
   // Worker에 ADD_MEMO 전송 (DB 저장 + 상태 브로드캐스트)
-  workerSend("ADD_MEMO", { memoId, memoData: newMemo });
+  if (workerPort) {
+    workerSend("ADD_MEMO", { memoId, memoData: newMemo });
+  } else if (db) {
+    // 폴백 모드: IndexedDB 직접 저장 후 로컬 state 갱신
+    try {
+      await db.addMemo(memoId, newMemo);
+      state.memos = state.memos || {};
+      state.memos[memoId] = { ...newMemo, id: memoId };
+      console.log("[addMemo] 폴백 저장 완료:", memoId);
+      showToast("메모가 저장되었습니다");
+      // 에디터 초기화 후 리스트 갱신 (아래 로직 진행 후 renderAssistantContent)
+    } catch (e) {
+      console.error("[addMemo] 저장 실패:", e);
+      showToast("메모 저장에 실패했습니다");
+      return; // 실패 시 에디터 초기화 없이 종료
+    }
+  } else {
+    console.warn("[addMemo] Worker도 DB도 준비되지 않았습니다");
+    showToast("저장 공간이 초기화되지 않았습니다");
+    return;
+  }
 
   // 에디터 즉시 초기화 (UI-only 로컬 처리)
   if (memoQuill) {
@@ -4558,6 +4607,11 @@ async function addMemo() {
     memoInput.innerText = "";
   }
   updateMemoCapacity();
+
+  // 폴백 모드에서는 Worker STATE_UPDATE가 없으므로 직접 리스트 갱신
+  if (!workerPort) {
+    renderAssistantContent();
+  }
 }
 
 // ========================================
@@ -5535,12 +5589,11 @@ function renderAssistant() {
   } else {
     panel.style.height = "";
   }
-  // 저장된 너비 복원
-  if (state.panelWidth) {
-    panel.style.width = `${state.panelWidth}px`;
-  } else {
-    panel.style.width = "";
-  }
+  // 저장된 너비 복원 (접힌/펼친 상태별 독립 필드 사용)
+  const _effectiveWidth = state.isMemoPanelExpanded
+    ? (state.panelWidthExpanded || null)
+    : (state.panelWidthCollapsed || null);
+  panel.style.width = _effectiveWidth ? `${_effectiveWidth}px` : "";
   // 리사이즈 핸들 초기화 (처음 한 번만)
   if (!panel._resizeInited) {
     panel._resizeInited = true;
@@ -5552,10 +5605,7 @@ function renderAssistant() {
   // 헤더 — background/color 는 CSS(.imsmassi-assistant-header) 에서 var 참조
   const header = document.getElementById("imsmassi-assistant-header");
   if (!header) return;
-  const dashboardBtn = document.getElementById("assistant-dashboard-btn");
-  if (dashboardBtn) {
-    updateDashboardButton();
-  }
+  updateDashboardButton();
 
   // 푸터 — background/border/color 는 CSS(.imsmassi-assistant-footer) 에서 var 참조
   const footer = document.getElementById("imsmassi-assistant-footer");
@@ -5692,35 +5742,9 @@ function estimateTimeDataMB() {
 function renderAssistantTabs() {
   const tabsContainer = document.getElementById("imsmassi-assistant-tabs");
   if (!tabsContainer) return;
-  if (!assistantTabs.length || state.hiddenUI.sideTabs === false) {
-    tabsContainer.innerHTML = "";
-    tabsContainer.style.display = "none";
-    return;
-  }
-  // 사이드바 display 동기화 (배경/테두리는 CSS에서만 관리)
-  tabsContainer.style.display = "flex";
-
-  // 탭 버튼 렌더링
+  // 헤더 버튼 기반 탭 전환으로 이관됨: 사이드 탭 DOM 렌더링 비활성화
   tabsContainer.innerHTML = "";
-  assistantTabs.forEach((tab) => {
-    const isActive = state.activeTab === tab.id;
-    const btn = createElement("button", {
-      className: `imsmassi-assistant-tab${isActive ? " imsmassi-active" : ""}`,
-      onclick: () => setActiveTab(tab.id),
-    });
-    const iconSpan = createElement("span", {
-      className: "imsmassi-assistant-tab-icon",
-    });
-    iconSpan.textContent = tab.icon;
-    const labelSpan = createElement("span", {
-      className: "imsmassi-assistant-tab-label",
-    });
-    labelSpan.textContent = tab.label;
-    btn.appendChild(iconSpan);
-    btn.appendChild(labelSpan);
-    tabsContainer.appendChild(btn);
-  });
-
+  tabsContainer.style.display = "none";
 }
 // [Task 1] 탭 사이드바 하단 사이드 패널 토글 버튼 제거
 // 펼치기/접기 기능은 패널 좌측 .imsmassi-btn-collapse-expand 버튼으로 이관됨
@@ -5834,9 +5858,6 @@ function renderMemoItemDOM(memo) {
     draggable: "false",
     title: memo.pinned ? "고정 해제" : "고정",
   });
-  pinBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" >
-<path d="M13.7196 3.4493C14.0681 2.92084 14.8139 2.84541 15.2615 3.29305L20.3074 8.33895C20.7551 8.78659 20.6797 9.53239 20.1512 9.88094L15.7781 12.7657C15.5882 12.891 15.4465 13.0774 15.3768 13.294L13.6854 18.544C13.4561 19.2558 12.556 19.4732 12.0272 18.9444L9.04865 15.9659L9.04768 15.9679L4.44709 20.5675C4.05657 20.958 3.42355 20.958 3.03303 20.5675C2.6427 20.1769 2.64257 19.5439 3.03303 19.1534L7.63361 14.5538L7.63459 14.5518L4.65607 11.5733C4.12754 11.0445 4.34484 10.1444 5.05647 9.91512L10.3074 8.22372C10.5239 8.15391 10.7105 8.01219 10.8358 7.82235L13.7196 3.4493Z" />
-</svg>`;
   pinBtn.addEventListener("click", () =>
     togglePin(memo.id).catch((e) => console.error("고정 실패:", e)),
   );
@@ -5868,9 +5889,7 @@ function renderMemoItemDOM(memo) {
     const reminderBadge = createElement("span", {
       className: "imsmassi-memo-reminder-badge",
     });
-    reminderBadge.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-<path d="M5.83301 0C9.05467 0 11.666 2.61135 11.666 5.83301C11.666 9.05467 9.05467 11.666 5.83301 11.666C2.61135 11.666 0 9.05467 0 5.83301C3.5436e-07 2.61135 2.61135 3.54372e-07 5.83301 0ZM5.83301 2.25C5.51084 2.25 5.25 2.51084 5.25 2.83301V5.83301C5.25 6.05396 5.37464 6.25568 5.57227 6.35449L7.90527 7.52148C8.19343 7.66556 8.5444 7.5489 8.68848 7.26074C8.83255 6.97259 8.71491 6.62162 8.42676 6.47754L6.41602 5.47266V2.83301C6.41602 2.51084 6.15517 2.25 5.83301 2.25Z" fill="#0074EB"/>
-</svg> ${reminderTime}`;
+    reminderBadge.innerHTML = `${ICONS.time} ${reminderTime}`;
     headerLeft.appendChild(reminderBadge);
   }
 
@@ -5884,7 +5903,6 @@ function renderMemoItemDOM(memo) {
     draggable: "false",
     title: "삭제",
   });
-  deleteBtn.textContent = "✕";
   deleteBtn.addEventListener("click", () => openDeleteConfirmModal(memo.id));
   deleteBtn.addEventListener("mousedown", (e) => e.stopPropagation());
 
@@ -5944,12 +5962,12 @@ function renderMemoItemDOM(memo) {
   });
 
   const screenBtn = createElement("button", {
-    className: `imsmassi-memo-action-btn imsmassi-toggle-label imsmassi-screen-btn${hasStickyNote ? " imsmassi-screen-btn-active" : ""}`,
+    className: `imsmassi-memo-action-btn imsmassi-screen-btn${hasStickyNote ? " imsmassi-screen-btn-active" : ""}`,
     draggable: "false",
     title: `포스트잇 ${hasStickyNote ? "제거" : "추가"}`,
   });
+  screenBtn.innerHTML = `${hasStickyNote ? "스티커 제거" : "스티커 추가"}`;
   // --screen-btn-color/shadow는 CSS .imsmassi-screen-btn:not(.imsmassi-screen-btn-active)에서 var(--imsmassi-area-color)로 자동 연결
-  screenBtn.textContent = hasStickyNote ? "스티커삭제" : "스티커추가";
   screenBtn.addEventListener("click", () => createStickyNoteForMemo(memo.id));
   screenBtn.addEventListener("mousedown", (e) => e.stopPropagation());
 
@@ -5958,7 +5976,7 @@ function renderMemoItemDOM(memo) {
     draggable: "false",
     title: memo.reminder ? "리마인더 수정" : "리마인더 설정",
   });
-  reminderBtn.textContent = "알림설정";
+  reminderBtn.innerHTML = `${memo.reminder ? "알림 해제" : "알림 설정"}`;
   reminderBtn.addEventListener("click", () => openReminderModal(memo.id));
   reminderBtn.addEventListener("mousedown", (e) => e.stopPropagation());
 
@@ -6127,7 +6145,7 @@ function renderMemoTab() {
   });
   // 기본 색상은 CSS .imsmassi-memo-card-header { color: var(--imsmassi-text) }
   const clipboardTitleSpan = createElement("span");
-  clipboardTitleSpan.textContent = "클립보드";
+  clipboardTitleSpan.innerHTML = `<span class="imsmassi-modal-icon imsmassi-icon-clipboard"></span>클립보드`;
   clipboardCardHeader.appendChild(clipboardTitleSpan);
   const clipboardBody = createElement("div", {
     className: "imsmassi-memo-card-body",
@@ -6147,7 +6165,7 @@ function renderMemoTab() {
   });
   // 기본 색상은 CSS .imsmassi-memo-card-header { color: var(--imsmassi-text) }
   const templateTitleSpan = createElement("span");
-  templateTitleSpan.textContent = "템플릿";
+  templateTitleSpan.innerHTML = `<span class="imsmassi-modal-icon imsmassi-icon-template"></span>템플릿`;
   const addTemplateBtn = createElement("button", {
     className: "imsmassi-memo-option-btn imsmassi-template-add-btn",
   });
@@ -6295,21 +6313,34 @@ function setMemoFilter(filter) {
   if (!["menu", "area", "all"].includes(filter)) return;
   if (state.memoFilter === filter) return;
   state.memoFilter = filter;
+  // 내부 시스템 환경에서 Worker 응답 지연 시에도 즉시 UI 반영 (낙관적 업데이트)
+  renderAssistantContent();
   if (workerPort) {
     // Worker 상태에도 반영 → 이후 CONTEXT_CHANGE 등 STATE_UPDATE가 와도 필터가 초기화되지 않음
     workerSend("SAVE_UI_PREFS", { memoFilter: filter });
-    // SAVE_UI_PREFS → broadcastState() → handleStateUpdate → renderAssistant() 로 리렌더링됨
   } else {
-    // SharedWorker 미지원 폴백: 직접 DB 저장 후 리렌더링
+    // SharedWorker 미지원 폴백: 직접 DB 저장
     if (db)
       db.transaction("settings", "readwrite", (store) =>
         store.put(filter, "memoFilter"),
       ).catch(() => {});
-    renderAssistantContent();
   }
 }
 
 function toggleMemoSidePanel() {
+  // 전환 전: 나가는 쪽 너비가 640 이상이면 들어오는 쪽에도 동기화
+  if (state.isMemoPanelExpanded) {
+    // 펼침 → 접기: 펼친 너비가 640 이상이면 접힌 너비로 복사
+    if (state.panelWidthExpanded >= 640) {
+      state.panelWidthCollapsed = state.panelWidthExpanded;
+    }
+  } else {
+    // 접힘 → 펼치기: 접힌 너비가 640 이상이면 펼친 너비로 복사
+    if (state.panelWidthCollapsed >= 640) {
+      state.panelWidthExpanded = state.panelWidthCollapsed;
+    }
+  }
+
   state.isMemoPanelExpanded = !state.isMemoPanelExpanded;
 
   // 패널 너비/클래스는 탭과 무관하게 즉시 반영
@@ -6320,9 +6351,11 @@ function toggleMemoSidePanel() {
     renderAssistantContent();
   }
 
-  // Worker 상태 동기화
+  // Worker 상태 동기화 (너비값도 함께 저장)
   workerSend("SAVE_UI_PREFS", {
     isMemoPanelExpanded: state.isMemoPanelExpanded,
+    panelWidthCollapsed: state.panelWidthCollapsed ?? null,
+    panelWidthExpanded: state.panelWidthExpanded ?? null,
   });
 }
 
@@ -6333,24 +6366,13 @@ function updateMemoSidePanelState() {
   const isHidden = !state.isMemoPanelExpanded;
 
   if (isHidden) {
-    // ── 접기(collapsed) 전환 ──────────────────────────────────────────────
-    // panelWidth >= 640 이면 "펼친 상태"에서 리사이즈로 설정된 값.
-    // 접은 뒤에는 CSS 기본(360px)이 적용되도록 인라인 스타일을 초기화.
-    // panelWidth < 640 이면 "접힌 상태"에서 직접 조정한 값이므로 그대로 유지.
-    if (state.panelWidth && state.panelWidth >= 640) {
-      state.panelWidth = null;
-      floatingPanel.style.width = "";
-      workerSend("SAVE_UI_PREFS", { panelWidth: null });
-    }
+    // ── 접기(collapsed) 상태 DOM 반영
+    const pw = state.panelWidthCollapsed;
+    floatingPanel.style.width = pw ? `${pw}px` : "";
   } else {
-    // ── 펼치기(expanded) 전환 ─────────────────────────────────────────────
-    // panelWidth < 640 이면 "접힌 상태"에서 리사이즈로 설정된 값.
-    // 펼친 뒤에는 CSS .imsmassi-expanded(640px)가 자연스럽게 적용되도록 초기화.
-    if (state.panelWidth && state.panelWidth < 640) {
-      state.panelWidth = null;
-      floatingPanel.style.width = "";
-      workerSend("SAVE_UI_PREFS", { panelWidth: null });
-    }
+    // ── 펼친(expanded) 상태 DOM 반영
+    const pw = state.panelWidthExpanded;
+    floatingPanel.style.width = pw ? `${pw}px` : "";
   }
 
   floatingPanel.classList.toggle("imsmassi-expanded", !isHidden);
@@ -6358,32 +6380,66 @@ function updateMemoSidePanelState() {
     layout.classList.toggle("imsmassi-panel-hidden", isHidden);
   }
 
-  // memo-main max-width 동기화 (커스텀 너비 적용 시에만)
+  // memo-main max-width 동기화
   const memoMain = document.querySelector("#assistant-root .imsmassi-memo-main");
   if (memoMain) {
-    memoMain.style.maxWidth = state.panelWidth ? `${state.panelWidth - 30}px` : "";
+    const effectiveWidth = isHidden ? state.panelWidthCollapsed : state.panelWidthExpanded;
+    memoMain.style.maxWidth = effectiveWidth ? `${effectiveWidth - 30}px` : "";
   }
 }
 
+function cycleAssistantTab() {
+  const order = ["memo", "dashboard", "settings"];
+  const currentIndex = order.indexOf(state.activeTab);
+  const nextTab = order[(currentIndex + 1) % order.length];
+  setActiveTab(nextTab);
+}
+
+// 하위 호환: toggleDashboardView → cycleAssistantTab 위임
 function toggleDashboardView() {
-  if (state.activeTab === "dashboard") {
-    setActiveTab("memo");
-  } else {
-    setActiveTab("dashboard");
-  }
+  cycleAssistantTab();
 }
 
 function updateDashboardButton() {
-  const dashboardBtn = document.getElementById("assistant-dashboard-btn");
-  if (!dashboardBtn) return;
-  dashboardBtn.textContent =
-    state.activeTab === "dashboard" ? "메인" : "대시보드";
-  dashboardBtn.title =
-    state.activeTab === "dashboard" ? "메인으로 돌아가기" : "대시보드";
-  dashboardBtn.classList.toggle(
-    "imsmassi-active",
-    state.activeTab === "dashboard",
+  const actionsEl = document.querySelector(
+    "#assistant-root .imsmassi-assistant-header-actions",
   );
+  if (!actionsEl) return;
+
+  // 탭 그룹 없으면 동적 생성
+  let tabGroup = actionsEl.querySelector(".imsmassi-header-tab-group");
+  if (!tabGroup) {
+    tabGroup = document.createElement("div");
+    tabGroup.className = "imsmassi-header-tab-group";
+
+    const tabs = [
+      { id: "memo",      iconClass: "imsmassi-icon-memo",      label: "메모" },
+      { id: "dashboard", iconClass: "imsmassi-icon-dashboard", label: "대시보드" },
+      { id: "settings",  iconClass: "imsmassi-icon-settings",  label: "설정" },
+    ];
+
+    tabs.forEach(({ id, iconClass, label }) => {
+      const btn = document.createElement("button");
+      btn.className = "imsmassi-header-tab-btn";
+      btn.dataset.tabId = id;
+      btn.title = label;
+      btn.innerHTML = `<span class="imsmassi-tab-icon ${iconClass}"></span><span class="imsmassi-tab-label">${label}</span>`;
+      btn.onclick = () => setActiveTab(id);
+      tabGroup.appendChild(btn);
+    });
+
+    const closeBtn = actionsEl.querySelector(".imsmassi-assistant-close");
+    if (closeBtn) {
+      actionsEl.insertBefore(tabGroup, closeBtn);
+    } else {
+      actionsEl.appendChild(tabGroup);
+    }
+  }
+
+  // 현재 탭에 맞게 active 상태 갱신
+  tabGroup.querySelectorAll(".imsmassi-header-tab-btn").forEach((btn) => {
+    btn.classList.toggle("imsmassi-active", btn.dataset.tabId === state.activeTab);
+  });
 }
 
 // ========================================
@@ -6408,7 +6464,6 @@ function renderClipboardItemDOM(item) {
     className: "imsmassi-memo-delete-btn",
   });
   // 기본 색상은 CSS .imsmassi-memo-delete-btn { color: var(--imsmassi-sub-text) }
-  deleteBtn.textContent = "✕";
   deleteBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     deleteClipboardItem(item.id);
@@ -6490,7 +6545,6 @@ function renderTemplateItemDOM(template) {
     className: "imsmassi-memo-delete-btn",
   });
   // 기본 색상은 CSS .imsmassi-memo-delete-btn { color: var(--imsmassi-sub-text) }
-  deleteBtn.textContent = "✕";
   deleteBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     deleteTemplate(template.id);
@@ -6501,7 +6555,6 @@ function renderTemplateItemDOM(template) {
     title: "수정",
   });
   // 기본 색상은 CSS .imsmassi-template-edit-btn { color: var(--imsmassi-sub-text) }
-  editBtn.textContent = "✎";
   editBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     openEditTemplateModal(template.id);
@@ -6681,7 +6734,7 @@ function renderDashboardTab() {
     if (daysSinceBackup >= 7) {
       backupBannerHtml = `
         <div class="imsmassi-dashboard-banner imsmassi-dashboard-banner-backup">
-          <span class="imsmassi-dashboard-banner-icon">💾</span>
+          <span class="imsmassi-dashboard-banner-icon imsmassi-icon-save"></span>
           <div class="imsmassi-dashboard-banner-body">
             <div class="imsmassi-dashboard-banner-title imsmassi-dashboard-banner-title-backup">데이터 백업을 권장합니다</div>
             <div class="imsmassi-dashboard-banner-desc imsmassi-dashboard-banner-desc-backup">마지막 백업: ${daysSinceBackup}일 전</div>
@@ -6698,7 +6751,7 @@ function renderDashboardTab() {
   if (usagePercent >= 80) {
     storageWarningHtml = `
       <div class="imsmassi-dashboard-banner imsmassi-dashboard-banner-storage">
-        <span class="imsmassi-dashboard-banner-icon">⚠️</span>
+        <span class="imsmassi-dashboard-banner-icon imsmassi-icon-warning"></span>
         <div class="imsmassi-dashboard-banner-body">
           <div class="imsmassi-dashboard-banner-title imsmassi-dashboard-banner-title-storage">저장 용량이 부족합니다</div>
           <div class="imsmassi-dashboard-banner-desc imsmassi-dashboard-banner-desc-storage">${state.storageUsed.toFixed(1)}MB / ${state.storageLimit}MB (${usagePercent.toFixed(0)}%)</div>
@@ -6860,24 +6913,29 @@ function renderDashboardTab() {
 // ========================================
 document.addEventListener("keydown", function (e) {
   // Enter: 모달 확인
+  // ※ textarea에 포커스가 있을 때는 Enter = 줄바꿈 (모달 확인 트리거 제외)
   if (e.key === "Enter" && state.currentModal) {
-    e.preventDefault();
-    switch (state.currentModal) {
-      case "setReminder":
-        confirmSetReminder();
-        break;
-      case "deleteConfirm":
-        confirmDeleteMemo();
-        break;
-      case "addTemplate":
-        confirmAddTemplate();
-        break;
-      case "editTemplate":
-        confirmEditTemplate();
-        break;
-      case "addFavorite":
-        confirmAddFavorite();
-        break;
+    const focusedTag = document.activeElement?.tagName;
+    const isTextarea = focusedTag === "TEXTAREA";
+    if (!isTextarea) {
+      e.preventDefault();
+      switch (state.currentModal) {
+        case "setReminder":
+          confirmSetReminder();
+          break;
+        case "deleteConfirm":
+          confirmDeleteMemo();
+          break;
+        case "addTemplate":
+          confirmAddTemplate();
+          break;
+        case "editTemplate":
+          confirmEditTemplate();
+          break;
+        case "addFavorite":
+          confirmAddFavorite();
+          break;
+      }
     }
   }
   // Escape: 모달/어시스턴트 닫기
@@ -7276,6 +7334,12 @@ function initPanelTopLeftResize(panel) {
       // 상태 저장 및 DOM 업데이트
       state.panelWidth = newW;
       state.panelHeight = newH;
+      // 접힌/펼친 상태별 독립 필드에도 저장
+      if (state.isMemoPanelExpanded) {
+        state.panelWidthExpanded = newW;
+      } else {
+        state.panelWidthCollapsed = newW;
+      }
       panel.style.width = `${newW}px`;
       panel.style.height = `${newH}px`;
       // [Issue 3] memo-main max-width 실시간 동기화 (fixed 포지셔닝 보정)
@@ -7288,10 +7352,22 @@ function initPanelTopLeftResize(panel) {
       document.removeEventListener("mouseup", onUp);
       // [Task 3] 드래그 종료 후 transition 복원
       if (root) root.classList.remove("imsmassi-resizing");
-      workerSend("SAVE_UI_PREFS", {
-        panelWidth: state.panelWidth,
-        panelHeight: state.panelHeight,
-      });
+      if (workerPort) {
+        workerSend("SAVE_UI_PREFS", {
+          panelWidth: state.panelWidth,
+          panelWidthCollapsed: state.panelWidthCollapsed ?? null,
+          panelWidthExpanded: state.panelWidthExpanded ?? null,
+          panelHeight: state.panelHeight,
+        });
+      } else if (db) {
+        // 폴백 모드: IndexedDB 직접 저장
+        db.transaction("settings", "readwrite", (store) => {
+          store.put(state.panelWidth ?? null, "panelWidth");
+          store.put(state.panelWidthCollapsed ?? null, "panelWidthCollapsed");
+          store.put(state.panelWidthExpanded ?? null, "panelWidthExpanded");
+          store.put(state.panelHeight ?? null, "panelHeight");
+        }).catch((e) => console.warn("[resize] 패널 크기 저장 실패:", e));
+      }
     }
 
     document.addEventListener("mousemove", onMove);
@@ -7301,12 +7377,14 @@ function initPanelTopLeftResize(panel) {
   // 더블클릭: 가로/세로 모두 기본값 복원
   handle.addEventListener("dblclick", () => {
     state.panelWidth = null;
+    state.panelWidthCollapsed = null;
+    state.panelWidthExpanded = null;
     state.panelHeight = null;
     panel.style.width = "";
     panel.style.height = "";
     const memoMain = document.querySelector("#assistant-root .imsmassi-memo-main");
     if (memoMain) memoMain.style.maxWidth = ""; // CSS 기본값 복원
-    workerSend("SAVE_UI_PREFS", { panelWidth: null, panelHeight: null });
+    workerSend("SAVE_UI_PREFS", { panelWidth: null, panelWidthCollapsed: null, panelWidthExpanded: null, panelHeight: null });
   });
 }
 
