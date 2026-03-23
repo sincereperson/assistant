@@ -6218,7 +6218,7 @@ function renderMemoTab() {
   const memoCountSpan = createElement("span", {
     className: "imsmassi-memo-count",
   });
-  memoCountSpan.textContent = `메모 ${memos.length}건`;
+  memoCountSpan.innerHTML = `메모 <span class="imsmassi-memo-count-num">${memos.length}</span>건`;
   listHeader.append(filterBar, memoCountSpan);
   listArea.appendChild(listHeader);
 

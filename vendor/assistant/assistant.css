@@ -96,6 +96,8 @@ body {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  /* 내부 시스템 이식 시 외부 font-family 오버라이드 방지 */
+  font-family: "Pretendard", sans-serif !important;
 }
 #assistant-root {
   background-color: transparent;
@@ -232,7 +234,7 @@ body {
   width: 640px;
 }
 #assistant-root .imsmassi-assistant-header {
-  padding: 12px;
+  padding: 12px 12px 12px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -246,6 +248,13 @@ body {
   gap: 6px;
   font-weight: 600;
   font-size: 18px;
+}
+#assistant-root .imsmassi-assistant-header-logo {
+  width: 22px;
+  height: 22px;
+  display: block;
+  flex-shrink: 0;
+  pointer-events: none;
 }
 #assistant-root .imsmassi-assistant-header-actions {
   display: flex;
@@ -3242,6 +3251,14 @@ body {
 /* ========== 메모 공통 유틸리티 ========== */
 #assistant-root .imsmassi-memo-count {
   margin-left: auto;
+  font-size: 13px;
+}
+#assistant-root .imsmassi-memo-count-num {
+  font-weight: 700;
+  color: var(--imsmassi-primary);
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-count-num {
+  color: var(--imsmassi-primary-dark);
 }
 #assistant-root .imsmassi-memo-empty-msg {
   text-align: center;
@@ -3346,7 +3363,11 @@ body {
 
 /* ── Task 2: 어시스턴트 헤더 ── */
 #assistant-root .imsmassi-assistant-header {
+  background: var(--imsmassi-primary);
   color: var(--imsmassi-header-text);
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-assistant-header {
+  background: var(--imsmassi-primary-dark);
 }
 #assistant-root .imsmassi-assistant-close {
   color: var(--imsmassi-header-text);
