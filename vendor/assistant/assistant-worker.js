@@ -1332,6 +1332,23 @@ async function handleMarkGuideSeen(port) {
   sendTo(port, 'STATE_UPDATE', getSnapshot(port));
 }
 
+async function handleClearMemoAndClipboard(port) {
+  try {
+    await db.transaction('memos', 'readwrite', store => store.clear());
+    await db.transaction('clipboard', 'readwrite', store => store.clear());
+    await db.saveSetting('sticky_notes', []);
+    state.memos = {};
+    state.memosByArea = {};
+    state.clipboard = [];
+    state.stickyNotes = [];
+    broadcastState();
+    sendTo(port, 'TOAST', { message: '메모 및 클립보드가 초기화되었습니다.' });
+  } catch (error) {
+    console.error('[Worker] 데이터 초기화 실패:', error);
+    sendTo(port, 'TOAST', { message: '초기화 중 오류가 발생했습니다.' });
+  }
+}
+
 const HANDLERS = {
   INIT:              handleInit,
   CONTEXT_CHANGE:    handleContextChange,
@@ -1361,6 +1378,7 @@ const HANDLERS = {
   IMPORT_DATA:       handleImportData,
   EXPORT_DATA:       handleExportData,
   CLEAR_OLD_DATA:    handleClearOldData,
+  CLEAR_MEMO_AND_CLIPBOARD: handleClearMemoAndClipboard,
   BEFORE_UNLOAD:     handleBeforeUnload,
   REFRESH_CLIPBOARD: handleRefreshClipboard,
   SAVE_UI_PREFS:     handleSaveUIPrefs,

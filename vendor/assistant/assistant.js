@@ -1163,7 +1163,8 @@ let state = {
     debugLog: false,
     autoNav: false,
     lowSpec: false,
-    theme: false, // 푸터 테마/모드 전환 UI 노출 여부
+    theme: false,    // 푸터 테마/모드 전환 UI 노줄 여부
+    darkMode: false, // 푸터 다크모드 토글 버튼 노줄 여부
     sideTabs: false, // 좌측 사이드 탭 버튼 그룹 (기본값 false: 표시)
   },
 };
@@ -3152,101 +3153,6 @@ function recordAreaTime(areaId) {
   workerSend("RECORD_AREA_TIME", { areaId, elapsedMs });
 }
 
-function recordMenuTime(menu) {
-  if (!menu) return;
-  const now = Date.now();
-  const elapsedMs = now - state.lastMenuChangeTime;
-  state.lastMenuChangeTime = now;
-  workerSend("RECORD_AREA_TIME", { areaId: "menu_" + menu, elapsedMs });
-}
-
-// ========================================
-// 기간별 통계 조회 함수들
-// ========================================
-// 일별 통계 조회
-function getDailyStats(date = new Date()) {
-  const bucket = getDailyBucket(date);
-  const dailyData = state.timeBuckets.daily[bucket] || {};
-
-  return generateTimeStats(dailyData);
-}
-
-// 주별 통계 조회
-function getWeeklyStats(date = new Date()) {
-  const bucket = getWeeklyBucket(date);
-  const weeklyData = state.timeBuckets.weekly[bucket] || {};
-
-  return generateTimeStats(weeklyData);
-}
-
-// 월별 통계 조회
-function getMonthlyStats(date = new Date()) {
-  const bucket = getMonthlyBucket(date);
-  const monthlyData = state.timeBuckets.monthly[bucket] || {};
-
-  return generateTimeStats(monthlyData);
-}
-
-// 버킷 데이터를 표시용 통계로 변환
-function generateTimeStats(bucketData) {
-  const items = getBusinessAreas().map((area) => {
-    const totalMs = bucketData[area.id] || 0;
-    const hours = Math.floor(totalMs / (1000 * 60 * 60));
-    const minutes = Math.floor((totalMs % (1000 * 60 * 60)) / (1000 * 60));
-    const timeStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-
-    return {
-      name: area.name,
-      time: timeStr,
-      ms: totalMs,
-      color: area.color,
-    };
-  });
-
-  // 총 시간 계산
-  const totalMs = items.reduce((sum, item) => sum + item.ms, 0);
-  const totalHours = Math.floor(totalMs / (1000 * 60 * 60));
-  const totalMinutes = Math.floor((totalMs % (1000 * 60 * 60)) / (1000 * 60));
-  const totalStr =
-    totalHours > 0
-      ? `${totalHours}시간 ${totalMinutes}분`
-      : `${totalMinutes}분`;
-
-  // 퍼센트 계산
-  const itemsWithPercent = items
-    .map((item) => ({
-      ...item,
-      percent: totalMs > 0 ? Math.round((item.ms / totalMs) * 100) : 0,
-    }))
-    .sort((a, b) => b.ms - a.ms);
-
-  return {
-    total: totalStr,
-    items: itemsWithPercent,
-    totalMs: totalMs,
-  };
-}
-
-// 기간 범위의 누적 통계
-function getDateRangeStats(startDate, endDate) {
-  const rangeData = {};
-  const current = new Date(startDate);
-
-  while (current <= endDate) {
-    const dailyKey = getDailyBucket(current);
-    const dailyBucketData = state.timeBuckets.daily[dailyKey] || {};
-
-    Object.keys(dailyBucketData).forEach((areaId) => {
-      if (!rangeData[areaId]) rangeData[areaId] = 0;
-      rangeData[areaId] += dailyBucketData[areaId];
-    });
-
-    current.setDate(current.getDate() + 1);
-  }
-
-  return generateTimeStats(rangeData);
-}
-
 function getTimeStats(period = "today") {
   // 기간별 버킷 데이터 사용 (timeBuckets에서 조회)
   const now = Date.now();
@@ -3352,19 +3258,6 @@ async function captureClipboard() {
 // ========================================
 function refreshClipboardStateFromDB() {
   workerSend("REFRESH_CLIPBOARD", {});
-}
-
-function updateClipboardPanel(preserveScroll = true) {
-  if (!state.assistantOpen) return false;
-  const panelBody = document.getElementById("clipboard-panel-body");
-  if (!panelBody) return false;
-  const previousScroll = preserveScroll ? panelBody.scrollTop : 0;
-  panelBody.innerHTML = "";
-  panelBody.appendChild(renderClipboardTabDOM());
-  if (preserveScroll) {
-    panelBody.scrollTop = Math.min(previousScroll, panelBody.scrollHeight);
-  }
-  return true;
 }
 
 function addClipboardItem(content, options = {}) {
@@ -4220,7 +4113,41 @@ const MODAL_BUILDERS = {
   editTemplate: buildEditTemplateModal,
   deleteConfirm: buildDeleteConfirmModal,
   settings: buildSettingsModal,
+  clearAllDataConfirm: buildClearAllDataConfirmModal,
 };
+
+// ── 빌더: 전체 데이터 삭제 확인 모달 ─────────────────────────
+function buildClearAllDataConfirmModal() {
+  const title = createElement("div", { className: "imsmassi-modal-title" });
+  title.textContent = "⚠️ 데이터 영구 삭제";
+
+  const bodyText = createElement("p", { className: "imsmassi-modal-body-text" });
+  bodyText.innerHTML = "저장된 <strong>모든 메모와 클립보드 기록</strong>을 완전히 삭제하시겠습니까?<br><span style='color:#E74C3C; font-size:12px;'>(설정 및 템플릿은 유지됩니다. 이 작업은 되돌릴 수 없습니다.)</span>";
+
+  const bodyDiv = createElement("div", { className: "imsmassi-modal-body" });
+  bodyDiv.append(bodyText);
+
+  const cancelBtn = createElement("button", { className: "imsmassi-modal-btn imsmassi-modal-btn-secondary" });
+  cancelBtn.textContent = "취소";
+  cancelBtn.addEventListener("click", closeModal);
+
+  const deleteBtn = createElement("button", { className: "imsmassi-modal-btn imsmassi-modal-btn-danger" });
+  deleteBtn.textContent = "전체 삭제";
+  deleteBtn.addEventListener("click", executeClearAllData);
+
+  const btnsGroup = createElement("div", { className: "imsmassi-modal-btns" });
+  btnsGroup.append(cancelBtn, deleteBtn);
+
+  const content = createElement("div");
+  content.append(title, bodyDiv, btnsGroup);
+  return { content, firstFocus: cancelBtn };
+}
+
+// ── 전체 데이터 삭제 실행 ──
+function executeClearAllData() {
+  workerSend("CLEAR_MEMO_AND_CLIPBOARD", {});
+  closeModal();
+}
 
 // ========================================
 // 모달 시스템
@@ -4430,7 +4357,7 @@ function getSettingsHtml(closeHandler) {
           <div class="imsmassi-storage-actions">
             <button class="imsmassi-modal-btn imsmassi-btn-primary" onclick="exportAllData()">내보내기</button>
             <button class="imsmassi-modal-btn imsmassi-btn-secondary" onclick="importData()">가져오기</button>
-            <button class="imsmassi-modal-btn imsmassi-btn-danger" onclick="clearOldData()">캐시정리</button>
+            <button class="imsmassi-modal-btn imsmassi-btn-danger" onclick="openModal('clearAllDataConfirm')">데이터 초기화</button>
           </div>
         </div>
 
@@ -4822,44 +4749,6 @@ function togglePin(memoId) {
     return;
   }
   workerSend("TOGGLE_PIN", { memoId });
-}
-
-// [레거시 - 미사용] 이전 직접 정렬 로직 (Worker로 이전됨)
-function _legacyTogglePinSort(memoId, memo) {
-  // memosByArea 인덱스에서 위치 재정렬
-  // 고정된 메모는 맨 앞으로, 일반 메모는 날짜순으로 정렬
-  Object.keys(state.memosByArea).forEach((areaId) => {
-    const memoList = state.memosByArea[areaId];
-    if (memoList && memoList.includes(memoId)) {
-      // 현재 메모를 배열에서 제거
-      const idx = memoList.indexOf(memoId);
-      if (idx > -1) {
-        memoList.splice(idx, 1);
-      }
-
-      // 고정된 메모면 맨 앞에 추가, 아니면 끝에 추가
-      if (memo.pinned) {
-        memoList.unshift(memoId); // 맨 앞에
-      } else {
-        // 일반 메모들 중 같은 날짜 메모 다음에 추가 (날짜순 정렬 유지)
-        let insertIdx = 0;
-        for (let i = 0; i < memoList.length; i++) {
-          const m = state.memos[memoList[i]];
-          if (m && !m.pinned && m.date === memo.date) {
-            insertIdx = i + 1;
-          } else if (m && !m.pinned && new Date(m.date) < new Date(memo.date)) {
-            insertIdx = i + 1;
-          } else if (m && m.pinned) {
-            // 고정 메모는 건너뛰고 계속 탐색
-            continue;
-          } else {
-            break;
-          }
-        }
-        memoList.splice(insertIdx, 0, memoId);
-      }
-    }
-  });
 }
 
 // 고정 기능 디버깅 헬퍼
@@ -5406,31 +5295,6 @@ function renderControlPanel() {
   });
   themeButtons.innerHTML = themeBtnsHtml;
 }
-
-function renderControlPanel() {
-  const theme = getTheme();
-  const themeButtons = document.getElementById("theme-buttons");
-  if (!themeButtons) return;
-
-  // 테마 버튼
-  let themeBtnsHtml = "";
-  Object.entries(themes).forEach(([key, t]) => {
-    const isActive = state.currentTheme === key;
-    const sw = THEME_SWATCHES[key] || THEME_SWATCHES.classic;
-    const dotColor = isActive ? theme.primary : sw.primary;
-    const bgColor = isActive ? theme.primaryLight : sw.light;
-    const borderStyle = sw.border ? `border: ${sw.border};` : "";
-    themeBtnsHtml += `
-      <button class="imsmassi-theme-btn ${isActive ? "imsmassi-active" : ""}"
-              style="border-color: ${isActive ? theme.primary : "#E0E0E0"}; background: ${bgColor};"
-              onclick="setTheme('${key}')">
-        <span class="imsmassi-theme-dot" style="background: ${dotColor}; ${borderStyle}"></span>
-        ${t.name}
-      </button>
-    `;
-  });
-  themeButtons.innerHTML = themeBtnsHtml;
-}
 function renderSystemPreview() {
   const theme = getTheme();
   const area = getArea();
@@ -5680,8 +5544,7 @@ function renderAssistant() {
   // 리사이즈 핸들 초기화 (처음 한 번만)
   if (!panel._resizeInited) {
     panel._resizeInited = true;
-    initPanelResize(panel);
-    initPanelWidthResize(panel);
+    initPanelTopLeftResize(panel); // [Task 2] 좌측 상단 통합 리사이즈
   }
 
   if (!state.assistantOpen) return;
@@ -5702,16 +5565,19 @@ function renderAssistant() {
     "imsmassi-assistant-footer-modes",
   );
   if (footerModes) {
-    // 다크모드 토글은 항상 표시
-    footerModes.style.display = "";
-    footerModes.innerHTML = `
-      <span style="font-size: 11px;">다크</span>
-      <label class="imsmassi-toggle-switch" style="transform: scale(0.85);">
-        <input type="checkbox" ${state.isDarkMode ? "checked" : ""} onchange="setDarkMode(this.checked)">
-        <span class="imsmassi-toggle-slider"></span>
-      </label>
-     
-    `;
+    if (state.hiddenUI.darkMode) {
+      footerModes.style.display = "";
+      footerModes.innerHTML = `
+        <span style="font-size: 11px;">다크</span>
+        <label class="imsmassi-toggle-switch" style="transform: scale(0.85);">
+          <input type="checkbox" ${state.isDarkMode ? "checked" : ""} onchange="setDarkMode(this.checked)">
+          <span class="imsmassi-toggle-slider"></span>
+        </label>
+      `;
+    } else {
+      footerModes.style.display = "none";
+      footerModes.innerHTML = "";
+    }
   }
 
   const footerThemes = document.getElementById(
@@ -5824,9 +5690,6 @@ function estimateTimeDataMB() {
 }
 
 function renderAssistantTabs() {
-  const area = getArea();
-  const c = getColors();
-
   const tabsContainer = document.getElementById("imsmassi-assistant-tabs");
   if (!tabsContainer) return;
   if (!assistantTabs.length || state.hiddenUI.sideTabs === false) {
@@ -5858,42 +5721,11 @@ function renderAssistantTabs() {
     tabsContainer.appendChild(btn);
   });
 
-  // 모든 탭에서 사이드 패널 접기/펼치기 버튼 (사이드바 하단 고정)
-  const sideToggleBtn = createElement("button", {
-    className: "imsmassi-assistant-tab-toggle-btn",
-    id: "imsmassi-memo-side-toggle-btn",
-    title: state.isMemoPanelExpanded
-      ? "사이드 패널 접기"
-      : "사이드 패널 펼치기",
-  });
-  const toggleIconSpan = createElement("span", {
-    className: "imsmassi-assistant-tab-icon",
-  });
-  toggleIconSpan.textContent = state.isMemoPanelExpanded ? "◂" : "▸";
-  const toggleLabelSpan = createElement("span", {
-    className: "imsmassi-assistant-tab-label",
-  });
-  toggleLabelSpan.textContent = "사이드";
-  // 색상은 CSS .imsmassi-assistant-tab-toggle-btn { color: var(--imsmassi-sub-text) } 에서 연결
-  sideToggleBtn.appendChild(toggleIconSpan);
-  sideToggleBtn.appendChild(toggleLabelSpan);
-  sideToggleBtn.addEventListener("click", () => {
-    // 메모 탭이 아니면 먼저 메모 탭으로 전환 후 사이드 패널 토글
-    if (state.activeTab !== "memo") {
-      setActiveTab("memo");
-      if (!state.isMemoPanelExpanded) {
-        setTimeout(() => toggleMemoSidePanel(), 80);
-      }
-    } else {
-      toggleMemoSidePanel();
-    }
-  });
-  tabsContainer.appendChild(sideToggleBtn);
 }
+// [Task 1] 탭 사이드바 하단 사이드 패널 토글 버튼 제거
+// 펼치기/접기 기능은 패널 좌측 .imsmassi-btn-collapse-expand 버튼으로 이관됨
 
 function renderAssistantContent(previousTab) {
-  const area = getArea();
-  const c = getColors();
   const content = document.getElementById("imsmassi-assistant-content");
   if (!content) return;
   const previousScrollTop = content ? content.scrollTop : 0;
@@ -5973,9 +5805,6 @@ function renderAssistantContent(previousTab) {
  * @returns {HTMLElement} - 완성된 메모 아이템 DOM 요소
  */
 function renderMemoItemDOM(memo) {
-  const area = getArea();
-  const c = getColors();
-
   // ── 루트 컨테이너 ──
   const item = createElement("div", {
     className: "imsmassi-memo-item",
@@ -6160,7 +5989,6 @@ function renderMemoItemDOM(memo) {
  */
 function renderMemoTab() {
   const area = getArea();
-  const c = getColors();
   const allMemos = Object.values(state.memos || {});
   const getMemoTime = (memo) =>
     Number.isFinite(memo?.createdAt)
@@ -6273,13 +6101,8 @@ function renderMemoTab() {
   });
   addBtn.textContent = "메모등록";
   addBtn.addEventListener("click", addMemo);
-  const sideToggleBtn = createElement("button", {
-    className: "imsmassi-memo-option-btn imsmassi-memo-side-toggle-btn",
-    id: "imsmassi-memo-side-toggle-btn",
-  });
-  sideToggleBtn.textContent = isExpanded ? "접기 ▸" : "펼치기 ◂";
-  sideToggleBtn.addEventListener("click", toggleMemoSidePanel);
-  optionsBar.append(addBtn, sideToggleBtn);
+  // [Task 4] 구버전 사이드 토글 버튼 제거 (기능은 .imsmassi-btn-collapse-expand 로 이관)
+  optionsBar.append(addBtn);
 
   const mainSection = createElement("div", { className: "imsmassi-memo-main" });
   mainSection.append(editorSection, optionsBar);
@@ -6488,8 +6311,16 @@ function setMemoFilter(filter) {
 
 function toggleMemoSidePanel() {
   state.isMemoPanelExpanded = !state.isMemoPanelExpanded;
-  renderAssistantContent();
-  // Worker 상태 동기화 — broadcastState()가 동일한 값을 전송하도록
+
+  // 패널 너비/클래스는 탭과 무관하게 즉시 반영
+  updateMemoSidePanelState();
+
+  // 메모 탭일 때만 콘텐츠 리렌더링 (imsmassi-memo-layout 존재 시)
+  if (state.activeTab === "memo") {
+    renderAssistantContent();
+  }
+
+  // Worker 상태 동기화
   workerSend("SAVE_UI_PREFS", {
     isMemoPanelExpanded: state.isMemoPanelExpanded,
   });
@@ -6498,22 +6329,39 @@ function toggleMemoSidePanel() {
 function updateMemoSidePanelState() {
   const layout = document.getElementById("imsmassi-memo-layout");
   const floatingPanel = document.getElementById("imsmassi-floating-panel");
-  if (!floatingPanel || !layout) return;
+  if (!floatingPanel) return; // layout은 메모 탭에만 존재하므로 null 허용
   const isHidden = !state.isMemoPanelExpanded;
-  // 펼칠 때 저장된 너비가 확장 기본값(640px)보다 작으면 inline 너비를 초기화하여
-  // CSS .imsmassi-expanded { width: 640px } 가 자연스럽게 적용되도록 방어 처리
-  if (!isHidden && state.panelWidth && state.panelWidth < 640) {
-    state.panelWidth = null;
-    floatingPanel.style.width = "";
-    workerSend("SAVE_UI_PREFS", { panelWidth: null });
+
+  if (isHidden) {
+    // ── 접기(collapsed) 전환 ──────────────────────────────────────────────
+    // panelWidth >= 640 이면 "펼친 상태"에서 리사이즈로 설정된 값.
+    // 접은 뒤에는 CSS 기본(360px)이 적용되도록 인라인 스타일을 초기화.
+    // panelWidth < 640 이면 "접힌 상태"에서 직접 조정한 값이므로 그대로 유지.
+    if (state.panelWidth && state.panelWidth >= 640) {
+      state.panelWidth = null;
+      floatingPanel.style.width = "";
+      workerSend("SAVE_UI_PREFS", { panelWidth: null });
+    }
+  } else {
+    // ── 펼치기(expanded) 전환 ─────────────────────────────────────────────
+    // panelWidth < 640 이면 "접힌 상태"에서 리사이즈로 설정된 값.
+    // 펼친 뒤에는 CSS .imsmassi-expanded(640px)가 자연스럽게 적용되도록 초기화.
+    if (state.panelWidth && state.panelWidth < 640) {
+      state.panelWidth = null;
+      floatingPanel.style.width = "";
+      workerSend("SAVE_UI_PREFS", { panelWidth: null });
+    }
   }
+
   floatingPanel.classList.toggle("imsmassi-expanded", !isHidden);
-  layout.classList.toggle("imsmassi-panel-hidden", isHidden);
-  const toggle = document.getElementById("imsmassi-memo-side-toggle-btn");
-  if (toggle) {
-    const iconEl = toggle.querySelector(".imsmassi-assistant-tab-icon");
-    if (iconEl) iconEl.textContent = isHidden ? "▸" : "◂";
-    toggle.title = isHidden ? "사이드 패널 펼치기" : "사이드 패널 접기";
+  if (layout) {
+    layout.classList.toggle("imsmassi-panel-hidden", isHidden);
+  }
+
+  // memo-main max-width 동기화 (커스텀 너비 적용 시에만)
+  const memoMain = document.querySelector("#assistant-root .imsmassi-memo-main");
+  if (memoMain) {
+    memoMain.style.maxWidth = state.panelWidth ? `${state.panelWidth - 30}px` : "";
   }
 }
 
@@ -6546,7 +6394,6 @@ function updateDashboardButton() {
  * textContent를 사용하여 XSS를 원천 차단합니다.
  */
 function renderClipboardItemDOM(item) {
-  const c = getColors();
   const areaName = getAreaName(item.areaId, item.areaId);
   const relativeTime = item.timestamp
     ? getRelativeTime(item.timestamp)
@@ -6591,7 +6438,6 @@ function renderClipboardItemDOM(item) {
  * renderClipboardTabDOM() - 클립보드 탭 전체 DOM을 빌드하여 반환합니다.
  */
 function renderClipboardTabDOM() {
-  const c = getColors();
   const items = Array.isArray(state.clipboard) ? state.clipboard : [];
   const container = createElement("div");
 
@@ -6637,9 +6483,6 @@ function renderClipboardTab() {
  * textContent를 사용하여 XSS를 원천 차단합니다.
  */
 function renderTemplateItemDOM(template) {
-  const area = getArea();
-  const c = getColors();
-
   const itemDiv = createElement("div", { className: "imsmassi-template-item" });
   itemDiv.addEventListener("click", () => useTemplate(template.id));
 
@@ -6693,7 +6536,6 @@ function renderTemplateItemDOM(template) {
  * renderTemplateTabDOM() - 템플릿 탭 전체 DOM을 빌드하여 반환합니다.
  */
 function renderTemplateTabDOM() {
-  const c = getColors();
   const container = createElement("div");
 
   const listHeader = createElement("div", {
@@ -6715,8 +6557,6 @@ function renderTemplateTab() {
 }
 
 function renderTimeTab() {
-  const area = getArea();
-  const c = getColors();
   const periodMap = { today: "오늘", week: "이번 주", month: "이번 달" };
   const data = getTimeStats(state.timePeriod); // 실시간 데이터 가져오기
 
@@ -6827,8 +6667,6 @@ function renderAreaColorSection() {
 }
 
 function renderDashboardTab() {
-  const area = getArea();
-  const c = getColors();
   // showTimeTab 설정이 false이면 시간 인사이트 섹션 렌더링 생략
   const timeHtml = state.settings?.showTimeTab !== false ? renderTimeTab() : "";
 
@@ -7307,13 +7145,14 @@ window.addEventListener("beforeunload", () => {
 });
 /**
  * [개발자 도구 전용] 특정 고급 설정 UI 항목 노출/숨김 개별 토글
- * @param {string} key - 'areaColor' | 'timeInsight' | 'markdown' | 'debugLog' | 'autoNav' | 'lowSpec' | 'theme' | 'sideTabs'
+ * @param {string} key - 'areaColor' | 'timeInsight' | 'markdown' | 'debugLog' | 'autoNav' | 'lowSpec' | 'theme' | 'darkMode' | 'sideTabs'
  * @param {boolean} visible - 노출 여부 (true: 표시, false: 숨김)
  *
  * 사용 예시 (브라우저 콘솔):
  *   toggleAssistantHiddenUI('sideTabs', false);  // 좌측 사이드 탭 버튼 그룹 숨김
  *   toggleAssistantHiddenUI('sideTabs', true);   // 좌측 사이드 탭 버튼 그룹 표시
  *   toggleAssistantHiddenUI('theme', true);      // 푸터 테마 UI 표시
+ *   toggleAssistantHiddenUI('darkMode', true);   // 푸터 다크모드 버튼 표시
  *   toggleAssistantHiddenUI('lowSpec', true);    // 저사양 모드 섹션 표시
  *   toggleAssistantHiddenUI('areaColor', true);  // 업무 컬러 설정 표시
  *   toggleAssistantHiddenUI('markdown', false);  // 마크다운 단축키 숨김
@@ -7329,6 +7168,7 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
       autoNav: false,
       lowSpec: false,
       theme: false,
+      darkMode: false,
       sideTabs: false,
     };
   }
@@ -7342,6 +7182,12 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
     // sideTabs 변경 시 탭 사이드바 즉각 반영
     if (key === "sideTabs") {
       renderAssistantTabs();
+      return;
+    }
+
+    // darkMode 버튼 변경 시 패널 푸터 즉각 반영
+    if (key === "darkMode" || key === "theme") {
+      renderAssistant();
       return;
     }
 
@@ -7384,116 +7230,83 @@ window.showAllAssistantHiddenUI = function (visible = true) {
 };
 
 // ========================================
-// 패널 높이 리사이즈
+// 패널 좌측 상단 통합 리사이즈 (대각선)
 // ========================================
-/**
- * 패널 상단 가장자리를 드래그하여 높이 조절.
- * bottom 앵커 고정 → 드래그 위로 = 위쪽 경계가 올라가며 높이 증가.
- */
-function initPanelResize(panel) {
+function initPanelTopLeftResize(panel) {
   // 기존 핸들이 있으면 제거
-  const existing = panel.querySelector(".imsmassi-panel-resize-handle");
+  const existing = panel.querySelector(".imsmassi-panel-resize-handle-nw");
   if (existing) existing.remove();
 
   const handle = document.createElement("div");
-  handle.className = "imsmassi-panel-resize-handle";
-  handle.title = "높이 조절 (더블클릭: 기본값 복원)";
-  panel.prepend(handle);
+  handle.className = "imsmassi-panel-resize-handle-nw";
+  handle.title = "크기 조절 (더블클릭: 기본값 복원)";
+  panel.appendChild(handle);
 
   const MIN_H = 300;
-  const MAX_H_OFFSET = 64; // bottom 24px + 상단 여유 40px
-
-  handle.addEventListener("mousedown", (e) => {
-    e.preventDefault();
-    const startY = e.clientY;
-    const startH = panel.offsetHeight;
-
-    function onMove(ev) {
-      const delta = startY - ev.clientY; // 위로 드래그 → 높이 증가
-      const newH = Math.min(
-        Math.max(startH + delta, MIN_H),
-        window.innerHeight - MAX_H_OFFSET,
-      );
-      state.panelHeight = newH;
-      panel.style.height = `${newH}px`;
-    }
-
-    function onUp() {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      // DB 저장
-      workerSend("SAVE_UI_PREFS", { panelHeight: state.panelHeight });
-    }
-
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  });
-
-  // 더블클릭: 기본 높이 복원
-  handle.addEventListener("dblclick", () => {
-    state.panelHeight = null;
-    panel.style.height = "";
-    workerSend("SAVE_UI_PREFS", { panelHeight: null });
-  });
-}
-
-// ========================================
-// 패널 너비 리사이즈
-// ========================================
-/**
- * 패널 왼쪽 가장자리를 드래그하여 너비 조절.
- * right 앵커 고정 → 왼쪽으로 드래그 = 왼쪽 경계가 이동하며 너비 증가.
- */
-function initPanelWidthResize(panel) {
-  // 헤더·푸터를 제외한 콘텐츠 영역(body-wrapper) 좌측에 핸들 부착
-  const bodyWrapper =
-    document.getElementById("imsmassi-panel-body-wrapper") || panel;
-
-  const existing =
-    bodyWrapper.querySelector(".imsmassi-panel-resize-handle-x") ||
-    panel.querySelector(".imsmassi-panel-resize-handle-x");
-  if (existing) existing.remove();
-
-  const handle = document.createElement("div");
-  handle.className = "imsmassi-panel-resize-handle-x";
-  handle.title = "너비 조절 (더블클릭: 기본값 복원)";
-  bodyWrapper.appendChild(handle);
-
+  const MAX_H_OFFSET = 64;
   const MAX_W_RATIO = 0.85;
 
   handle.addEventListener("mousedown", (e) => {
     e.preventDefault();
     const startX = e.clientX;
+    const startY = e.clientY;
     const startW = panel.offsetWidth;
+    const startH = panel.offsetHeight;
+
+    // [Task 3] 드래그 중 transition 무력화로 고무줄 현상 방지
+    const root = document.getElementById("assistant-root");
+    if (root) root.classList.add("imsmassi-resizing");
 
     function onMove(ev) {
-      // 확장 상태(640px)일 때는 최솟값도 640, 기본(360px)일 때는 360
+      // 너비 계산 (왼쪽으로 당기면 너비 증가)
       const MIN_W = panel.classList.contains("imsmassi-expanded") ? 640 : 360;
-      const delta = startX - ev.clientX; // 왼쪽으로 드래그 → 너비 증가
+      const deltaX = startX - ev.clientX;
       const newW = Math.min(
-        Math.max(startW + delta, MIN_W),
+        Math.max(startW + deltaX, MIN_W),
         Math.floor(window.innerWidth * MAX_W_RATIO),
       );
+
+      // 높이 계산 (위로 당기면 높이 증가)
+      const deltaY = startY - ev.clientY;
+      const newH = Math.min(
+        Math.max(startH + deltaY, MIN_H),
+        window.innerHeight - MAX_H_OFFSET,
+      );
+
+      // 상태 저장 및 DOM 업데이트
       state.panelWidth = newW;
+      state.panelHeight = newH;
       panel.style.width = `${newW}px`;
+      panel.style.height = `${newH}px`;
+      // [Issue 3] memo-main max-width 실시간 동기화 (fixed 포지셔닝 보정)
+      const memoMain = document.querySelector("#assistant-root .imsmassi-memo-main");
+      if (memoMain) memoMain.style.maxWidth = `${newW - 30}px`;
     }
 
     function onUp() {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
-      // DB 저장
-      workerSend("SAVE_UI_PREFS", { panelWidth: state.panelWidth });
+      // [Task 3] 드래그 종료 후 transition 복원
+      if (root) root.classList.remove("imsmassi-resizing");
+      workerSend("SAVE_UI_PREFS", {
+        panelWidth: state.panelWidth,
+        panelHeight: state.panelHeight,
+      });
     }
 
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
   });
 
-  // 더블클릭: 기본 너비 복원
+  // 더블클릭: 가로/세로 모두 기본값 복원
   handle.addEventListener("dblclick", () => {
     state.panelWidth = null;
+    state.panelHeight = null;
     panel.style.width = "";
-    workerSend("SAVE_UI_PREFS", { panelWidth: null });
+    panel.style.height = "";
+    const memoMain = document.querySelector("#assistant-root .imsmassi-memo-main");
+    if (memoMain) memoMain.style.maxWidth = ""; // CSS 기본값 복원
+    workerSend("SAVE_UI_PREFS", { panelWidth: null, panelHeight: null });
   });
 }
 
