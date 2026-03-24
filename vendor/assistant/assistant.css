@@ -593,13 +593,13 @@
   bottom: 80px;
   min-width: 0;
   width: 100%;
-  max-width: 330px; /* 기본 패널 너비(360px) - 여백: JS 리사이즈 시 인라인 style.maxWidth로 덮어씀 */
+  max-width: 335px; /* 기본 패널 너비(360px) - 여백: JS 리사이즈 시 인라인 style.maxWidth로 덮어씀 */
   z-index: 1;
   border-radius: 16px; /* box-shadow가 이 radius를 따라 둥글게 렌더링됨 */
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18), 0 1.5px 6px rgba(0, 0, 0, 0.10);
 }
 #assistant-root .imsmassi-expanded .imsmassi-memo-main {
-  max-width: 610px; /* 확장 패널 너비(640px) - 여백 */
+  max-width: 615px; /* 확장 패널 너비(640px) - 여백 */
 }
 #assistant-root .imsmassi-memo-side {
   min-width: 0;

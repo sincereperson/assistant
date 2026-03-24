@@ -746,7 +746,7 @@ class AssistantDB {
   async importData(importedData) {
     if (!importedData.data) throw new Error("잘못된 데이터 형식");
 
-    const { memos = [], templates = [], settings = [] } = importedData.data;
+    const { memos = [], templates = [], settings = [], clipboard = [] } = importedData.data;
 
     const normalizedMemos = Array.isArray(memos)
       ? memos
@@ -754,6 +754,9 @@ class AssistantDB {
     const normalizedTemplates = Array.isArray(templates)
       ? templates
       : Object.values(templates || {});
+    const normalizedClipboard = Array.isArray(clipboard)
+      ? clipboard
+      : Object.values(clipboard || {});
 
     const normalizedSettings = (() => {
       if (!settings) return [];
@@ -792,6 +795,17 @@ class AssistantDB {
       await this.addTemplate(template);
     }
 
+    // 클립보드 가져오기: store.put으로 원본 id·timestamp 유지
+    for (const item of normalizedClipboard) {
+      if (!item || typeof item !== "object") continue;
+      if (!item.content) continue;
+      const itemToSave = { ...item };
+      if (!itemToSave.timestamp) itemToSave.timestamp = Date.now();
+      await this.transaction("clipboard", "readwrite", (store) =>
+        store.put(itemToSave),
+      );
+    }
+
     // 설정 가져오기
     for (const setting of normalizedSettings) {
       if (!setting || !setting.key) continue;
@@ -801,7 +815,7 @@ class AssistantDB {
 
     return {
       success: true,
-      imported: normalizedMemos.length + normalizedTemplates.length,
+      imported: normalizedMemos.length + normalizedTemplates.length + normalizedClipboard.length,
     };
   }
 
@@ -6387,7 +6401,7 @@ function updateMemoSidePanelState() {
   const memoMain = document.querySelector("#assistant-root .imsmassi-memo-main");
   if (memoMain) {
     const effectiveWidth = isHidden ? state.panelWidthCollapsed : state.panelWidthExpanded;
-    memoMain.style.maxWidth = effectiveWidth ? `${effectiveWidth - 30}px` : "";
+    memoMain.style.maxWidth = effectiveWidth ? `${effectiveWidth - 25}px` : "";
   }
 }
 

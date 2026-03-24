@@ -285,9 +285,10 @@ class AssistantDB {
 
   async importData(importedData) {
     if (!importedData.data) throw new Error('잘못된 데이터 형식');
-    const { memos = [], templates = [], settings = [] } = importedData.data;
+    const { memos = [], templates = [], settings = [], clipboard = [] } = importedData.data;
     const normalizedMemos = Array.isArray(memos) ? memos : Object.values(memos || {});
     const normalizedTemplates = Array.isArray(templates) ? templates : Object.values(templates || {});
+    const normalizedClipboard = Array.isArray(clipboard) ? clipboard : Object.values(clipboard || {});
     const normalizedSettings = (() => {
       if (!settings) return [];
       if (Array.isArray(settings)) {
@@ -311,12 +312,21 @@ class AssistantDB {
       if (!template || typeof template !== 'object') continue;
       await this.addTemplate(template);
     }
+    // 클립보드 가져오기: store.put으로 원본 id·timestamp 유지
+    for (const item of normalizedClipboard) {
+      if (!item || typeof item !== 'object') continue;
+      if (!item.content) continue;
+      // id가 있으면 put(기존 레코드 덮어쓰기), 없으면 id 제거 후 add(자동증가)
+      const itemToSave = { ...item };
+      if (!itemToSave.timestamp) itemToSave.timestamp = Date.now();
+      await this.updateClipboardItem(itemToSave);
+    }
     for (const setting of normalizedSettings) {
       if (!setting || !setting.key) continue;
       if (['menu_time_stats', 'time_buckets'].includes(setting.key)) continue;
       await this.saveSetting(setting.key, setting.value);
     }
-    return { success: true, imported: normalizedMemos.length + normalizedTemplates.length };
+    return { success: true, imported: normalizedMemos.length + normalizedTemplates.length + normalizedClipboard.length };
   }
 
   async clearAll() {
