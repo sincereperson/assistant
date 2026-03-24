@@ -10,7 +10,7 @@
 #assistant-root {
   font-size: 13px;
   /* 테마 컬러 */
-  --imsmassi-primary: #4A90A4;
+  --imsmassi-primary: #006DB3;
   --imsmassi-primary-light: #e8f4f8;
   --imsmassi-primary-dark: #7ce0d380;
   /* 패널 배경/텍스트/경계 */
@@ -390,7 +390,7 @@
 /* 콘텐츠 영역 */
 #assistant-root .imsmassi-assistant-content {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: scroll;
   overflow-x: hidden;
   padding: 14px;
   padding-top: 10px;
@@ -595,6 +595,8 @@
   width: 100%;
   max-width: 330px; /* 기본 패널 너비(360px) - 여백: JS 리사이즈 시 인라인 style.maxWidth로 덮어씀 */
   z-index: 1;
+  border-radius: 16px; /* box-shadow가 이 radius를 따라 둥글게 렌더링됨 */
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18), 0 1.5px 6px rgba(0, 0, 0, 0.10);
 }
 #assistant-root .imsmassi-expanded .imsmassi-memo-main {
   max-width: 610px; /* 확장 패널 너비(640px) - 여백 */
@@ -713,6 +715,7 @@
   max-width: 100%;
 }
 #assistant-root .imsmassi-memo-item {
+  border: 1px solid var(--imsmassi-area-color);
   border-radius: 12px;
   margin-bottom: 8px;
   position: relative;
@@ -731,6 +734,7 @@
   padding: 4px 6px;
   border-radius: 8px 8px 0 0;
   flex-shrink: 0;
+  gap: 6px;
 }
 
 /* 인라인 제목 편집 */
@@ -961,7 +965,7 @@
   --memo-bg-color: #191f28;
 }
 #assistant-root .imsmassi-memo-card {
-  border: 1px solid;
+  border: 1px solid var(--imsmassi-area-color);
   border-radius: 12px;
   padding: 10px 10px 12px;
   height: 320px;
@@ -998,6 +1002,7 @@
   overflow: auto;
   flex: 1 1 0;
   min-height: 120px;
+  scrollbar-width: none;
 }
 
 #assistant-root .imsmassi-clipboard-header {
@@ -2478,17 +2483,13 @@
    ================================================ */
 #assistant-root .imsmassi-memo-item-pinned {
   background: #fffbeb;
-  border-left: 3px solid var(--memo-pin-border, #4a90d9);
+  border-left: 3px solid var(--memo-pin-border, var(--imsmassi-area-color));
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-item-pinned {
   background: #353535;
 }
 #assistant-root .imsmassi-memo-item-normal {
   background: #fff;
-  border: 1px solid #e0e0e0;
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-memo-item-normal {
-  border-color: #404040;
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-item-normal {
   background: #191f28;
@@ -3475,6 +3476,41 @@
   z-index: 3000;
   pointer-events: none;
 }
+/* 패널 열려있을 때: 패널 내부 중앙에 절대 위치 */
+#assistant-root .imsmassi-floating-panel #notification-toast-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 3100;
+  pointer-events: none;
+  width: max-content;
+  max-width: 90%;
+}
+/* 리마인더 알림 — 빨간 계열 배경 */
+#assistant-root .imsmassi-notification-toast.imsmassi-reminder {
+  background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+  box-shadow: 0 4px 20px rgba(229, 57, 53, 0.35);
+}
+/* 패널 내부 토스트 — 슬라이드 대신 스케일+페이드 애니메이션 */
+#assistant-root .imsmassi-notification-toast.imsmassi-in-panel {
+  position: relative; /* fixed 재정의 → 컨테이너 흐름 안에 배치 */
+  top: auto;
+  right: auto;
+  width: 260px;
+  transform: scale(0.82);
+  opacity: 0;
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.22s ease;
+  pointer-events: auto;
+}
+#assistant-root .imsmassi-notification-toast.imsmassi-in-panel.imsmassi-show {
+  transform: scale(1);
+  opacity: 1;
+}
 #assistant-root #balloon-notification-container {
   position: fixed;
   bottom: 100px;
@@ -3587,9 +3623,6 @@
 }
 
 /* ── Task 2: 사이드패널 카드 ── */
-#assistant-root .imsmassi-memo-card {
-  border-color: var(--imsmassi-border);
-}
 #assistant-root .imsmassi-memo-card-header {
   color: var(--imsmassi-text);
 }
@@ -3757,13 +3790,13 @@
 
 /* ── Task 2: 콘텐츠 탭 전환 애니메이션 클래스 ── */
 #assistant-root .imsmassi-content-transitioning {
-  transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
+  transition: opacity 0.18s ease;
+  /* transform 제거: position:fixed 자식(imsmassi-memo-main)의 기준점이 바뀌어 움찔거림 유발 */
 }
 #assistant-root .imsmassi-content-out {
   opacity: 0;
-  transform: translateY(6px);
+  /* transform: translateY(6px) 제거 — transform이 있으면 하위 fixed 요소의 containing block이
+     viewport → 이 요소로 바뀌어 탭 전환 시 메모 인풋이 순간 이동하는 버그 발생 */
 }
 /* ── fallback 에디터 섹션 (non-Quill) ── */
 #assistant-root .imsmassi-memo-editor-fallback {
@@ -3800,7 +3833,7 @@
   border-radius: 10px 0 0 10px;
   width: 28px;
   height: 65px;
-  background: var(--imsmassi-bg);
+  background: var(--primitive-gray-100);
   background-size: 8px 16px;
   font-size: 0;
   letter-spacing: -9999px;

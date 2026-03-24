@@ -3531,20 +3531,27 @@ function showNotificationToast(title, content, areaId = "", duration = 6000) {
 // 우측 상단 토스트 (어시스턴트 열려있을 때)
 function showRightTopToast(title, content, areaId = "", duration = 6000) {
   const styleRoot = getAssistantStyleRoot();
-  let container = styleRoot.querySelector("#notification-toast-container");
+  const floatingPanel = document.getElementById("imsmassi-floating-panel");
+  // 패널이 열려있으면 패널 내부에 마운트(중앙 정렬), 닫혀있으면 기존 우측 상단
+  const isInPanel = !!(floatingPanel && state.assistantOpen);
+  const mountTarget = isInPanel ? floatingPanel : styleRoot;
 
+  let container = mountTarget.querySelector("#notification-toast-container");
   if (!container) {
     const existing = document.getElementById("notification-toast-container");
     if (existing) existing.remove();
     const newContainer = document.createElement("div");
     newContainer.id = "notification-toast-container";
-    // Task 4: position/z-index/pointer-events는 CSS #notification-toast-container에서 지정
-    styleRoot.appendChild(newContainer);
+    mountTarget.appendChild(newContainer);
     container = newContainer;
+  }
+  // 마운트 위치가 달라진 경우 이동
+  if (container.parentElement !== mountTarget) {
+    mountTarget.appendChild(container);
   }
 
   const toastEl = document.createElement("div");
-  toastEl.className = "imsmassi-notification-toast";
+  toastEl.className = `imsmassi-notification-toast imsmassi-reminder${isInPanel ? " imsmassi-in-panel" : ""}`;
 
   const areaName = getAreaName(areaId, "");
 
@@ -5778,12 +5785,13 @@ function renderAssistantContent(previousTab) {
     }
 
     if (state.activeTab === "memo") {
+      // 패널 너비를 DOM 삽입 직후 동기적으로 반영 → 첫 페인트 전에 적용되어 움찔거림 방지
+      updateMemoSidePanelState();
       setTimeout(() => {
         initMemoEditor();
         initMemoListEditors();
         initInlineMemoEditors();
         focusInlineMemoEditor();
-        updateMemoSidePanelState();
         if (content) content.scrollTop = previousScrollTop;
       }, 0);
     } else if (state.activeTab === "settings") {
@@ -6328,18 +6336,13 @@ function setMemoFilter(filter) {
 }
 
 function toggleMemoSidePanel() {
-  // 전환 전: 나가는 쪽 너비가 640 이상이면 들어오는 쪽에도 동기화
-  if (state.isMemoPanelExpanded) {
-    // 펼침 → 접기: 펼친 너비가 640 이상이면 접힌 너비로 복사
-    if (state.panelWidthExpanded >= 640) {
-      state.panelWidthCollapsed = state.panelWidthExpanded;
-    }
-  } else {
-    // 접힘 → 펼치기: 접힌 너비가 640 이상이면 펼친 너비로 복사
-    if (state.panelWidthCollapsed >= 640) {
-      state.panelWidthExpanded = state.panelWidthCollapsed;
-    }
-  }
+  // 버튼 클릭 시 커스텀 너비를 초기화해 CSS 기본값(360px/640px)으로 복원
+  state.panelWidthCollapsed = null;
+  state.panelWidthExpanded = null;
+
+  // 패널 인라인 너비도 즉시 제거
+  const _fp = document.getElementById("imsmassi-floating-panel");
+  if (_fp) _fp.style.width = "";
 
   state.isMemoPanelExpanded = !state.isMemoPanelExpanded;
 
@@ -7344,7 +7347,7 @@ function initPanelTopLeftResize(panel) {
       panel.style.height = `${newH}px`;
       // [Issue 3] memo-main max-width 실시간 동기화 (fixed 포지셔닝 보정)
       const memoMain = document.querySelector("#assistant-root .imsmassi-memo-main");
-      if (memoMain) memoMain.style.maxWidth = `${newW - 30}px`;
+      if (memoMain) memoMain.style.maxWidth = `${newW - 25}px`;
     }
 
     function onUp() {
