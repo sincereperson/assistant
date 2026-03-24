@@ -1197,6 +1197,7 @@ let state = {
     theme: false,    // 푸터 테마/모드 전환 UI 노줄 여부
     darkMode: false, // 푸터 다크모드 토글 버튼 노줄 여부
     sideTabs: false, // 좌측 사이드 탭 버튼 그룹 (기본값 false: 표시)
+    shortcutManual: false, // 헤더 단축키 메뉴얼 버튼 노출 여부
   },
 };
 
@@ -4178,6 +4179,7 @@ const MODAL_BUILDERS = {
   deleteConfirm: buildDeleteConfirmModal,
   settings: buildSettingsModal,
   clearAllDataConfirm: buildClearAllDataConfirmModal,
+  shortcutManual: buildShortcutManualModal,
 };
 
 // ── 빌더: 전체 데이터 삭제 확인 모달 ─────────────────────────
@@ -4213,6 +4215,101 @@ function executeClearAllData() {
   closeModal();
 }
 
+// ── 빌더: 단축키 메뉴얼 모달 ─────────────────────────────────
+function buildShortcutManualModal() {
+  const SHORTCUTS = [
+    {
+      group: "네비게이션",
+      items: [
+        { keys: ["Alt", "1"], desc: "1번 탭으로 전환" },
+        { keys: ["Alt", "2"], desc: "2번 탭으로 전환" },
+        { keys: ["Alt", "3"], desc: "3번 탭으로 전환" },
+        { keys: ["Alt", "4"], desc: "4번 탭으로 전환" },
+        { keys: ["Alt", "5"], desc: "5번 탭으로 전환" },
+        { keys: ["Alt", "6"], desc: "6번 탭으로 전환" },
+        { keys: ["Alt", "7"], desc: "7번 탭으로 전환" },
+        { keys: ["Alt", "8"], desc: "8번 탭으로 전환" },
+        { keys: ["Alt", "9"], desc: "9번 탭으로 전환" },
+      ],
+    },
+    {
+      group: "화면",
+      items: [
+        { keys: ["Ctrl", "/"], desc: "단축키 도움말" },
+        { keys: ["Escape"], desc: "팝업/모달 닫기" },
+        { keys: ["Ctrl", "Shift", "X"], desc: "그리드 확대/축소" },
+      ],
+    },
+    {
+      group: "그리드",
+      items: [
+        { keys: ["Delete"], desc: "선택 셀 내용 삭제" },
+        { keys: ["Alt", "Insert"], desc: "새 행 추가" },
+        { keys: ["Alt", "Delete"], desc: "선택 행 삭제" },
+        { keys: ["Ctrl", "A"], desc: "그리드 전체 데이터 클립보드 복사" },
+        { keys: ["Ctrl", "Shift", "F"], desc: "그리드 텍스트 검색" },
+      ],
+    },
+    {
+      group: "기타",
+      items: [
+        { keys: ["F2"], desc: "셀 더블클릭" },
+      ],
+    },
+  ];
+
+  const title = createElement("div", { className: "imsmassi-modal-title" });
+  title.innerHTML = `<span style="font-size:16px;">⌨</span> 단축키 도움말`;
+
+  const body = createElement("div", { className: "imsmassi-shortcut-manual-body" });
+
+  SHORTCUTS.forEach(({ group, items }) => {
+    const groupEl = createElement("div", { className: "imsmassi-shortcut-group" });
+
+    const groupTitle = createElement("div", { className: "imsmassi-shortcut-group-title" });
+    groupTitle.textContent = group;
+    groupEl.appendChild(groupTitle);
+
+    items.forEach(({ keys, desc }) => {
+      const row = createElement("div", { className: "imsmassi-shortcut-row" });
+
+      const keysEl = createElement("div", { className: "imsmassi-shortcut-keys" });
+      keys.forEach((k, i) => {
+        const kbd = createElement("kbd", { className: "imsmassi-shortcut-kbd" });
+        kbd.textContent = k;
+        keysEl.appendChild(kbd);
+        if (i < keys.length - 1) {
+          const plus = createElement("span", { className: "imsmassi-shortcut-plus" });
+          plus.textContent = "+";
+          keysEl.appendChild(plus);
+        }
+      });
+
+      const descEl = createElement("div", { className: "imsmassi-shortcut-desc" });
+      descEl.textContent = desc;
+
+      row.append(keysEl, descEl);
+      groupEl.appendChild(row);
+    });
+
+    body.appendChild(groupEl);
+  });
+
+  const footer = createElement("div", { className: "imsmassi-shortcut-manual-footer" });
+  footer.textContent = "이 외 더 많은 도움말은 관리자에게 문의하세요";
+
+  const closeBtn = createElement("button", { className: "imsmassi-modal-btn imsmassi-modal-btn-secondary" });
+  closeBtn.textContent = "닫기";
+  closeBtn.addEventListener("click", closeModal);
+
+  const btns = createElement("div", { className: "imsmassi-modal-btns" });
+  btns.appendChild(closeBtn);
+
+  const content = createElement("div");
+  content.append(title, body, footer, btns);
+  return { content, firstFocus: closeBtn };
+}
+
 // ========================================
 // 모달 시스템
 // ========================================
@@ -4242,8 +4339,12 @@ function openModal(type, data) {
   // ── 설정 모달 너비 조정 ───────────────────────────────
   if (type === "settings") {
     modal.classList.add("imsmassi-modal-wide");
-  } else {
+    modal.classList.remove("imsmassi-modal-xl");
+  } else if (type === "shortcutManual") {
     modal.classList.remove("imsmassi-modal-wide");
+    modal.classList.add("imsmassi-modal-xl");
+  } else {
+    modal.classList.remove("imsmassi-modal-wide", "imsmassi-modal-xl");
   }
 
   // ── 오버레이 표시 ─────────────────────────────────────
@@ -6435,8 +6536,7 @@ function toggleDashboardView() {
 // 단축키 메뉴얼
 // ========================================
 function openShortcutManual() {
-  // TODO: 단축키 사용법 내용 작성 후 모달/패널로 표시
-  showToast("단축키 메뉴얼 준비 중입니다");
+  openModal("shortcutManual");
 }
 
 function updateDashboardButton() {
@@ -6445,23 +6545,29 @@ function updateDashboardButton() {
   );
   if (!actionsEl) return;
 
-  // 단축키 메뉴얼 버튼 (탭 그룹 좌측 고정)
+  // 단축키 메뉴얼 버튼 (탭 그룹 좌측 고정 — hiddenUI.shortcutManual이 true일 때만 표시)
   let manualBtn = actionsEl.querySelector(".imsmassi-shortcut-manual-btn");
-  if (!manualBtn) {
-    manualBtn = document.createElement("button");
-    manualBtn.className = "imsmassi-shortcut-manual-btn";
-    manualBtn.title = "단축키 사용법";
-    manualBtn.innerHTML = `<span class="imsmassi-shortcut-manual-icon">⌨</span><span class="imsmassi-shortcut-manual-label">단축키 메뉴얼</span>`;
-    manualBtn.onclick = () => openShortcutManual();
+  if (!state.hiddenUI?.shortcutManual) {
+    // 숨김 상태: 이미 있으면 제거
+    if (manualBtn) manualBtn.remove();
+    manualBtn = null;
+  } else {
+    if (!manualBtn) {
+      manualBtn = document.createElement("button");
+      manualBtn.className = "imsmassi-shortcut-manual-btn";
+      manualBtn.title = "단축키 사용법";
+      manualBtn.innerHTML = `<span class="imsmassi-shortcut-manual-icon">⌨</span><span class="imsmassi-shortcut-manual-label">단축키 메뉴얼</span>`;
+      manualBtn.onclick = () => openShortcutManual();
 
-    // 탭 그룹 또는 닫기 버튼 앞에 삽입
-    const existingTabGroup = actionsEl.querySelector(".imsmassi-header-tab-group");
-    const closeBtn2 = actionsEl.querySelector(".imsmassi-assistant-close");
-    const insertRef = existingTabGroup || closeBtn2 || null;
-    if (insertRef) {
-      actionsEl.insertBefore(manualBtn, insertRef);
-    } else {
-      actionsEl.appendChild(manualBtn);
+      // 탭 그룹 또는 닫기 버튼 앞에 삽입
+      const existingTabGroup = actionsEl.querySelector(".imsmassi-header-tab-group");
+      const closeBtn2 = actionsEl.querySelector(".imsmassi-assistant-close");
+      const insertRef = existingTabGroup || closeBtn2 || null;
+      if (insertRef) {
+        actionsEl.insertBefore(manualBtn, insertRef);
+      } else {
+        actionsEl.appendChild(manualBtn);
+      }
     }
   }
 
@@ -6472,7 +6578,7 @@ function updateDashboardButton() {
     ? (state.panelWidthExpanded || 640)
     : (state.panelWidthCollapsed || 360);
   const isCompact = targetWidth < 640;
-  manualBtn.classList.toggle("imsmassi-compact", isCompact);
+  if (manualBtn) manualBtn.classList.toggle("imsmassi-compact", isCompact);
 
   // 헤더 타이틀 글자도 compact 시 숨김 (줄바꿈 방지)
   const floatingPanel = document.querySelector("#assistant-root .imsmassi-floating-panel");
@@ -7275,17 +7381,18 @@ window.addEventListener("beforeunload", () => {
 });
 /**
  * [개발자 도구 전용] 특정 고급 설정 UI 항목 노출/숨김 개별 토글
- * @param {string} key - 'areaColor' | 'timeInsight' | 'markdown' | 'debugLog' | 'autoNav' | 'lowSpec' | 'theme' | 'darkMode' | 'sideTabs'
+ * @param {string} key - 'areaColor' | 'timeInsight' | 'markdown' | 'debugLog' | 'autoNav' | 'lowSpec' | 'theme' | 'darkMode' | 'sideTabs' | 'shortcutManual'
  * @param {boolean} visible - 노출 여부 (true: 표시, false: 숨김)
  *
  * 사용 예시 (브라우저 콘솔):
- *   toggleAssistantHiddenUI('sideTabs', false);  // 좌측 사이드 탭 버튼 그룹 숨김
- *   toggleAssistantHiddenUI('sideTabs', true);   // 좌측 사이드 탭 버튼 그룹 표시
- *   toggleAssistantHiddenUI('theme', true);      // 푸터 테마 UI 표시
- *   toggleAssistantHiddenUI('darkMode', true);   // 푸터 다크모드 버튼 표시
- *   toggleAssistantHiddenUI('lowSpec', true);    // 저사양 모드 섹션 표시
- *   toggleAssistantHiddenUI('areaColor', true);  // 업무 컬러 설정 표시
- *   toggleAssistantHiddenUI('markdown', false);  // 마크다운 단축키 숨김
+ *   toggleAssistantHiddenUI('sideTabs', false);       // 좌측 사이드 탭 버튼 그룹 숨김
+ *   toggleAssistantHiddenUI('sideTabs', true);        // 좌측 사이드 탭 버튼 그룹 표시
+ *   toggleAssistantHiddenUI('theme', true);           // 푸터 테마 UI 표시
+ *   toggleAssistantHiddenUI('darkMode', true);        // 푸터 다크모드 버튼 표시
+ *   toggleAssistantHiddenUI('lowSpec', true);         // 저사양 모드 섹션 표시
+ *   toggleAssistantHiddenUI('areaColor', true);       // 업무 컬러 설정 표시
+ *   toggleAssistantHiddenUI('markdown', false);       // 마크다운 단축키 숨김
+ *   toggleAssistantHiddenUI('shortcutManual', true);  // 헤더 단축키 메뉴얼 버튼 표시
  */
 window.toggleAssistantHiddenUI = function (key, visible = true) {
   // 상태 안전성 검사
@@ -7300,6 +7407,7 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
       theme: false,
       darkMode: false,
       sideTabs: false,
+      shortcutManual: false,
     };
   }
 
@@ -7312,6 +7420,12 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
     // sideTabs 변경 시 탭 사이드바 즉각 반영
     if (key === "sideTabs") {
       renderAssistantTabs();
+      return;
+    }
+
+    // shortcutManual 버튼 변경 시 헤더 즉각 반영
+    if (key === "shortcutManual") {
+      updateDashboardButton();
       return;
     }
 

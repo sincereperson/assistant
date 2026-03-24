@@ -19,9 +19,15 @@
   --imsmassi-text: #191f28;
   --imsmassi-sub-text: #666666;
   --imsmassi-border: #e0e0e0;
-  /* 헤더 텍스트 */
-  --imsmassi-header-text: var(--blue-gray-900);
+  /* 헤더 텍스트 — #006DB3은 어두운 배경이므로 흰색 */
+  --imsmassi-header-text: #ffffff;
   --imsmassi-header-sub-text: rgba(255, 255, 255, 0.8);
+  /* 헤더 버튼 색상 변수 (흰색 계열 — 어두운 헤더 배경용) */
+  --imsmassi-header-btn-color: rgba(255, 255, 255, 0.65);
+  --imsmassi-header-btn-color-active: #ffffff;
+  --imsmassi-header-btn-hover-bg: rgba(255, 255, 255, 0.12);
+  --imsmassi-header-btn-active-bg: rgba(255, 255, 255, 0.22);
+  --imsmassi-header-tab-bg: rgba(0, 0, 0, 0.18);
 }
 
 /* ── 다크 모드 공통 오버라이드 (테마와 독립) ── */
@@ -34,6 +40,12 @@
   /* 다크에서는 헤더 텍스트 항상 흰색 유지 */
   --imsmassi-header-text: #ffffff;
   --imsmassi-header-sub-text: rgba(255, 255, 255, 0.8);
+  /* 헤더 버튼 색상 (흰색 계열 유지) */
+  --imsmassi-header-btn-color: rgba(255, 255, 255, 0.65);
+  --imsmassi-header-btn-color-active: #ffffff;
+  --imsmassi-header-btn-hover-bg: rgba(255, 255, 255, 0.12);
+  --imsmassi-header-btn-active-bg: rgba(255, 255, 255, 0.22);
+  --imsmassi-header-tab-bg: rgba(0, 0, 0, 0.22);
 }
 
 /* ── earthbrown 테마 ── */
@@ -41,6 +53,14 @@
   --imsmassi-primary: #c9beaa;
   --imsmassi-primary-light: #d6cec0;
   --imsmassi-primary-dark: #9a9387;
+  /* 밝은 헤더 배경 → 어두운 텍스트/버튼 */
+  --imsmassi-header-text: #191f28;
+  --imsmassi-header-sub-text: rgba(0, 0, 0, 0.55);
+  --imsmassi-header-btn-color: rgba(0, 0, 0, 0.50);
+  --imsmassi-header-btn-color-active: rgba(0, 0, 0, 0.85);
+  --imsmassi-header-btn-hover-bg: rgba(0, 0, 0, 0.08);
+  --imsmassi-header-btn-active-bg: rgba(0, 0, 0, 0.14);
+  --imsmassi-header-tab-bg: rgba(0, 0, 0, 0.10);
 }
 
 /* ── oceangreen 테마 ── */
@@ -48,6 +68,14 @@
   --imsmassi-primary: #7ce0d3;
   --imsmassi-primary-light: #a9e9e1;
   --imsmassi-primary-dark: #44a79e;
+  /* 밝은 헤더 배경 → 어두운 텍스트/버튼 */
+  --imsmassi-header-text: #191f28;
+  --imsmassi-header-sub-text: rgba(0, 0, 0, 0.55);
+  --imsmassi-header-btn-color: rgba(0, 0, 0, 0.50);
+  --imsmassi-header-btn-color-active: rgba(0, 0, 0, 0.85);
+  --imsmassi-header-btn-hover-bg: rgba(0, 0, 0, 0.08);
+  --imsmassi-header-btn-active-bg: rgba(0, 0, 0, 0.14);
+  --imsmassi-header-tab-bg: rgba(0, 0, 0, 0.10);
 }
 
 /* ── lightbeige 테마: 헤더 배경이 밝으므로 텍스트 반전 ── */
@@ -57,11 +85,21 @@
   --imsmassi-primary-dark: #d6cec5;
   --imsmassi-header-text: #191f28;
   --imsmassi-header-sub-text: #666666;
+  --imsmassi-header-btn-color: rgba(0, 0, 0, 0.50);
+  --imsmassi-header-btn-color-active: rgba(0, 0, 0, 0.85);
+  --imsmassi-header-btn-hover-bg: rgba(0, 0, 0, 0.08);
+  --imsmassi-header-btn-active-bg: rgba(0, 0, 0, 0.14);
+  --imsmassi-header-tab-bg: rgba(0, 0, 0, 0.10);
 }
 /* lightbeige 다크모드에서도 헤더 텍스트는 어두운 계열 유지 */
 #assistant-root.imsmassi-dark-mode[data-theme="lightbeige"] {
   --imsmassi-header-text: #191f28;
   --imsmassi-header-sub-text: #555555;
+  --imsmassi-header-btn-color: rgba(0, 0, 0, 0.50);
+  --imsmassi-header-btn-color-active: rgba(0, 0, 0, 0.85);
+  --imsmassi-header-btn-hover-bg: rgba(0, 0, 0, 0.08);
+  --imsmassi-header-btn-active-bg: rgba(0, 0, 0, 0.14);
+  --imsmassi-header-tab-bg: rgba(0, 0, 0, 0.10);
 }
 
 /* 다크모드: 설정탭 셀렉트박스/토글버튼 스타일 */
@@ -297,8 +335,8 @@
   padding: 4px 9px;
   border: none;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.75);
+  background: var(--imsmassi-header-btn-hover-bg, rgba(255, 255, 255, 0.12));
+  color: var(--imsmassi-header-btn-color, rgba(255, 255, 255, 0.65));
   cursor: pointer;
   font-size: 11px;
   font-weight: 500;
@@ -307,16 +345,8 @@
   transition: background 0.15s, color 0.15s;
 }
 #assistant-root .imsmassi-shortcut-manual-btn:hover {
-  background: rgba(255, 255, 255, 0.22);
-  color: #ffffff;
-}
-#assistant-root:not(.imsmassi-dark-mode) .imsmassi-shortcut-manual-btn {
-  background: rgba(0, 0, 0, 0.07);
-  color: rgba(0, 0, 0, 0.55);
-}
-#assistant-root:not(.imsmassi-dark-mode) .imsmassi-shortcut-manual-btn:hover {
-  background: rgba(0, 0, 0, 0.13);
-  color: rgba(0, 0, 0, 0.85);
+  background: var(--imsmassi-header-btn-active-bg, rgba(255, 255, 255, 0.22));
+  color: var(--imsmassi-header-btn-color-active, #ffffff);
 }
 #assistant-root .imsmassi-shortcut-manual-icon {
   font-size: 12px;
@@ -337,13 +367,10 @@
 #assistant-root .imsmassi-header-tab-group {
   display: flex;
   align-items: center;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--imsmassi-header-tab-bg, rgba(0, 0, 0, 0.18));
   border-radius: 20px;
   padding: 3px;
   gap: 2px;
-}
-#assistant-root:not(.imsmassi-dark-mode) .imsmassi-header-tab-group {
-  background: rgba(0, 0, 0, 0.10);
 }
 #assistant-root .imsmassi-header-tab-btn {
   display: flex;
@@ -353,7 +380,7 @@
   border: none;
   border-radius: 16px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--imsmassi-header-btn-color, rgba(255, 255, 255, 0.65));
   cursor: pointer;
   font-size: 11px;
   font-weight: 500;
@@ -362,24 +389,13 @@
   flex-shrink: 0;
 }
 #assistant-root .imsmassi-header-tab-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.9);
+  background: var(--imsmassi-header-btn-hover-bg, rgba(255, 255, 255, 0.12));
+  color: var(--imsmassi-header-btn-color-active, #ffffff);
 }
 #assistant-root .imsmassi-header-tab-btn.imsmassi-active {
-  background: rgba(255, 255, 255, 0.22);
-  color: #ffffff;
+  background: var(--imsmassi-header-btn-active-bg, rgba(255, 255, 255, 0.22));
+  color: var(--imsmassi-header-btn-color-active, #ffffff);
   font-weight: 600;
-}
-#assistant-root:not(.imsmassi-dark-mode) .imsmassi-header-tab-btn {
-  color: rgba(0, 0, 0, 0.40);
-}
-#assistant-root:not(.imsmassi-dark-mode) .imsmassi-header-tab-btn:hover {
-  background: rgba(0, 0, 0, 0.07);
-  color: rgba(0, 0, 0, 0.75);
-}
-#assistant-root:not(.imsmassi-dark-mode) .imsmassi-header-tab-btn.imsmassi-active {
-  background: rgba(0, 0, 0, 0.13);
-  color: rgba(0, 0, 0, 0.85);
 }
 #assistant-root .imsmassi-tab-icon {
   width: 14px;
@@ -762,7 +778,7 @@
   max-width: 100%;
 }
 #assistant-root .imsmassi-memo-item {
-  border: 1px solid var(--imsmassi-area-color);
+  border: 1px solid var(--imsmassi-primary);
   border-radius: 12px;
   margin-bottom: 8px;
   position: relative;
@@ -1012,7 +1028,7 @@
   --memo-bg-color: #191f28;
 }
 #assistant-root .imsmassi-memo-card {
-  border: 1px solid var(--imsmassi-area-color);
+  border: 1px solid var(--imsmassi-primary);
   border-radius: 12px;
   padding: 10px 10px 12px;
   height: 320px;
@@ -1109,6 +1125,9 @@
 }
 #assistant-root .imsmassi-modal.imsmassi-modal-wide {
   width: 380px;
+}
+#assistant-root .imsmassi-modal.imsmassi-modal-xl {
+  width: 480px;
 }
 #assistant-root .imsmassi-modal-title {
   display: flex;
@@ -2710,6 +2729,81 @@
 #assistant-root .imsmassi-modal-body {
   padding: 12px 0;
   line-height: 1.6;
+}
+
+/* ── 단축키 메뉴얼 모달 ── */
+#assistant-root .imsmassi-shortcut-manual-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 12px;
+}
+#assistant-root .imsmassi-shortcut-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#assistant-root .imsmassi-shortcut-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--imsmassi-sub-text, #999);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--imsmassi-border, #e8e8e8);
+  margin-bottom: 2px;
+}
+#assistant-root .imsmassi-shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 2px;
+}
+#assistant-root .imsmassi-shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+#assistant-root .imsmassi-shortcut-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 6px;
+  background: var(--imsmassi-bg, #f5f5f5);
+  border: 1px solid var(--imsmassi-border, #d0d0d0);
+  border-bottom: 2px solid var(--imsmassi-border, #b8b8b8);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: monospace;
+  color: var(--imsmassi-text, #333);
+  white-space: nowrap;
+}
+#assistant-root .imsmassi-shortcut-plus {
+  font-size: 11px;
+  color: var(--imsmassi-sub-text, #aaa);
+  font-weight: 400;
+}
+#assistant-root .imsmassi-shortcut-desc {
+  font-size: 13px;
+  color: var(--imsmassi-text, #444);
+  text-align: right;
+  flex: 1;
+}
+#assistant-root .imsmassi-shortcut-manual-footer {
+  font-size: 11px;
+  color: var(--imsmassi-sub-text, #aaa);
+  text-align: center;
+  padding: 8px 0 4px;
+  border-top: 1px solid var(--imsmassi-border, #e8e8e8);
+  margin-bottom: 4px;
 }
 
 /* ================================================
