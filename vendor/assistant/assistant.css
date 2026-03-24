@@ -246,6 +246,9 @@
   font-weight: 600;
   font-size: 18px;
 }
+#assistant-root .imsmassi-floating-panel.imsmassi-compact .imsmassi-assistant-title span {
+  display: none;
+}
 #assistant-root .imsmassi-assistant-header-logo {
   width: 22px;
   height: 22px;
@@ -284,6 +287,50 @@
 #assistant-root.imsmassi-dark-mode .imsmassi-assistant-header-btn:hover {
   background: var(--blue-gray-600);
   color: #fff;
+}
+
+/* ── 단축키 메뉴얼 버튼 (헤더 탭 그룹 좌측) ── */
+#assistant-root .imsmassi-shortcut-manual-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border: none;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+#assistant-root .imsmassi-shortcut-manual-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+#assistant-root:not(.imsmassi-dark-mode) .imsmassi-shortcut-manual-btn {
+  background: rgba(0, 0, 0, 0.07);
+  color: rgba(0, 0, 0, 0.55);
+}
+#assistant-root:not(.imsmassi-dark-mode) .imsmassi-shortcut-manual-btn:hover {
+  background: rgba(0, 0, 0, 0.13);
+  color: rgba(0, 0, 0, 0.85);
+}
+#assistant-root .imsmassi-shortcut-manual-icon {
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.85;
+}
+#assistant-root .imsmassi-shortcut-manual-label {
+  line-height: 1;
+}
+#assistant-root .imsmassi-shortcut-manual-btn.imsmassi-compact {
+  padding: 4px 7px;
+}
+#assistant-root .imsmassi-shortcut-manual-btn.imsmassi-compact .imsmassi-shortcut-manual-label {
+  display: none;
 }
 
 /* ── 헤더 탭 그룹 (동적 생성 3-탭 토글) ── */
@@ -1049,7 +1096,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 99997; /* sticky-layer(1500)보다 위, 토스트(99998)보다 아래 */
+  z-index: 99997; /* sticky-layer(1000)보다 위, 토스트(99998)보다 아래 */
 }
 #assistant-root .imsmassi-modal {
   background: #fff;
@@ -1920,7 +1967,9 @@
   left: 0;
   width: 0;
   height: 0;
-  z-index: 1500 !important;
+  /* 어시스턴트 패널(#assistant-root: 2000) 및 모달(99997)보다 항상 아래.
+     DOM 순서도 #assistant-root 앞으로 삽입(relocateStickyLayer)하여 이중 보장. */
+  z-index: 1100 !important;
   pointer-events: none !important;
   overflow: hidden !important;
   background: transparent !important;

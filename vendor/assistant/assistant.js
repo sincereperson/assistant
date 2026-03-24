@@ -2858,9 +2858,23 @@ function relocateStickyLayer() {
     layer = document.createElement("div");
     layer.id = "sticky-layer";
   }
-  // 항상 body 직속 유지
+  // 항상 body 직속 유지 — #assistant-root(z-index:2000) 앞에 삽입해
+  // DOM 순서와 z-index(1000<2000) 두 경로 모두 sticky < assistant 를 보장합니다.
+  // (appendChildlike 후 삽입 시 일부 브라우저에서 DOM 순서가 z-index를 역전시키는 버그 방지)
+  const _assistantRoot = document.getElementById("assistant-root");
   if (layer.parentElement !== document.body) {
-    document.body.appendChild(layer);
+    if (_assistantRoot && _assistantRoot.parentElement === document.body) {
+      document.body.insertBefore(layer, _assistantRoot);
+    } else {
+      document.body.appendChild(layer);
+    }
+  } else if (
+    _assistantRoot &&
+    _assistantRoot.parentElement === document.body &&
+    _assistantRoot.compareDocumentPosition(layer) & Node.DOCUMENT_POSITION_FOLLOWING
+  ) {
+    // 이미 body에 있지만 #assistant-root 뒤에 있는 경우 → 앞으로 이동
+    document.body.insertBefore(layer, _assistantRoot);
   }
 
   const targetElement = _resolveTargetContainer();
@@ -4172,7 +4186,7 @@ function buildClearAllDataConfirmModal() {
   title.innerHTML = `<span class="imsmassi-modal-icon imsmassi-icon-warning"></span>데이터 영구 삭제`;
 
   const bodyText = createElement("p", { className: "imsmassi-modal-body-text" });
-  bodyText.innerHTML = "저장된 <strong>모든 메모와 클립보드 기록</strong>을 완전히 삭제하시겠습니까?<br><span style='color:#E74C3C; font-size:12px;'>(설정 및 템플릿은 유지됩니다. 이 작업은 되돌릴 수 없습니다.)</span>";
+  bodyText.innerHTML = "저장된 <strong>모든 메모와 클립보드 기록</strong>을 완전히 삭제하시겠습니까?<br><span style='color:#E74C3C; font-size:12px;'>(설정 및 템플릿은 유지됩니다.이 작업은 되돌릴 수 없습니다.)</span>";
 
   const bodyDiv = createElement("div", { className: "imsmassi-modal-body" });
   bodyDiv.append(bodyText);
@@ -4407,7 +4421,7 @@ function getSettingsHtml(closeHandler) {
           <div class="imsmassi-storage-actions">
             <button class="imsmassi-modal-btn imsmassi-btn-primary" onclick="exportAllData()">내보내기</button>
             <button class="imsmassi-modal-btn imsmassi-btn-secondary" onclick="importData()">가져오기</button>
-            <button class="imsmassi-modal-btn imsmassi-btn-danger" onclick="openModal('clearAllDataConfirm')">데이터 초기화</button>
+            <button class="imsmassi-modal-btn imsmassi-btn-danger" onclick="openModal('clearAllDataConfirm')">비우기</button>
           </div>
         </div>
 
@@ -6417,11 +6431,52 @@ function toggleDashboardView() {
   cycleAssistantTab();
 }
 
+// ========================================
+// 단축키 메뉴얼
+// ========================================
+function openShortcutManual() {
+  // TODO: 단축키 사용법 내용 작성 후 모달/패널로 표시
+  showToast("단축키 메뉴얼 준비 중입니다");
+}
+
 function updateDashboardButton() {
   const actionsEl = document.querySelector(
     "#assistant-root .imsmassi-assistant-header-actions",
   );
   if (!actionsEl) return;
+
+  // 단축키 메뉴얼 버튼 (탭 그룹 좌측 고정)
+  let manualBtn = actionsEl.querySelector(".imsmassi-shortcut-manual-btn");
+  if (!manualBtn) {
+    manualBtn = document.createElement("button");
+    manualBtn.className = "imsmassi-shortcut-manual-btn";
+    manualBtn.title = "단축키 사용법";
+    manualBtn.innerHTML = `<span class="imsmassi-shortcut-manual-icon">⌨</span><span class="imsmassi-shortcut-manual-label">단축키 메뉴얼</span>`;
+    manualBtn.onclick = () => openShortcutManual();
+
+    // 탭 그룹 또는 닫기 버튼 앞에 삽입
+    const existingTabGroup = actionsEl.querySelector(".imsmassi-header-tab-group");
+    const closeBtn2 = actionsEl.querySelector(".imsmassi-assistant-close");
+    const insertRef = existingTabGroup || closeBtn2 || null;
+    if (insertRef) {
+      actionsEl.insertBefore(manualBtn, insertRef);
+    } else {
+      actionsEl.appendChild(manualBtn);
+    }
+  }
+
+  // 패널 실제 너비가 640px 미만이면 레이블 숨기고 아이콘만 표시
+  // offsetWidth는 CSS transition 중 중간값을 반환하므로 state 기반으로 판단
+  const isExpanded = !!state.isMemoPanelExpanded;
+  const targetWidth = isExpanded
+    ? (state.panelWidthExpanded || 640)
+    : (state.panelWidthCollapsed || 360);
+  const isCompact = targetWidth < 640;
+  manualBtn.classList.toggle("imsmassi-compact", isCompact);
+
+  // 헤더 타이틀 글자도 compact 시 숨김 (줄바꿈 방지)
+  const floatingPanel = document.querySelector("#assistant-root .imsmassi-floating-panel");
+  if (floatingPanel) floatingPanel.classList.toggle("imsmassi-compact", isCompact);
 
   // 탭 그룹 없으면 동적 생성
   let tabGroup = actionsEl.querySelector(".imsmassi-header-tab-group");
@@ -7362,6 +7417,8 @@ function initPanelTopLeftResize(panel) {
       // [Issue 3] memo-main max-width 실시간 동기화 (fixed 포지셔닝 보정)
       const memoMain = document.querySelector("#assistant-root .imsmassi-memo-main");
       if (memoMain) memoMain.style.maxWidth = `${newW - 25}px`;
+      // 단축키 메뉴얼 버튼 compact 여부 실시간 갱신
+      updateDashboardButton();
     }
 
     function onUp() {
