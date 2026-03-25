@@ -156,11 +156,12 @@
               alt=""
               draggable="false"
             />
-            <span>어시스턴트</span>
+            <span id="imsmassi-panel-title-text">어시스턴트</span>
           </div>
           <div class="imsmassi-assistant-header-actions">
             <!-- 토글 버튼은 JS(updateDashboardButton)에서 동적으로 생성됩니다 -->
             <button
+              id="imsmassi-close-btn"
               class="imsmassi-assistant-close"
               onclick="closeAssistant()"
               title="닫기"
@@ -195,6 +196,7 @@
               id="imsmassi-assistant-footer-themes"
             ></div>
             <button
+              id="imsmassi-footer-settings-btn"
               class="imsmassi-assistant-footer-btn"
               onclick="openSettingsModal()"
             >

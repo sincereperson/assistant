@@ -2293,6 +2293,7 @@
       loadAssistant({
         mountId: "assistant-mount",
         loginId: "test_user_01",
+        locale: "ko-kr",
         // ── 유저 정보: 있을 때만 암호화되어 IndexedDB userinfo 스토어에 저장됨
         getUserInfo: {
           userId: "test_user_01",
@@ -2321,12 +2322,15 @@
           windowContainerClass: "w2windowContainer_selectedNameLayer",
           pgIdClass: "pg-id",
           // pgEl.parentElement 기준 뎁스 조절 (0=기본, +n=더 내려감, -n=더 올라감)
-          targetDepth: 1,
+          targetDepth: 0,
           // 앵커 클래스 변경 시 호출 → 현재 활성 menuId 반환
           getMenuId: () => window.getMenuId?.(),
           // menuId로부터 areaId 파생
           getAreaId: (menuId) => window.getAreaId?.(menuId),
         },
+      }).then(() => {
+        showAllAssistantHiddenUI(); // 데모 편의를 위해 숨겨진 UI 모두 표시
+        console.log("[Assistant] 어시스턴트 로드 완료");
       });
 
       // Worker 연결 완료 여부 표시

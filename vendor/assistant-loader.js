@@ -47,6 +47,19 @@
 
   async function loadAssistant(options) {
     const config = options || {};
+
+    // ─── 특정 사번 어시스턴트 차단 목록 ───────────────────────────
+    // 아래 목록에 포함된 loginId는 어시스턴트를 로드하지 않음
+    const BLOCKED_LOGIN_IDS = [
+      'O402321', 'O402322', 'O402324', 'O402328',
+      'O402522', 'O402637', 'O402638',
+    ];
+    if (config.loginId && BLOCKED_LOGIN_IDS.includes(String(config.loginId).toUpperCase())) {
+      console.info('[assistant-loader] 차단된 사번입니다. 어시스턴트를 로드하지 않습니다:', config.loginId);
+      return;
+    }
+    // ────────────────────────────────────────────────────────────────
+
     const mountId = config.mountId || 'assistant-mount';
     // const mountContainerId = config.mountContainerId || 'mf_VFrames_Root';
     const allowBodyFallback = config.allowBodyFallback === true;

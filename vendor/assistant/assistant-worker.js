@@ -906,7 +906,7 @@ async function handleAddMemo(port, payload) {
     state.memosByArea[memoData.menuId].unshift(memoId);
   }
   broadcastState();
-  sendTo(port, 'TOAST', { message: '메모가 추가되었습니다' });
+  sendTo(port, 'TOAST', { messageKey: 'system.memoAdded' });
 }
 
 async function handleDeleteMemo(port, payload) {
@@ -920,7 +920,7 @@ async function handleDeleteMemo(port, payload) {
   state.stickyNotes = (state.stickyNotes || []).filter(n => n.memoId !== memoId);
   await db.saveSetting('sticky_notes', state.stickyNotes);
   broadcastState();
-  sendTo(port, 'TOAST', { message: '✓ 메모가 삭제되었습니다' });
+  sendTo(port, 'TOAST', { messageKey: 'system.memoDeleted' });
 }
 
 async function handleTogglePin(port, payload) {
@@ -943,7 +943,7 @@ async function handleTogglePin(port, payload) {
     }
   });
   broadcastState();
-  sendTo(port, 'TOAST', { message: `메모가 ${memo.pinned ? '📌 고정됨' : '📌 고정 해제됨'}` });
+  sendTo(port, 'TOAST', { messageKey: memo.pinned ? 'system.memoPinned' : 'system.memoUnpinned' });
 }
 
 async function handleSaveMemoTitle(port, payload) {
@@ -965,7 +965,7 @@ async function handleSaveInlineEdit(port, payload) {
   memo.updatedAt = Date.now();
   await db.updateMemo(memo, memoId);
   broadcastState();
-  sendTo(port, 'TOAST', { message: '메모가 수정되었습니다' });
+  sendTo(port, 'TOAST', { messageKey: 'system.memoUpdated' });
 }
 
 async function handleSetReminder(port, payload) {
@@ -984,10 +984,11 @@ async function handleSetReminder(port, payload) {
   memo.updatedAt = Date.now();
   await db.updateMemo(memo, memoId);
   broadcastState();
-  const msg = reminderStr
-    ? `✓ ${reminderStr} 알림이 설정되었습니다`
-    : '⏰ 알림이 삭제되었습니다';
-  sendTo(port, 'TOAST', { message: msg });
+  if (reminderStr) {
+    sendTo(port, 'TOAST', { messageKey: 'system.reminderSet', params: { reminderStr } });
+  } else {
+    sendTo(port, 'TOAST', { messageKey: 'system.reminderCleared' });
+  }
 }
 
 async function handleAddClipboard(port, payload) {
@@ -1029,7 +1030,7 @@ async function handleAddClipboard(port, payload) {
     state.clipboard.unshift(item);
     await db.updateClipboardItem(item);
     broadcastState();
-    sendTo(port, 'TOAST', { message: `클립보드 최상단으로 이동됨 (사용 ${item.count}회)` });
+    sendTo(port, 'TOAST', { messageKey: 'system.clipboardMoved', params: { count: item.count } });
   } else {
     // 신규 항목 추가
     const newItem = {
@@ -1043,7 +1044,7 @@ async function handleAddClipboard(port, payload) {
     const id = await db.addClipboardItem(newItem);
     if (id) newItem.id = id;
     broadcastState();
-    sendTo(port, 'TOAST', { message: '어시스턴트 클립보드에 저장됨' });
+    sendTo(port, 'TOAST', { messageKey: 'system.clipboardSaved' });
   }
 }
 
@@ -1053,7 +1054,7 @@ async function handleDeleteClipboard(port, payload) {
   const idx = (state.clipboard || []).findIndex(c => c.id === itemId);
   if (idx > -1) state.clipboard.splice(idx, 1);
   broadcastState();
-  sendTo(port, 'TOAST', { message: '항목이 삭제되었습니다' });
+  sendTo(port, 'TOAST', { messageKey: 'system.clipboardItemDeleted' });
 }
 
 async function handleAddTemplate(port, payload) {
@@ -1062,7 +1063,7 @@ async function handleAddTemplate(port, payload) {
   const newTemplate = { ...template, id };
   state.templates.unshift(newTemplate);
   broadcastState();
-  sendTo(port, 'TOAST', { message: '템플릿이 추가되었습니다' });
+  sendTo(port, 'TOAST', { messageKey: 'system.templateAdded' });
 }
 
 async function handleEditTemplate(port, payload) {
@@ -1073,7 +1074,7 @@ async function handleEditTemplate(port, payload) {
   template.content = content;
   await db.updateTemplate(template);
   broadcastState();
-  sendTo(port, 'TOAST', { message: '템플릿이 수정되었습니다' });
+  sendTo(port, 'TOAST', { messageKey: 'system.templateUpdated' });
 }
 
 async function handleDeleteTemplate(port, payload) {
@@ -1082,7 +1083,7 @@ async function handleDeleteTemplate(port, payload) {
   const idx = state.templates.findIndex(t => t.id === templateId);
   if (idx > -1) state.templates.splice(idx, 1);
   broadcastState();
-  sendTo(port, 'TOAST', { message: '템플릿이 삭제되었습니다' });
+  sendTo(port, 'TOAST', { messageKey: 'system.templateDeleted' });
 }
 
 async function handleUseTemplate(port, payload) {
@@ -1139,7 +1140,7 @@ async function handleToggleTodo(port, payload) {
     await db.updateMemo(memo, memoId);
   }
   broadcastState();
-  sendTo(port, 'TOAST', { message: memo?.done ? '완료 처리되었습니다' : '미완료 처리되었습니다' });
+  sendTo(port, 'TOAST', { messageKey: memo?.done ? 'system.memoCompleted' : 'system.memoUncompleted' });
 }
 
 async function handleSaveStickyNotes(port, payload) {
@@ -1226,8 +1227,10 @@ async function handleToggleLabel(port, payload) {
   memo.updatedAt = Date.now();
   await db.updateMemo(memo, memoId);
   broadcastState();
-  const msg = shouldAdd ? `✓ "${menuId}" 메뉴에 추가되었습니다` : `− "${menuId}" 메뉴에서 제거되었습니다`;
-  sendTo(port, 'TOAST', { message: msg });
+  sendTo(port, 'TOAST', {
+    messageKey: shouldAdd ? 'system.menuLabelAdded' : 'system.menuLabelRemoved',
+    params: { menuId },
+  });
 }
 
 async function handleRecordAreaTime(port, payload) {
@@ -1258,7 +1261,7 @@ async function handleImportData(port, payload) {
   await db.importData(payload.importedData);
   await loadStateFromDB();
   broadcastState();
-  sendTo(port, 'TOAST', { message: '데이터 가져오기가 완료되었습니다' });
+  sendTo(port, 'TOAST', { messageKey: 'system.importSuccess' });
 }
 
 async function handleExportData(port) {
@@ -1274,7 +1277,7 @@ async function handleClearOldData(port, payload) {
   }
   await runAutoCleanup({ silent: false });
   broadcastState();
-  sendTo(port, 'TOAST', { message: '데이터 정리가 완료되었습니다' });
+  sendTo(port, 'TOAST', { messageKey: 'system.dataCleanupDone' });
 }
 
 async function handleBeforeUnload(port) {
@@ -1374,10 +1377,10 @@ async function handleClearMemoAndClipboard(port) {
     state.clipboard = [];
     state.stickyNotes = [];
     broadcastState();
-    sendTo(port, 'TOAST', { message: '메모 및 클립보드가 초기화되었습니다.' });
+    sendTo(port, 'TOAST', { messageKey: 'system.dataResetDone' });
   } catch (error) {
     console.error('[Worker] 데이터 초기화 실패:', error);
-    sendTo(port, 'TOAST', { message: '초기화 중 오류가 발생했습니다.' });
+    sendTo(port, 'TOAST', { messageKey: 'system.initError' });
   }
 }
 
@@ -1429,7 +1432,7 @@ async function dispatchMessage(port, event) {
     await handler(port, payload);
   } catch (error) {
     console.error(`[Worker] 핸들러 오류 (${type}):`, error);
-    sendTo(port, 'TOAST', { message: `오류가 발생했습니다` });
+    sendTo(port, 'TOAST', { messageKey: 'system.errorOccurred' });
   }
 }
 

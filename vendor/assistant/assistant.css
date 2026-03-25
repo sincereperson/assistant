@@ -155,13 +155,6 @@
   height: 0;
   overflow: visible;
 }
-#assistant-root.imsmassi-low-spec,
-#assistant-root.imsmassi-low-spec *,
-#assistant-root.imsmassi-low-spec *::before,
-#assistant-root.imsmassi-low-spec *::after {
-  transition: none;
-  animation: none;
-}
 
 /* ========== scoped overrides (웹스퀘어/외부 CSS 충돌 방지) ========== */
 #assistant-root .imsmassi-floating-btn {
@@ -617,24 +610,6 @@
   padding: 0;
   flex-shrink: 0;
 }
-/* 저사양 모드 푸터 오버라이드 */
-#assistant-root.imsmassi-low-spec .imsmassi-assistant-footer {
-  padding: 5px 10px;
-  gap: 6px;
-}
-#assistant-root.imsmassi-low-spec .imsmassi-assistant-footer-group {
-  border: none;
-  border-radius: 12px;
-  padding: 1px 4px;
-  height: auto;
-  background: rgba(128, 128, 128, 0.1);
-}
-#assistant-root.imsmassi-low-spec .imsmassi-assistant-footer-controls {
-  gap: 4px;
-}
-#assistant-root.imsmassi-low-spec .imsmassi-assistant-footer-btn {
-  padding: 2px 6px;
-}
 
 #assistant-root .imsmassi-memo-layout {
   display: grid;
@@ -861,8 +836,7 @@
 }
 #assistant-root .imsmassi-memo-item-content {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: auto;
+  overflow: auto;
   padding: 8px 10px 12px;
   min-height: 0;
   min-width: 0;
@@ -920,7 +894,7 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow-x: auto;
+  overflow: hidden;
   display: block;
   white-space: pre;
   word-break: break-all;
@@ -935,10 +909,18 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow-x: auto;
+  overflow: hidden;
   display: block;
   white-space: pre;
   word-break: break-all;
+  box-sizing: border-box;
+}
+#assistant-root .imsmassi-memo-inline-editor .ql-container {
+  border: none;
+  overflow: hidden;
+}
+#assistant-root .imsmassi-memo-inline-editor .ql-editor {
+  overflow: hidden;
   box-sizing: border-box;
 }
 
@@ -956,8 +938,7 @@
   border: none;
   background: var(--blue-gray-50);
   min-height: 140px;
-  max-height: 300px;
-  overflow-y: auto;
+  overflow: hidden;
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-quill-wrapper .ql-container {
   background: var(--blue-gray-700);
@@ -970,6 +951,7 @@
   line-height: 1.6;
   padding: 12px;
   min-height: 140px;
+  overflow: hidden;
   box-sizing: border-box;
 }
 #assistant-root .imsmassi-memo-quill-wrapper.imsmassi-focused {
@@ -1034,7 +1016,9 @@
   height: 320px;
   min-height: 240px;
   max-height: 420px;
-  overflow-y: auto;
+  /* overflow-y:auto → hidden: 내부 flex 아이템(.imsmassi-memo-item-content, flex:1, min-height:0, overflow-y:auto)이
+     스크롤을 담당하므로 카드에서 overflow-y:auto 를 열어두면 이중스크롤 발생 */
+  overflow: hidden;
   flex: 1 1 0;
   width: 0;
   flex-basis: 0;
@@ -1062,10 +1046,9 @@
 }
 #assistant-root .imsmassi-memo-card-body {
   max-height: 300px;
-  overflow: auto;
+  overflow: hidden;
   flex: 1 1 0;
   min-height: 120px;
-  scrollbar-width: none;
 }
 
 #assistant-root .imsmassi-clipboard-header {
@@ -2551,7 +2534,7 @@
    ================================================ */
 #assistant-root .imsmassi-memo-item-pinned {
   background: #fffbeb;
-  border-left: 3px solid var(--memo-pin-border, var(--imsmassi-area-color));
+  /* border-left: 3px solid var(--memo-pin-border, var(--imsmassi-area-color)); */
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-item-pinned {
   background: #353535;
@@ -3322,11 +3305,7 @@
   display: none !important;
 }
 
-/* quill-better-table 이중 스크롤 방지 */
-.imsmassi-sticky-note-body .quill-better-table-wrapper,
-#assistant-root .quill-better-table-wrapper {
-  overflow-x: visible !important;
-}
+/* quill-better-table: .ql-container overflow:hidden 으로 operate 요소 클립됨 */
 
 /* ============================================================
    Settings Modal CSS — 신규 클래스 (기존 2471+ 스코프 보완)
