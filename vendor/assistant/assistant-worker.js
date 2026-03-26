@@ -27,7 +27,7 @@ class AssistantDB {
 
   async init() {
     if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
-      try { await navigator.storage.persist(); } catch (_) {}
+      try { await navigator.storage.persist(); } catch (e) { void e; }
     }
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.dbVersion);
@@ -666,15 +666,47 @@ async function seedInitialData() {
   const now = Date.now();
   const today = new Date().toISOString().split('T')[0];
   const currentArea = state.selectedArea || 'UW';
+  const isEn = (state.seedLocale || 'ko-kr').startsWith('en');
+
+  // 로케일별 텍스트 분기
+  const SEED = isEn ? {
+    memo1Title:   'Welcome 🎉',
+    memo1Content: 'Welcome to Solomon Assistant!\n\nWrite your work memos here and boost productivity with the clipboard and template features.',
+    memo1MenuId:  'Main',
+    memo1Labels:  ['Main'],
+    memo2Title:   'Prepare Afternoon Report',
+    memo2Content: 'Compile weekly performance data and send the report email to team lead',
+    memo2MenuId:  'Main',
+    memo2Labels:  ['Main'],
+    cb1:          '123-45-67890',
+    cb2:          'hong.gildong@solomon.com',
+    cbMenu:       'Main',
+    tplTitle:     'Approval Request Email',
+    tplContent:   'Hello,\nI would like to request approval for the following.\n\n- Contract No.: \n- Customer: \n- Request: \n\nThank you.',
+  } : {
+    memo1Title:   '환영합니다 🎉',
+    memo1Content: '솔로몬 어시스턴트에 오신 것을 환영합니다!\n\n이곳에 업무 메모를 작성하고, 우측의 클립보드와 템플릿 기능을 활용하여 업무 효율을 높여보세요.',
+    memo1MenuId:  '메인화면',
+    memo1Labels:  ['메인화면'],
+    memo2Title:   '오후 업무보고 준비',
+    memo2Content: '주간 실적 데이터 취합 및 팀장님께 결과 보고 메일 발송하기',
+    memo2MenuId:  '메인화면',
+    memo2Labels:  ['메인화면'],
+    cb1:          '123-45-67890',
+    cb2:          'hong.gildong@solomon.com',
+    cbMenu:       '메인화면',
+    tplTitle:     '승인 요청 메일',
+    tplContent:   '안녕하세요, 담당자님.\n아래 건에 대해 승인 요청드립니다.\n\n- 계약번호: \n- 고객명: \n- 요청사항: \n\n감사합니다.',
+  };
 
   // 1. 환영 메모 (고정)
   await db.addMemo('mdi-sample-1', {
-    title: '환영합니다 🎉',
-    content: '솔로몬 어시스턴트에 오신 것을 환영합니다!\n\n이곳에 업무 메모를 작성하고, 우측의 클립보드와 템플릿 기능을 활용하여 업무 효율을 높여보세요.',
+    title: SEED.memo1Title,
+    content: SEED.memo1Content,
     pinned: true,
     createdAreaId: currentArea,
-    menuId: '메인화면',
-    labels: ['메인화면'],
+    menuId: SEED.memo1MenuId,
+    labels: SEED.memo1Labels,
     reminder: null,
     date: today,
     isRichText: false,
@@ -687,12 +719,12 @@ async function seedInitialData() {
   const rDate = reminderTime.toISOString().split('T')[0];
   const rTime = `${String(reminderTime.getHours()).padStart(2, '0')}:${String(reminderTime.getMinutes()).padStart(2, '0')}`;
   await db.addMemo('mdi-sample-2', {
-    title: '오후 업무보고 준비',
-    content: '주간 실적 데이터 취합 및 팀장님께 결과 보고 메일 발송하기',
+    title: SEED.memo2Title,
+    content: SEED.memo2Content,
     pinned: false,
     createdAreaId: currentArea,
-    menuId: '메인화면',
-    labels: ['메인화면'],
+    menuId: SEED.memo2MenuId,
+    labels: SEED.memo2Labels,
     reminder: `${rDate} ${rTime}`,
     reminderRepeat: false,
     done: false,
@@ -703,13 +735,13 @@ async function seedInitialData() {
   });
 
   // 3. 클립보드 예시 데이터
-  await db.addClipboardItem({ content: '123-45-67890', menu: '메인화면', areaId: currentArea, timestamp: now, count: 1 });
-  await db.addClipboardItem({ content: 'hong.gildong@solomon.com', menu: '메인화면', areaId: currentArea, timestamp: now + 1, count: 2 });
+  await db.addClipboardItem({ content: SEED.cb1, menu: SEED.cbMenu, areaId: currentArea, timestamp: now,     count: 1 });
+  await db.addClipboardItem({ content: SEED.cb2, menu: SEED.cbMenu, areaId: currentArea, timestamp: now + 1, count: 2 });
 
   // 4. 템플릿 예시 데이터
   await db.addTemplate({
-    title: '승인 요청 메일',
-    content: '안녕하세요, 담당자님.\n아래 건에 대해 승인 요청드립니다.\n\n- 계약번호: \n- 고객명: \n- 요청사항: \n\n감사합니다.',
+    title: SEED.tplTitle,
+    content: SEED.tplContent,
     category: 'default',
     count: 0,
     createdAt: now,
@@ -786,15 +818,21 @@ async function loadStateFromDB() {
   const settings = await db.getSetting('app_settings');
   if (settings) {
     state.settings = {
+      // 1단계: Worker 기본값을 베이스로 깔고
       ...state.settings,
+      // 2단계: DB 저장값으로 전체 덮어쓰기 (신규 키도 자동 반영)
       ...settings,
+      // 3단계: 중첩 객체는 별도 병합 (스프레드만으로는 깊은 병합 불가)
       autoCleanup: { ...state.settings.autoCleanup, ...(settings.autoCleanup || {}) },
-      markdownEnabled: settings.markdownEnabled !== undefined ? settings.markdownEnabled : state.settings.markdownEnabled,
-      browserNotificationEnabled: settings.browserNotificationEnabled !== undefined ? settings.browserNotificationEnabled : state.settings.browserNotificationEnabled,
-      debugLogs: settings.debugLogs !== undefined ? settings.debugLogs : state.settings.debugLogs,
-      toastEnabled: settings.toastEnabled !== undefined ? settings.toastEnabled : state.settings.toastEnabled,
-      showTimeTab: settings.showTimeTab !== undefined ? settings.showTimeTab : state.settings.showTimeTab,
-      showAreaColorSection: settings.showAreaColorSection !== undefined ? settings.showAreaColorSection : state.settings.showAreaColorSection,
+      // 4단계: 타입 안전이 필요한 boolean 키는 명시적으로 재지정
+      // (DB에 undefined가 저장된 경우 스프레드 결과가 undefined가 되는 것을 방지)
+      markdownEnabled:             settings.markdownEnabled             !== undefined ? settings.markdownEnabled             : state.settings.markdownEnabled,
+      browserNotificationEnabled:  settings.browserNotificationEnabled  !== undefined ? settings.browserNotificationEnabled  : state.settings.browserNotificationEnabled,
+      reminderNotificationEnabled: settings.reminderNotificationEnabled !== undefined ? settings.reminderNotificationEnabled : state.settings.reminderNotificationEnabled,
+      debugLogs:                   settings.debugLogs                   !== undefined ? settings.debugLogs                   : state.settings.debugLogs,
+      toastEnabled:                settings.toastEnabled                !== undefined ? settings.toastEnabled                : state.settings.toastEnabled,
+      showTimeTab:                 settings.showTimeTab                 !== undefined ? settings.showTimeTab                 : state.settings.showTimeTab,
+      showAreaColorSection:        settings.showAreaColorSection        !== undefined ? settings.showAreaColorSection        : state.settings.showAreaColorSection,
     };
     // Issue 5 긴급패치: 업무컬러설정 / 시간인사이트 항상 false로 초기화 (DB 저장값 무시)
     state.settings.showTimeTab = false;
@@ -871,6 +909,10 @@ async function runAutoCleanup({ silent = true } = {}) {
 // ========================================
 
 async function handleInit(port, payload) {
+  // locale을 ensureInit 전에 먼저 설정 → seedInitialData()가 올바른 로케일로 실행됨
+  if (payload?.locale && !state.seedLocale) {
+    state.seedLocale = payload.locale;
+  }
   await ensureInit(payload?.loginId);
   // CONTEXT_CHANGE가 INIT의 await 도중 먼저 처리된 경우 컨텍스트가 이미 존재할 수 있음
   if (!clientContextMap.has(port)) {
@@ -1069,11 +1111,12 @@ async function handleAddTemplate(port, payload) {
 }
 
 async function handleEditTemplate(port, payload) {
-  const { templateId, title, content } = payload;
+  const { templateId, title, content, pinned } = payload;
   const template = state.templates.find(t => t.id === templateId);
   if (!template) return;
   template.title = title;
   template.content = content;
+  if (pinned !== undefined) template.pinned = pinned;
   await db.updateTemplate(template);
   broadcastState();
   sendTo(port, 'TOAST', { messageKey: 'system.templateUpdated' });
@@ -1287,9 +1330,8 @@ async function handleClearOldData(port, payload) {
     state.settings = { ...state.settings, ...settings };
     await db.saveSetting('app_settings', state.settings);
   }
-  await runAutoCleanup({ silent: false });
+  await runAutoCleanup({ silent: true });
   broadcastState();
-  sendTo(port, 'TOAST', { messageKey: 'system.dataCleanupDone' });
 }
 
 async function handleBeforeUnload(port) {

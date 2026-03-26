@@ -3,11 +3,13 @@
  * state.settings.debugLogs 값에 따라 출력 여부를 결정합니다.
  * error는 크리티컬 이슈 파악을 위해 설정과 무관하게 항상 출력합니다.
  */
+// var 선언: state(let) TDZ 진입 전에도 안전하게 참조 가능
+var _assiDebugReady = false;
 const assiConsole = {
-  log:   (...args) => { try { if (state?.settings?.debugLogs) console.log(...args); } catch(e) {} },
-  info:  (...args) => { try { if (state?.settings?.debugLogs) console.info(...args); } catch(e) {} },
-  debug: (...args) => { try { if (state?.settings?.debugLogs) console.debug(...args); } catch(e) {} },
-  warn:  (...args) => { try { if (state?.settings?.debugLogs) console.warn(...args); } catch(e) {} },
+  log:   (...args) => { if (_assiDebugReady && state?.settings?.debugLogs) console.log(...args); },
+  info:  (...args) => { if (_assiDebugReady && state?.settings?.debugLogs) console.info(...args); },
+  debug: (...args) => { if (_assiDebugReady && state?.settings?.debugLogs) console.debug(...args); },
+  warn:  (...args) => { if (_assiDebugReady && state?.settings?.debugLogs) console.warn(...args); },
   error: (...args) => { console.error(...args); },
 };
 
@@ -99,6 +101,9 @@ async function setLocale(newLocale) {
     i18nDict = await res.json();
     currentLocale = newLocale;
     assiConsole.log(`[Assistant] 언어 변경 완료: ${newLocale}`);
+
+    // 정적 요소 즉시 갱신 (renderAssistant 조기 반환과 무관하게 항상 적용)
+    syncStaticLocaleElements();
 
     // 전체 UI 즉시 재렌더링
     renderAll();
@@ -1294,6 +1299,8 @@ let state = {
     autoNavigateToDashboard: false,
     // 브라우저 알림 on/off
     browserNotificationEnabled: false,
+    // 리마인더 알림 on/off (토스트 + 브라우저 알림 통합 스위치)
+    reminderNotificationEnabled: true,
     // 토스트 알림 on/off
     toastEnabled: false,
   },
@@ -1340,6 +1347,8 @@ let state = {
     shortcutManual: false, // 헤더 단축키 메뉴얼 버튼 노출 여부
   },
 };
+// state 초기화 완료 — 이후부터 assiConsole 로깅 활성화
+_assiDebugReady = true;
 
 // Quill 에디터 인스턴스
 let memoQuill = null;
@@ -1698,7 +1707,7 @@ function initMemoEditor() {
       if (leaf?.domNode?.closest?.("td, th")) {
         tooltip.hide();
       }
-    } catch (_) {}
+    } catch (e) { assiConsole.warn("[Quill] tooltip hide 실패", e); }
   });
 
   (function installPasteHandler(quillInst) {
@@ -1813,7 +1822,7 @@ function initInlineMemoEditors() {
   if (hasBetterTable) {
     try {
       Quill.register({ "modules/table-better": window.QuillTableBetter }, true);
-    } catch (_) {}
+    } catch (e) { assiConsole.warn("[Quill] table-better 등록 실패 (중복 무시)", e); }
   }
 
   nodes.forEach((node) => {
@@ -2513,7 +2522,7 @@ function initStickyNoteRichText() {
   if (hasBetterTable) {
     try {
       Quill.register({ "modules/table-better": window.QuillTableBetter }, true);
-    } catch (_) {}
+    } catch (e) { assiConsole.warn("[Quill] table-better 등록 실패 (중복 무시)", e); }
   }
 
   const nodes = document.querySelectorAll(".imsmassi-sticky-note-richtext");
@@ -3830,20 +3839,22 @@ async function checkReminders() {
         const areaId = memo.createdAreaId || "underwriting";
 
         // UI 알림 표시
-        showNotificationToast(
-          title,
-          plainText || "메모 알림이 도래했습니다",
-          areaId,
-          6000,
-        );
-        incrementTabTitleCount();
+        if (state.settings.reminderNotificationEnabled !== false) {
+          showNotificationToast(
+            title,
+            plainText || "메모 알림이 도래했습니다",
+            areaId,
+            6000,
+          );
+          incrementTabTitleCount();
 
-        // 브라우저 알림 발송
-        sendBrowserNotification(title, {
-          body: plainText || "메모 알림이 도래했습니다",
-          tag: `reminder-${memoId}`,
-          requireInteraction: false,
-        });
+          // 브라우저 알림 발송
+          sendBrowserNotification(title, {
+            body: plainText || "메모 알림이 도래했습니다",
+            tag: `reminder-${memoId}`,
+            requireInteraction: false,
+          });
+        }
 
         // 반복 알림이면 다음날로 이동
         if (memo.reminderRepeat) {
@@ -4130,32 +4141,14 @@ function buildTemplateSuggestModal(data) {
   const tmplGroup = createElement("div");
   tmplGroup.append(tmplLabel, tmplInput);
 
-  const catLabel = createElement("label", {
-    className: "imsmassi-modal-label",
-  });
-  catLabel.textContent = t("modal.templateSuggestCategoryLabel");
-  const catSelect = createElement("select", {
-    className: "imsmassi-modal-input imsmassi-modal-select-mt",
-    id: "modal-suggested-template-category",
-  });
-  [
-    ["default", "일반"],
-    ["underwriting", "인수"],
-    ["contract", "계약"],
-    ["claims", "청구"],
-    ["accounting", "회계"],
-    ["performance", "실적"],
-    ["settlement", "정산"],
-    ["finance", "재무"],
-  ].forEach(([val, lbl]) => {
-    const opt = createElement("option", { value: val });
-    opt.textContent = lbl;
-    catSelect.appendChild(opt);
-  });
-  const catGroup = createElement("div", {
-    className: "imsmassi-modal-field-mt",
-  });
-  catGroup.append(catLabel, catSelect);
+  const catPinnedLabel = createElement("label", { className: "imsmassi-modal-label" });
+  catPinnedLabel.textContent = t("modal.templatePinnedLabel");
+  const catPinnedToggle = createElement("label", { className: "imsmassi-toggle-switch" });
+  const catPinnedCheckbox = createElement("input", { type: "checkbox", id: "modal-suggested-template-pinned" });
+  const catPinnedSlider = createElement("span", { className: "imsmassi-toggle-slider" });
+  catPinnedToggle.append(catPinnedCheckbox, catPinnedSlider);
+  const catGroup = createElement("div", { className: "imsmassi-modal-pinned-row" });
+  catGroup.append(catPinnedLabel, catPinnedToggle);
 
   const laterBtn = createElement("button", {
     className: "imsmassi-modal-btn imsmassi-modal-btn-secondary",
@@ -4222,8 +4215,17 @@ function buildAddTemplateModal(data) {
   const btnsGroup = createElement("div", { className: "imsmassi-modal-btns" });
   btnsGroup.append(cancelBtn, addBtn);
 
+  const addPinnedLabel = createElement("label", { className: "imsmassi-modal-label" });
+  addPinnedLabel.textContent = t("modal.templatePinnedLabel");
+  const addPinnedToggle = createElement("label", { className: "imsmassi-toggle-switch" });
+  const addPinnedCheckbox = createElement("input", { type: "checkbox", id: "modal-template-pinned" });
+  const addPinnedSlider = createElement("span", { className: "imsmassi-toggle-slider" });
+  addPinnedToggle.append(addPinnedCheckbox, addPinnedSlider);
+  const addPinnedGroup = createElement("div", { className: "imsmassi-modal-pinned-row" });
+  addPinnedGroup.append(addPinnedLabel, addPinnedToggle);
+
   const content = createElement("div");
-  content.append(title, titleGroup, contentGroup, btnsGroup);
+  content.append(title, titleGroup, contentGroup, addPinnedGroup, btnsGroup);
   return { content, firstFocus: titleInput };
 }
 
@@ -4265,6 +4267,16 @@ function buildEditTemplateModal(data) {
   const contentGroup = createElement("div");
   contentGroup.append(contentLabel, contentTextarea);
 
+  const editPinnedLabel = createElement("label", { className: "imsmassi-modal-label" });
+  editPinnedLabel.textContent = t("modal.templatePinnedLabel");
+  const editPinnedToggle = createElement("label", { className: "imsmassi-toggle-switch" });
+  const editPinnedCheckbox = createElement("input", { type: "checkbox", id: "modal-edit-template-pinned" });
+  if (existingTemplate?.pinned) editPinnedCheckbox.checked = true;
+  const editPinnedSlider = createElement("span", { className: "imsmassi-toggle-slider" });
+  editPinnedToggle.append(editPinnedCheckbox, editPinnedSlider);
+  const editPinnedGroup = createElement("div", { className: "imsmassi-modal-pinned-row" });
+  editPinnedGroup.append(editPinnedLabel, editPinnedToggle);
+
   const cancelBtn = createElement("button", {
     className: "imsmassi-modal-btn imsmassi-modal-btn-secondary",
   });
@@ -4279,7 +4291,7 @@ function buildEditTemplateModal(data) {
   btnsGroup.append(cancelBtn, saveBtn);
 
   const content = createElement("div");
-  content.append(title, titleGroup, contentGroup, btnsGroup);
+  content.append(title, titleGroup, contentGroup, editPinnedGroup, btnsGroup);
   return { content, firstFocus: titleInput };
 }
 
@@ -4534,11 +4546,11 @@ function getSettingsHtml(closeHandler) {
 
           <div class="imsmassi-settings-row">
             <div>
-              <span class="imsmassi-settings-label">${t("settings.browserNotifLabel")}</span>
-              <div class="imsmassi-settings-desc">${t("settings.browserNotifDesc")}</div>
+              <span class="imsmassi-settings-label">${t("settings.reminderNotifLabel")}</span>
+              <div class="imsmassi-settings-desc">${t("settings.reminderNotifDesc")}</div>
             </div>
             <label class="imsmassi-toggle-switch">
-              <input type="checkbox" id="setting-browser-notification" ${state.settings.browserNotificationEnabled ? "checked" : ""}>
+              <input type="checkbox" id="setting-reminder-notification" ${state.settings.reminderNotificationEnabled !== false ? "checked" : ""}>
               <span class="imsmassi-toggle-slider"></span>
             </label>
           </div>
@@ -5196,7 +5208,7 @@ function _copyToClipboardFallback(content) {
     if (prevFocused && typeof prevFocused.focus === "function") {
       try {
         prevFocused.focus();
-      } catch (_) {}
+      } catch (e) { assiConsole.warn("[복사] 이전 포커스 복구 실패", e); }
     }
   }
 }
@@ -5271,9 +5283,7 @@ function confirmAddSuggestedTemplate(suggestedText) {
   const title = document
     .getElementById("modal-suggested-template-title")
     ?.value.trim();
-  const category = document.getElementById(
-    "modal-suggested-template-category",
-  )?.value;
+  const pinned = document.getElementById("modal-suggested-template-pinned")?.checked || false;
   if (!title) {
     showToast(t("system.templateNameRequired"));
     return;
@@ -5281,7 +5291,7 @@ function confirmAddSuggestedTemplate(suggestedText) {
   const template = {
     title,
     content: safeContent,
-    category: category || "default",
+    pinned,
     count: 0,
   };
   workerSend("ADD_TEMPLATE", { template });
@@ -5305,7 +5315,8 @@ function confirmAddTemplate() {
     showToast(t("system.templateContentRequired"));
     return;
   }
-  const template = { title, content, count: 0 };
+  const pinned = document.getElementById("modal-template-pinned")?.checked || false;
+  const template = { title, content, pinned, count: 0 };
   workerSend("ADD_TEMPLATE", { template });
   closeModal();
 }
@@ -5329,10 +5340,12 @@ function confirmEditTemplate() {
     showToast(t("system.templateNotFound"));
     return;
   }
+  const pinned = document.getElementById("modal-edit-template-pinned")?.checked || false;
   workerSend("EDIT_TEMPLATE", {
     templateId: state.editingTemplateId,
     title,
     content,
+    pinned,
   });
   closeModal();
 }
@@ -5463,9 +5476,8 @@ function _readSettingsFromDOM() {
     autoNavigateToDashboard:
       g("setting-auto-dashboard")?.checked ??
       state.settings.autoNavigateToDashboard,
-    browserNotificationEnabled:
-      g("setting-browser-notification")?.checked ??
-      state.settings.browserNotificationEnabled,
+    reminderNotificationEnabled:
+      g("setting-reminder-notification")?.checked ?? state.settings.reminderNotificationEnabled,
     toastEnabled: g("setting-toast")?.checked ?? state.settings.toastEnabled,
     showTimeTab: g("setting-show-time-tab")
       ? g("setting-show-time-tab").checked
@@ -5815,6 +5827,19 @@ function renderPalette() {
   areaColors.innerHTML = areaColorsHtml;
 }
 // ====== 배포시 제거 끝: 데모/미리보기 렌더링 함수 ======
+/**
+ * fragment HTML의 정적 요소(패널 제목, 푸터 버튼 등)를 현재 언어로 동기화합니다.
+ * renderAssistant 조기 반환 여부와 무관하게 setLocale에서 직접 호출됩니다.
+ */
+function syncStaticLocaleElements() {
+  const panelTitleText = document.getElementById("imsmassi-panel-title-text");
+  if (panelTitleText) panelTitleText.textContent = t("ui.panelTitle");
+  const closeBtnEl = document.getElementById("imsmassi-close-btn");
+  if (closeBtnEl) closeBtnEl.title = t("ui.closeBtnTitle");
+  const footerSettingsBtnEl = document.getElementById("imsmassi-footer-settings-btn");
+  if (footerSettingsBtnEl) footerSettingsBtnEl.textContent = t("ui.footerSettingsBtn");
+}
+
 function renderAssistant() {
   const theme = getTheme();
   const area = getArea();
@@ -5858,20 +5883,15 @@ function renderAssistant() {
     initPanelTopLeftResize(panel); // [Task 2] 좌측 상단 통합 리사이즈
   }
 
+  // 정적 HTML 요소 로케일 동기화
+  syncStaticLocaleElements();
+
   if (!state.assistantOpen) return;
 
   // 헤더 — background/color 는 CSS(.imsmassi-assistant-header) 에서 var 참조
   const header = document.getElementById("imsmassi-assistant-header");
   if (!header) return;
   updateDashboardButton();
-
-  // 정적 HTML 요소 로케일 동기화
-  const panelTitleText = document.getElementById("imsmassi-panel-title-text");
-  if (panelTitleText) panelTitleText.textContent = t("ui.panelTitle");
-  const closeBtnEl = document.getElementById("imsmassi-close-btn");
-  if (closeBtnEl) closeBtnEl.title = t("ui.closeBtnTitle");
-  const footerSettingsBtnEl = document.getElementById("imsmassi-footer-settings-btn");
-  if (footerSettingsBtnEl) footerSettingsBtnEl.textContent = t("ui.footerSettingsBtn");
 
   // 푸터 — background/border/color 는 CSS(.imsmassi-assistant-footer) 에서 var 참조
   const footer = document.getElementById("imsmassi-assistant-footer");
@@ -6692,8 +6712,6 @@ function updateDashboardButton() {
     if (!manualBtn) {
       manualBtn = document.createElement("button");
       manualBtn.className = "imsmassi-shortcut-manual-btn";
-      manualBtn.title = t("ui.shortcutTitle");
-      manualBtn.innerHTML = `<span class="imsmassi-shortcut-manual-icon">⌨</span><span class="imsmassi-shortcut-manual-label">${t("ui.shortcutBtnLabel")}</span>`;
       manualBtn.onclick = () => openShortcutManual();
 
       // 탭 그룹 또는 닫기 버튼 앞에 삽입
@@ -6705,6 +6723,14 @@ function updateDashboardButton() {
       } else {
         actionsEl.appendChild(manualBtn);
       }
+    }
+    // 다국어 라벨 항상 동기화
+    manualBtn.title = t("ui.shortcutTitle");
+    const manualLabelEl = manualBtn.querySelector(".imsmassi-shortcut-manual-label");
+    if (manualLabelEl) {
+      manualLabelEl.textContent = t("ui.shortcutBtnLabel");
+    } else {
+      manualBtn.innerHTML = `<span class="imsmassi-shortcut-manual-icon">⌨</span><span class="imsmassi-shortcut-manual-label">${t("ui.shortcutBtnLabel")}</span>`;
     }
   }
 
@@ -6751,9 +6777,20 @@ function updateDashboardButton() {
     }
   }
 
-  // 현재 탭에 맞게 active 상태 갱신
+  // 현재 탭에 맞게 active 상태 갱신 + 다국어 라벨 동기화
+  const tabLabelMap = {
+    memo:      t("ui.tabMemo"),
+    dashboard: t("ui.tabDashboard"),
+    settings:  t("ui.tabSettings"),
+  };
   tabGroup.querySelectorAll(".imsmassi-header-tab-btn").forEach((btn) => {
     btn.classList.toggle("imsmassi-active", btn.dataset.tabId === state.activeTab);
+
+    const labelEl = btn.querySelector(".imsmassi-tab-label");
+    if (labelEl && tabLabelMap[btn.dataset.tabId]) {
+      labelEl.textContent = tabLabelMap[btn.dataset.tabId];
+    }
+    btn.title = tabLabelMap[btn.dataset.tabId] || btn.title;
   });
 }
 
@@ -7446,7 +7483,7 @@ async function bootstrapAssistant(config = {}) {
   // (별도 CONTEXT_CHANGE 메시지를 보내면 INIT의 await ensureInit() 도중 선처리되어 덮어쓰이는 문제 방지)
   const workerPath = config.workerPath || "assistant/assistant-worker.js";
   const _selCfg = config.stickyLayerSelectors;
-  const _initialCtx = {};
+  const _initialCtx = { locale: config.locale || "ko-kr" };
   if (_selCfg && _selCfg !== false && typeof _selCfg.getMenuId === "function") {
     const _menuId = _selCfg.getMenuId();
     if (_menuId) {

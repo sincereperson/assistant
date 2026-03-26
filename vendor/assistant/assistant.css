@@ -159,7 +159,7 @@
 /* ========== scoped overrides (웹스퀘어/외부 CSS 충돌 방지) ========== */
 #assistant-root .imsmassi-floating-btn {
   position: fixed;
-  bottom: 30px;
+  bottom: 42px;
   right: 30px;
   width: 56px;
   height: 56px;
@@ -250,8 +250,8 @@
   left: 6px;
   width: 8px;
   height: 8px;
-  border-top: 2px so  lid rgba(128, 128, 128, 1);
-  border-left: 2px solid rgba(128, 128, 128, 1);
+  border-top: 2px solid #fff;
+  border-left: 2px solid #fff;
   border-radius: 2px 0 0 0;
   transition: border-color 0.2s;
 }
@@ -2734,6 +2734,12 @@
 }
 #assistant-root .imsmassi-modal-field-mt {
   margin-top: 8px;
+}
+#assistant-root .imsmassi-modal-pinned-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
 }
 
 /* ================================================

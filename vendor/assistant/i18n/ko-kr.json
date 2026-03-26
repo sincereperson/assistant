@@ -111,7 +111,7 @@
     "templateSuggestPreviewLabel": "자주 사용하는 텍스트",
     "templateSuggestNameLabel": "템플릿 제목",
     "templateSuggestNamePlaceholder": "이 텍스트의 이름을 정해주세요",
-    "templateSuggestCategoryLabel": "카테고리",
+    "templatePinnedLabel": "상단 고정",
 
     "templateAddTitle": "새 템플릿 추가",
     "templateEditTitle": "템플릿 수정",
@@ -141,6 +141,8 @@
     "sectionNotification": "알림 설정",
     "browserNotifLabel": "브라우저 알림",
     "browserNotifDesc": "알림 도착 시 브라우저 알림 표시",
+    "reminderNotifLabel": "리마인더 알림",
+    "reminderNotifDesc": "리마인더 알림 안내 표시 on/off",
     "toastNotifLabel": "토스트 알림",
     "toastNotifDesc": "어시스턴트 하단 토스트 표시",
     "backupNotifLabel": "백업 알림",

@@ -120,7 +120,7 @@
         if (rawSrc && !rawSrc.startsWith('data:') && !rawSrc.startsWith('http')) {
           try {
             img.src = new URL(rawSrc, fragmentBaseUrl).toString();
-          } catch (_) {}
+          } catch (e) { void e; }
         }
       });
 

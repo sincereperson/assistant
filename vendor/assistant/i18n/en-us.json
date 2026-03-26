@@ -83,7 +83,7 @@
     "btnGuideReview": "View Again",
     "btnMemoAdd": "Add Memo",
     "btnTemplateNew": "Add New Template",
-    "memoPlaceholder": "Enter a memo for {areaName}.",
+    "memoPlaceholder": "Enter a memo.",
     "memoPlaceholderDefault": "Enter a memo.",
     "tabMemo": "Memo",
     "tabDashboard": "Dashboard",
@@ -111,7 +111,7 @@
     "templateSuggestPreviewLabel": "Frequently used text",
     "templateSuggestNameLabel": "Template Title",
     "templateSuggestNamePlaceholder": "Give this text a name",
-    "templateSuggestCategoryLabel": "Category",
+    "templatePinnedLabel": "Pin to top",
 
     "templateAddTitle": "Add New Template",
     "templateEditTitle": "Edit Template",
@@ -141,6 +141,8 @@
     "sectionNotification": "Notification Settings",
     "browserNotifLabel": "Browser Notifications",
     "browserNotifDesc": "Show browser notifications on arrival",
+    "reminderNotifLabel": "Reminder Notifications",
+    "reminderNotifDesc": "Enable or disable reminder notification alerts",
     "toastNotifLabel": "Toast Notifications",
     "toastNotifDesc": "Show toast at the bottom of the assistant",
     "backupNotifLabel": "Backup Reminder",
@@ -182,7 +184,7 @@
 
   "memoTab": {
     "filterCurrentScreen": "Current Screen",
-    "filterCurrentArea": "Current Area",
+    "filterCurrentArea": "Current Menu",
     "filterAll": "All",
     "countLabel": "{count} Memo(s)",
     "listEmpty": "No memos",

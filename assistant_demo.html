@@ -2156,7 +2156,7 @@
       loadAssistant({
         mountId: "assistant-mount",
         loginId: "test_user_01",
-        locale: "en-us",
+        locale: "ko-kr",
         // ── 유저 정보: 있을 때만 암호화되어 IndexedDB userinfo 스토어에 저장됨
         getUserInfo: {
           userId: "test_user_01",
@@ -2192,6 +2192,7 @@
           getAreaId: (menuId) => window.getAreaId?.(menuId),
         },
       }).then(() => {
+        showAllAssistantHiddenUI();
         console.log("[Assistant] 어시스턴트 로드 완료");
       });
 
