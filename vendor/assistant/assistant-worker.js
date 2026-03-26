@@ -1033,10 +1033,12 @@ async function handleAddClipboard(port, payload) {
     sendTo(port, 'TOAST', { messageKey: 'system.clipboardMoved', params: { count: item.count } });
   } else {
     // 신규 항목 추가
+    const ctx = getClientContext(port);
     const newItem = {
       content: trimmed,
-      menu: state.selectedMenu,
-      areaId: state.selectedArea,
+      menuId: ctx.selectedMenu || state.selectedMenu,
+      menu: ctx.selectedMenu || state.selectedMenu,
+      areaId: ctx.selectedArea || state.selectedArea,
       timestamp: now,
       count: 1,
     };
@@ -1075,6 +1077,16 @@ async function handleEditTemplate(port, payload) {
   await db.updateTemplate(template);
   broadcastState();
   sendTo(port, 'TOAST', { messageKey: 'system.templateUpdated' });
+}
+
+async function handleToggleTemplatePin(port, payload) {
+  const { templateId } = payload;
+  const template = state.templates.find(t => t.id === templateId);
+  if (!template) return;
+  template.pinned = !template.pinned;
+  await db.updateTemplate(template);
+  broadcastState();
+  sendTo(port, 'TOAST', { messageKey: template.pinned ? 'system.templatePinned' : 'system.templateUnpinned' });
 }
 
 async function handleDeleteTemplate(port, payload) {
@@ -1395,9 +1407,10 @@ const HANDLERS = {
   SET_REMINDER:      handleSetReminder,
   ADD_CLIPBOARD:     handleAddClipboard,
   DELETE_CLIPBOARD:  handleDeleteClipboard,
-  ADD_TEMPLATE:      handleAddTemplate,
-  EDIT_TEMPLATE:     handleEditTemplate,
-  DELETE_TEMPLATE:   handleDeleteTemplate,
+  ADD_TEMPLATE:          handleAddTemplate,
+  EDIT_TEMPLATE:         handleEditTemplate,
+  DELETE_TEMPLATE:       handleDeleteTemplate,
+  TOGGLE_TEMPLATE_PIN:   handleToggleTemplatePin,
   USE_TEMPLATE:      handleUseTemplate,
   SET_THEME:         handleSetTheme,
   SET_DARK_MODE:     handleSetDarkMode,

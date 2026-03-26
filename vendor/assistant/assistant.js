@@ -1,5 +1,18 @@
-﻿if (typeof Quill !== "undefined") {
-  console.log("✅ Quill 라이브러리 로드 성공!");
+﻿/**
+ * 어시스턴트 전용 로거 (전역 console Monkey Patching 방지)
+ * state.settings.debugLogs 값에 따라 출력 여부를 결정합니다.
+ * error는 크리티컬 이슈 파악을 위해 설정과 무관하게 항상 출력합니다.
+ */
+const assiConsole = {
+  log:   (...args) => { try { if (state?.settings?.debugLogs) console.log(...args); } catch(e) {} },
+  info:  (...args) => { try { if (state?.settings?.debugLogs) console.info(...args); } catch(e) {} },
+  debug: (...args) => { try { if (state?.settings?.debugLogs) console.debug(...args); } catch(e) {} },
+  warn:  (...args) => { try { if (state?.settings?.debugLogs) console.warn(...args); } catch(e) {} },
+  error: (...args) => { console.error(...args); },
+};
+
+if (typeof Quill !== "undefined") {
+  assiConsole.log("✅ Quill 라이브러리 로드 성공!");
 } else {
   alert("❌ Quill 라이브러리를 찾을 수 없습니다. 경로를 확인해주세요.");
 }
@@ -85,7 +98,7 @@ async function setLocale(newLocale) {
     if (!res.ok) throw new Error(`[i18n] 언어 파일 로드 실패: ${url} (${res.status})`);
     i18nDict = await res.json();
     currentLocale = newLocale;
-    console.log(`[Assistant] 언어 변경 완료: ${newLocale}`);
+    assiConsole.log(`[Assistant] 언어 변경 완료: ${newLocale}`);
 
     // 전체 UI 즉시 재렌더링
     renderAll();
@@ -115,14 +128,14 @@ async function loadLocale(locale) {
   const target = locale || "ko-kr";
   try {
     const url = getI18nBasePath() + `${target}.json`;
-    console.log(`[Assistant] i18n 로드 시도: ${url}`);
+    assiConsole.log(`[Assistant] i18n 로드 시도: ${url}`);
     const res = await fetch(url, { cache: "no-cache" });
     if (!res.ok) throw new Error(`[i18n] 초기 언어 파일 로드 실패: ${url} (${res.status})`);
     i18nDict = await res.json();
     currentLocale = target;
-    console.log(`[Assistant] 언어 사전 로드 완료: ${target}`);
+    assiConsole.log(`[Assistant] 언어 사전 로드 완료: ${target}`);
   } catch (err) {
-    console.warn("[Assistant] 언어 사전 로드 실패 (한국어 기본값 유지):", err);
+    assiConsole.warn("[Assistant] 언어 사전 로드 실패 (한국어 기본값 유지):", err);
   }
 }
 
@@ -152,7 +165,7 @@ function normalizeLocale(raw) {
  */
 function workerSend(type, payload) {
   if (!workerPort) {
-    console.warn(
+    assiConsole.warn(
       "[Assistant] Worker가 연결되지 않았습니다. 메시지 무시:",
       type,
     );
@@ -336,7 +349,7 @@ async function decryptUserField(b64, key) {
     );
     return new TextDecoder().decode(plain);
   } catch {
-    console.warn("[Assistant] 필드 복호화 실패 (키 불일치 또는 손상)");
+    assiConsole.warn("[Assistant] 필드 복호화 실패 (키 불일치 또는 손상)");
     return null;
   }
 }
@@ -363,12 +376,12 @@ async function saveUserInfoToWorker(loginId, userInfoSource) {
       raw = userInfoSource;
     }
   } catch (e) {
-    console.warn("[Assistant] UserInfo 소스 실행 실패:", e);
+    assiConsole.warn("[Assistant] UserInfo 소스 실행 실패:", e);
     raw = null;
   }
 
   if (!raw || !Object.keys(raw).length) {
-    console.warn("[Assistant] UserInfo 없음 — 저장 건너뜀");
+    assiConsole.warn("[Assistant] UserInfo 없음 — 저장 건너뜀");
     return;
   }
   try {
@@ -385,7 +398,7 @@ async function saveUserInfoToWorker(loginId, userInfoSource) {
       }
     }
     workerSend("SAVE_USER_INFO", { userInfo: encrypted });
-    console.log(
+    assiConsole.log(
       "[Assistant] UserInfo 암호화 저장 완료 (loginId:",
       loginId,
       ")",
@@ -440,12 +453,12 @@ class AssistantDB {
     if (navigator.storage && navigator.storage.persist) {
       try {
         const persisted = await navigator.storage.persist();
-        console.log(
+        assiConsole.log(
           "Persistent Storage 상태:",
           persisted ? "활성화" : "비활성화",
         );
       } catch (error) {
-        console.warn("Persistent Storage 요청 실패:", error);
+        assiConsole.warn("Persistent Storage 요청 실패:", error);
       }
     }
 
@@ -459,13 +472,13 @@ class AssistantDB {
 
       request.onsuccess = () => {
         this.db = request.result;
-        console.log("IndexedDB 초기화 완료:", this.dbName);
+        assiConsole.log("IndexedDB 초기화 완료:", this.dbName);
         resolve(this.db);
       };
 
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
-        console.log("IndexedDB 스토어 생성 중...");
+        assiConsole.log("IndexedDB 스토어 생성 중...");
 
         // 메모 스토어 (areaId 인덱스)
         if (!db.objectStoreNames.contains("memos")) {
@@ -523,7 +536,7 @@ class AssistantDB {
         // IDBRequest인 경우 (delete, put, add, get 등)
         if (callbackResult && typeof callbackResult.onsuccess === "function") {
           callbackResult.onsuccess = () => {
-            console.log(`[transaction] ${storeName} IDBRequest 성공`);
+            assiConsole.log(`[transaction] ${storeName} IDBRequest 성공`);
           };
           callbackResult.onerror = () => {
             console.error(
@@ -539,7 +552,7 @@ class AssistantDB {
           if (hasError) {
             reject(new Error("Transaction request failed"));
           } else {
-            console.log(`[transaction] ${storeName} 트랜잭션 완료 (${mode})`);
+            assiConsole.log(`[transaction] ${storeName} 트랜잭션 완료 (${mode})`);
             resolve(callbackResult);
           }
         };
@@ -569,7 +582,7 @@ class AssistantDB {
     }
     memo.id = memoId; // memoId를 메모 객체에 저장
     memo.timestamp = Date.now();
-    console.log("[db.addMemo] 메모 추가:", memoId);
+    assiConsole.log("[db.addMemo] 메모 추가:", memoId);
     return this.transaction("memos", "readwrite", (store) => {
       // 기존 메모가 있으면 덮어쓰기, 없으면 추가
       return store.put(memo);
@@ -614,14 +627,14 @@ class AssistantDB {
     if (!this.db) await this.init();
 
     return new Promise((resolve, reject) => {
-      console.log("[db.deleteMemo] 메모 삭제 시도:", memoId);
+      assiConsole.log("[db.deleteMemo] 메모 삭제 시도:", memoId);
 
       const tx = this.db.transaction("memos", "readwrite");
       const store = tx.objectStore("memos");
       const request = store.delete(memoId);
 
       request.onsuccess = () => {
-        console.log("[db.deleteMemo] 메모 삭제 성공:", memoId);
+        assiConsole.log("[db.deleteMemo] 메모 삭제 성공:", memoId);
       };
 
       request.onerror = () => {
@@ -630,7 +643,7 @@ class AssistantDB {
       };
 
       tx.oncomplete = () => {
-        console.log("[db.deleteMemo] 트랜잭션 완료:", memoId);
+        assiConsole.log("[db.deleteMemo] 트랜잭션 완료:", memoId);
         resolve(true);
       };
 
@@ -657,7 +670,7 @@ class AssistantDB {
 
       request.onsuccess = () => {
         const memos = request.result;
-        console.log("[db.getAllMemos] 메모 로드 완료:", memos.length, "개");
+        assiConsole.log("[db.getAllMemos] 메모 로드 완료:", memos.length, "개");
         resolve(memos);
       };
 
@@ -676,7 +689,7 @@ class AssistantDB {
   // 클립보드 추가 (indexedDb메서드)
   async addClipboardItem(item) {
     item.timestamp = Date.now();
-    console.log(item);
+    assiConsole.log(item);
     return this.transaction("clipboard", "readwrite", (store) => {
       return new Promise((resolve, reject) => {
         const request = store.add(item);
@@ -1339,32 +1352,6 @@ const ASSISTANT_DOM_TARGET = window.ASSISTANT_DOM_TARGET || {
 };
 
 window.ASSISTANT_DOM_TARGET = ASSISTANT_DOM_TARGET;
-
-//디버그 온오프설정
-const CONSOLE_ORIGINAL = {
-  log: console.log ? console.log.bind(console) : () => {},
-  info: console.info ? console.info.bind(console) : () => {},
-  debug: console.debug ? console.debug.bind(console) : () => {},
-  warn: console.warn ? console.warn.bind(console) : () => {},
-  error: console.error ? console.error.bind(console) : () => {},
-};
-
-function setConsoleLoggingEnabled(enabled) {
-  if (enabled) {
-    console.log = CONSOLE_ORIGINAL.log;
-    console.info = CONSOLE_ORIGINAL.info;
-    console.debug = CONSOLE_ORIGINAL.debug;
-    console.warn = CONSOLE_ORIGINAL.warn;
-    console.error = CONSOLE_ORIGINAL.error;
-    return;
-  }
-
-  console.log = () => {};
-  console.info = () => {};
-  console.debug = () => {};
-  console.warn = () => {};
-  console.error = CONSOLE_ORIGINAL.error;
-}
 
 //스타일 루트 및 어시스턴트 루트 요소 가져오기
 function getAssistantRoot() {
@@ -2096,7 +2083,7 @@ function addStickyNote(memoId, x, y) {
   if (!memo) return;
   const currentMenu = state.selectedMenu;
   if (!currentMenu) {
-    console.warn(
+    assiConsole.warn(
       "[Assistant] addStickyNote: 화면 ID(menuId) 미확인 — 포스트잇 생성 취소",
     );
     return;
@@ -2326,7 +2313,7 @@ function renderStickyNotes() {
   layer.innerHTML = "";
 
   const currentMenu = state.selectedMenu;
-  console.log(
+  assiConsole.log(
     `[Assistant] renderStickyNotes: currentMenu=${currentMenu}, currentArea=${state.selectedArea}, notes=${(state.stickyNotes || []).length}`,
   );
 
@@ -2836,7 +2823,7 @@ function setupStickyLayerObserver(cfg = {}) {
       const nextLocale = normalizeLocale(_stickyLayerConfig.getLocale());
       if (nextLocale && nextLocale !== _stickyLayerConfig._prevLocale) {
         _stickyLayerConfig._prevLocale = nextLocale;
-        console.log(`[Assistant] locale 변경 감지 (stickyLayerObserver): ${nextLocale}`);
+        assiConsole.log(`[Assistant] locale 변경 감지 (stickyLayerObserver): ${nextLocale}`);
         setLocale(nextLocale);
       }
     }
@@ -2859,7 +2846,7 @@ function setupStickyLayerObserver(cfg = {}) {
           menuId: newMenuId,
           ...(newAreaId ? { areaId: newAreaId } : {}),
         });
-        console.log(
+        assiConsole.log(
           `[Assistant] 화면 전환 감지 → menuId: ${newMenuId}, areaId: ${state.selectedArea}`,
         );
       }
@@ -2904,7 +2891,7 @@ function setupStickyLayerObserver(cfg = {}) {
           menuId: initMenuId,
           ...(initAreaId ? { areaId: initAreaId } : {}),
         });
-        console.log(
+        assiConsole.log(
           `[Assistant] 초기 컨텍스트 설정 → menuId: ${initMenuId}, areaId: ${state.selectedArea}`,
         );
       }
@@ -2912,13 +2899,13 @@ function setupStickyLayerObserver(cfg = {}) {
 
     // 초기 배치
     relocateStickyLayer();
-    console.log("[Assistant] sticky-layer 옵저버 활성화:", _stickyLayerConfig);
+    assiConsole.log("[Assistant] sticky-layer 옵저버 활성화:", _stickyLayerConfig);
     return true;
   }
 
   if (!_attachObserver()) {
     // 앵커 미발견 → DOM 추가 감지 옵저버로 대기 (웹스퀘어 init() 이후 동적 생성 대응)
-    console.warn(
+    assiConsole.warn(
       `[Assistant] .${_stickyLayerConfig.windowContainerClass} 미발견 → DOM 추가 감지 대기 중`,
     );
     const _domWatcher = new MutationObserver(() => {
@@ -2949,7 +2936,7 @@ function _resolveTargetContainer() {
 
   const anchorEl = document.querySelector(`.${anchorClass}`);
   if (!anchorEl) {
-    console.warn(`[Assistant] _resolveTargetContainer: .${anchorClass} 미발견`);
+    assiConsole.warn(`[Assistant] _resolveTargetContainer: .${anchorClass} 미발견`);
     return null;
   }
   const windowContainer = anchorEl.parentElement;
@@ -2958,7 +2945,7 @@ function _resolveTargetContainer() {
   const pgEls = windowContainer.querySelectorAll(`.${pgIdClass}`);
   const pgEl = Array.from(pgEls).find((el) => el.textContent.trim() === menuId);
   if (!pgEl) {
-    console.warn(
+    assiConsole.warn(
       `[Assistant] _resolveTargetContainer: textContent="${menuId}" 인 .${pgIdClass} 미발견`,
     );
     return null;
@@ -3076,13 +3063,13 @@ function relocateStickyLayer() {
       signal: _stickyLayerScrollAC.signal,
     });
 
-    console.log(
+    assiConsole.log(
       `[Assistant] sticky-layer fixed → 타겟: ${targetElement.tagName}#${targetElement.id || ""}`,
     );
   } else {
     layer.style.display = "none";
     layer.style.visibility = "";
-    console.log("[Assistant] sticky-layer 비활성화 (대상 없음)");
+    assiConsole.log("[Assistant] sticky-layer 비활성화 (대상 없음)");
   }
 
   _stickyLayerRelocating = false;
@@ -3311,10 +3298,10 @@ function recordToBucket(areaId, elapsedMs) {
   state.timeBuckets.monthly[monthlyKey][areaId] =
     (state.timeBuckets.monthly[monthlyKey][areaId] || 0) + elapsedMs;
 
-  console.log(
+  assiConsole.log(
     `[recordToBucket] 일: ${dailyKey}, 주: ${weeklyKey}, 월: ${monthlyKey}`,
   );
-  console.log(`[recordToBucket] 버킷 업데이트:`, state.timeBuckets);
+  assiConsole.log(`[recordToBucket] 버킷 업데이트:`, state.timeBuckets);
 }
 
 // ========================================
@@ -3361,7 +3348,7 @@ function getTimeStats(period = "today") {
     bucketData = state.timeBuckets?.monthly?.[bucketKey] || {};
   }
 
-  console.log(
+  assiConsole.log(
     `[getTimeStats] 기간: ${period}, 버킷: ${bucketKey}, 데이터:`,
     bucketData,
   );
@@ -3626,30 +3613,30 @@ let lastCheckedMinute = null;
 // 알림 권한 요청 (browserNotificationEnabled 설정과 무관하게 항상 요청)
 function requestNotificationPermission() {
   if (!("Notification" in window)) {
-    console.log("⚠️ 이 브라우저는 Web Notification을 지원하지 않습니다.");
+    assiConsole.log("⚠️ 이 브라우저는 Web Notification을 지원하지 않습니다.");
     return;
   }
 
   if (Notification.permission === "granted") {
-    console.log("✓ 알림 권한이 이미 승인되었습니다.");
+    assiConsole.log("✓ 알림 권한이 이미 승인되었습니다.");
     return;
   }
 
   if (Notification.permission === "denied") {
-    console.log(
+    assiConsole.log(
       "⚠️ 사용자가 알림을 거부했습니다. 브라우저 설정에서 권한을 변경하세요.",
     );
     return;
   }
 
   // 'default' 상태일 때만 요청
-  console.log("🔔 알림 권한을 요청 중입니다...");
+  assiConsole.log("🔔 알림 권한을 요청 중입니다...");
   Notification.requestPermission()
     .then((permission) => {
       if (permission === "granted") {
-        console.log("✓ 알림 권한이 승인되었습니다.");
+        assiConsole.log("✓ 알림 권한이 승인되었습니다.");
       } else if (permission === "denied") {
-        console.log("⚠️ 사용자가 알림을 거부했습니다.");
+        assiConsole.log("⚠️ 사용자가 알림을 거부했습니다.");
       }
     })
     .catch((error) => {
@@ -3662,7 +3649,7 @@ function sendBrowserNotification(title, options = {}) {
   // browserNotificationEnabled 설정은 권한 요청에만 사용.
   // 이미 권한이 granted 된 경우 설정값과 무관하게 항상 발송 (창이 닫혀도 알림 수신).
   if (!("Notification" in window)) {
-    console.warn("이 브라우저는 Web Notification을 지원하지 않습니다.");
+    assiConsole.warn("이 브라우저는 Web Notification을 지원하지 않습니다.");
     return;
   }
 
@@ -3676,7 +3663,7 @@ function sendBrowserNotification(title, options = {}) {
         requireInteraction: false,
         ...options,
       });
-      console.log(`✓ 브라우저 알림 발송: ${title}`);
+      assiConsole.log(`✓ 브라우저 알림 발송: ${title}`);
     } catch (error) {
       console.error("브라우저 알림 전송 실패:", error);
     }
@@ -3782,8 +3769,24 @@ function showBalloonNotification(title, content = "", duration = 6000) {
     setTimeout(() => balloonEl.remove(), 400);
     if (!state.assistantOpen) {
       setUnreadReminder(true);
+      incrementTabTitleCount();
     }
   }, duration);
+}
+
+// 탭 타이틀 미확인 리마인더 카운터
+let _unreadReminderCount = 0;
+const _originalDocTitle = document.title;
+
+function incrementTabTitleCount() {
+  _unreadReminderCount++;
+  const base = _originalDocTitle.replace(/^\(\d+\)\s*/, "");
+  document.title = `(${_unreadReminderCount}) ${base}`;
+}
+
+function clearTabTitleCount() {
+  _unreadReminderCount = 0;
+  document.title = _originalDocTitle.replace(/^\(\d+\)\s*/, "");
 }
 
 function setUnreadReminder(isUnread) {
@@ -3791,6 +3794,9 @@ function setUnreadReminder(isUnread) {
   const floatingBtn = document.getElementById("imsmassi-floating-btn");
   if (floatingBtn) {
     floatingBtn.classList.toggle("imsmassi-show-badge", !!isUnread);
+  }
+  if (!isUnread) {
+    clearTabTitleCount();
   }
 }
 
@@ -3830,6 +3836,7 @@ async function checkReminders() {
           areaId,
           6000,
         );
+        incrementTabTitleCount();
 
         // 브라우저 알림 발송
         sendBrowserNotification(title, {
@@ -3855,7 +3862,7 @@ async function checkReminders() {
           if (state.activeTab === "dashboard") renderAssistantContent();
         }
 
-        console.log(`알림 발송: ${title}`);
+        assiConsole.log(`알림 발송: ${title}`);
       }
     }
   }
@@ -3881,7 +3888,7 @@ function initReminderSystem() {
     checkReminders();
   }, 5000);
 
-  console.log("알림 시스템이 초기화되었습니다.");
+  assiConsole.log("알림 시스템이 초기화되었습니다.");
 }
 
 // 알림 시스템 중지
@@ -3898,9 +3905,9 @@ function testReminderNotification() {
   const areaId = state.selectedArea || "underwriting";
 
   console.group("[testReminderNotification] 알림 테스트 시작");
-  console.log("Notification API 존재:", "Notification" in window);
-  console.log("Notification.permission:", typeof Notification !== "undefined" ? Notification.permission : "N/A");
-  console.log("browserNotificationEnabled:", state.settings.browserNotificationEnabled);
+  assiConsole.log("Notification API 존재:", "Notification" in window);
+  assiConsole.log("Notification.permission:", typeof Notification !== "undefined" ? Notification.permission : "N/A");
+  assiConsole.log("browserNotificationEnabled:", state.settings.browserNotificationEnabled);
 
   showNotificationToast(title, content, areaId, 6000);
   sendBrowserNotification(title, {
@@ -4463,10 +4470,10 @@ function buildShortcutManualModal() {
 // 모달 시스템
 // ========================================
 function openModal(type, data) {
-  console.log("[openModal] 모달 타입:", type, "데이터:", data);
+  assiConsole.log("[openModal] 모달 타입:", type, "데이터:", data);
   state.currentModal = type;
   state.currentMemoId = data ? data.memoId : null;
-  console.log("[openModal] state.currentMemoId 설정:", state.currentMemoId);
+  assiConsole.log("[openModal] state.currentMemoId 설정:", state.currentMemoId);
 
   const modal = document.getElementById("modal-content");
 
@@ -4475,7 +4482,7 @@ function openModal(type, data) {
   // 빌더가 없는 타입은 무시됩니다.
   const builder = MODAL_BUILDERS[type];
   if (!builder) {
-    console.warn("[openModal] 알 수 없는 모달 타입:", type);
+    assiConsole.warn("[openModal] 알 수 없는 모달 타입:", type);
     return;
   }
 
@@ -4692,7 +4699,7 @@ function initSettingsTab() {
     const el = document.getElementById(id);
     if (el) {
       el.onchange = () => {
-        console.log(`설정 변경 - ${label}: ${el.checked ? "ON" : "OFF"}`);
+        assiConsole.log(`설정 변경 - ${label}: ${el.checked ? "ON" : "OFF"}`);
         saveSettings({ silent: true });
       };
     }
@@ -4708,13 +4715,13 @@ function initSettingsTab() {
 }
 
 function closeModal() {
-  console.log("[closeModal] 모달 닫기 시작");
+  assiConsole.log("[closeModal] 모달 닫기 시작");
   const modalOverlay = document.getElementById("imsmassi-modal-overlay");
   if (modalOverlay) modalOverlay.classList.add("imsmassi-hidden");
   state.currentModal = null;
   state.currentMemoId = null;
   state.editingTemplateId = null;
-  console.log("[closeModal] 모달 닫기 완료");
+  assiConsole.log("[closeModal] 모달 닫기 완료");
 }
 
 // 모달 외부 클릭 시 닫기
@@ -4851,7 +4858,7 @@ async function addMemo() {
       await db.addMemo(memoId, newMemo);
       state.memos = state.memos || {};
       state.memos[memoId] = { ...newMemo, id: memoId };
-      console.log("[addMemo] 폴백 저장 완료:", memoId);
+      assiConsole.log("[addMemo] 폴백 저장 완료:", memoId);
       showToast(t("system.memoSaveSuccess"));
       // 에디터 초기화 후 리스트 갱신 (아래 로직 진행 후 renderAssistantContent)
     } catch (e) {
@@ -4860,7 +4867,7 @@ async function addMemo() {
       return; // 실패 시 에디터 초기화 없이 종료
     }
   } else {
-    console.warn("[addMemo] Worker도 DB도 준비되지 않았습니다");
+    assiConsole.warn("[addMemo] Worker도 DB도 준비되지 않았습니다");
     showToast(t("system.storageNotInitialized"));
     return;
   }
@@ -5019,7 +5026,7 @@ function openDeleteConfirmModal(memoId) {
 
   state.currentMemoId = memoId;
   openModal("deleteConfirm", { memoId: memoId });
-  console.log("[openDeleteConfirmModal] 삭제 확인 모달 열음:", memoId);
+  assiConsole.log("[openDeleteConfirmModal] 삭제 확인 모달 열음:", memoId);
 
   // 리마인더가 설정되어 있으면 모달에 표시
   setTimeout(() => {
@@ -5058,7 +5065,7 @@ function confirmDeleteMemo() {
 }
 
 function cancelDeleteMemo() {
-  console.log("[cancelDeleteMemo] 삭제 취소");
+  assiConsole.log("[cancelDeleteMemo] 삭제 취소");
   state.currentMemoId = null;
   closeModal();
 }
@@ -5070,6 +5077,10 @@ function togglePin(memoId) {
     return;
   }
   workerSend("TOGGLE_PIN", { memoId });
+}
+
+function toggleTemplatePin(templateId) {
+  workerSend("TOGGLE_TEMPLATE_PIN", { templateId });
 }
 
 // 고정 기능 디버깅 헬퍼
@@ -5115,7 +5126,7 @@ async function confirmAddTag() {
 // ========================================
 function copyToClipboard(content) {
   if (!content || typeof content !== "string") {
-    console.warn("[copyToClipboard] Invalid content:", content);
+    assiConsole.warn("[copyToClipboard] Invalid content:", content);
     showToast(t("system.nothingToCopy"));
     return false;
   }
@@ -5128,14 +5139,14 @@ function copyToClipboard(content) {
     navigator.clipboard
       .writeText(content)
       .then(() => {
-        console.log(
+        assiConsole.log(
           "[copyToClipboard] Clipboard API 복사:",
           content.substring(0, 30),
         );
         showToast(t("system.clipboardCopySuccess", { preview: content.substring(0, 20) + (content.length > 20 ? "..." : "") }));
       })
       .catch((err) => {
-        console.warn(
+        assiConsole.warn(
           "[copyToClipboard] Clipboard API 실패, fallback 사용:",
           err,
         );
@@ -5164,7 +5175,7 @@ function _copyToClipboardFallback(content) {
     tempElement.setSelectionRange(0, 99999);
     const success = document.execCommand("copy");
     if (success) {
-      console.log(
+      assiConsole.log(
         "[copyToClipboard] execCommand 복사:",
         content.substring(0, 30),
       );
@@ -5343,7 +5354,7 @@ function deleteTemplate(templateId) {
 // ========================================
 function setTimePeriod(period) {
   state.timePeriod = period;
-  console.log("시간 기간 변경:", period);
+  assiConsole.log("시간 기간 변경:", period);
 
   // 디버깅: 현재 버킷 데이터 출력
   const now = new Date();
@@ -5356,8 +5367,8 @@ function setTimePeriod(period) {
     debugKey = getMonthlyBucket(now);
   }
 
-  console.log(`[setTimePeriod] ${period} (키: ${debugKey})`);
-  console.log("[setTimePeriod] 전체 버킷:", state.timeBuckets);
+  assiConsole.log(`[setTimePeriod] ${period} (키: ${debugKey})`);
+  assiConsole.log("[setTimePeriod] 전체 버킷:", state.timeBuckets);
 
   // 강제 렌더링
   const assistantContent = document.getElementById(
@@ -5477,8 +5488,6 @@ async function saveSettings(options = {}) {
   Object.assign(state.settings, newSettings);
   state.autoNavigateToDashboard = newSettings.autoNavigateToDashboard;
 
-  if (prev.debugLogs !== newSettings.debugLogs)
-    setConsoleLoggingEnabled(!!newSettings.debugLogs);
   if (
     newSettings.browserNotificationEnabled &&
     !prev.browserNotificationEnabled
@@ -5560,7 +5569,7 @@ async function runAutoCleanup(options = {}) {
 function loadStateFromDB() {
   // Worker 연결 모드에서는 connectToWorker() → 'INIT' 메시지 → STATE_UPDATE 로 처리됨
   // 폴백(_bootstrapFallback) 경로에서만 직접 DB 로드가 필요하므로 여기선 no-op
-  console.log("[loadStateFromDB] Worker 모드 - STATE_UPDATE 대기 중");
+  assiConsole.log("[loadStateFromDB] Worker 모드 - STATE_UPDATE 대기 중");
 }
 
 // ========================================
@@ -5970,7 +5979,18 @@ function calculateAppUsageMB() {
 
 async function updateStorageEstimate() {
   const limitMB = 50;
-  const usedMB = calculateAppUsageMB();
+  let usedMB = calculateAppUsageMB(); // 기본값: Blob 추정치
+
+  try {
+    if (navigator.storage && navigator.storage.estimate) {
+      const estimate = await navigator.storage.estimate();
+      if (estimate.usage && estimate.usage > 0) {
+        usedMB = estimate.usage / (1024 * 1024);
+      }
+    }
+  } catch (_) {
+    // navigator.storage 미지원 환경 → calculateAppUsageMB 폴백 유지
+  }
 
   state.storageUsed = usedMB;
   state.storageLimit = limitMB;
@@ -6745,7 +6765,7 @@ function updateDashboardButton() {
  * textContent를 사용하여 XSS를 원천 차단합니다.
  */
 function renderClipboardItemDOM(item) {
-  const areaName = getAreaName(item.areaId, item.areaId);
+  const menuId = item.menuId || item.menu;
   const relativeTime = item.timestamp
     ? getRelativeTime(item.timestamp)
     : item.time || t("clipboardTab.justNow");
@@ -6774,12 +6794,11 @@ function renderClipboardItemDOM(item) {
     className: "imsmassi-clipboard-item-meta",
   });
   // 기본 색상은 CSS .imsmassi-clipboard-item-meta { color: var(--imsmassi-sub-text) }
-  const areaSpan = createElement("span");
-  areaSpan.textContent = areaName;
+  const menuSpan = createElement("span");
+  menuSpan.textContent = menuId || "";
   const timeSpan = createElement("span");
   timeSpan.textContent = relativeTime;
-  metaDiv.append(areaSpan, timeSpan);
-
+  metaDiv.append(menuSpan, timeSpan);
   itemDiv.append(deleteBtn, contentDiv, metaDiv);
   return itemDiv;
 }
@@ -6833,8 +6852,19 @@ function renderClipboardTab() {
  * textContent를 사용하여 XSS를 원천 차단합니다.
  */
 function renderTemplateItemDOM(template) {
-  const itemDiv = createElement("div", { className: "imsmassi-template-item" });
+  const itemDiv = createElement("div", {
+    className: "imsmassi-template-item" + (template.pinned ? " imsmassi-template-item-pinned" : ""),
+  });
   itemDiv.addEventListener("click", () => useTemplate(template.id));
+
+  const pinBtn = createElement("button", {
+    className: "imsmassi-template-pin-btn",
+    title: template.pinned ? t("memoTab.unpinTitle") : t("memoTab.pinTitle"),
+  });
+  pinBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleTemplatePin(template.id);
+  });
 
   const deleteBtn = createElement("button", {
     className: "imsmassi-memo-delete-btn",
@@ -6876,7 +6906,7 @@ function renderTemplateItemDOM(template) {
   // 기본 색상은 CSS .imsmassi-template-item-content { color/border: var(--imsmassi-sub-text/border) }
   contentDiv.textContent = template.content; // textContent로 XSS 방지
 
-  itemDiv.append(deleteBtn, editBtn, headerDiv, contentDiv);
+  itemDiv.append(pinBtn, deleteBtn, editBtn, headerDiv, contentDiv);
   return itemDiv;
 }
 
@@ -6893,9 +6923,14 @@ function renderTemplateTabDOM() {
   listHeader.textContent = t("templateTab.listHeader", {count: state.templates.length});
   container.appendChild(listHeader);
 
-  state.templates.forEach((template) =>
-    container.appendChild(renderTemplateItemDOM(template)),
-  );
+  [...state.templates]
+    .sort((a, b) => {
+      if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
+      return (b.count || 0) - (a.count || 0);
+    })
+    .forEach((template) =>
+      container.appendChild(renderTemplateItemDOM(template)),
+    );
   return container;
 }
 
@@ -7116,7 +7151,7 @@ function renderDashboardTab() {
     allMemos.push(memo);
   });
 
-  console.log("모든 메모:", allMemos);
+  assiConsole.log("모든 메모:", allMemos);
   allMemos
     .sort((a, b) => {
       const aCreated = Number(a.createdAt || 0);
@@ -7347,7 +7382,7 @@ function connectToWorker(workerPath, loginId, initialContext = {}) {
           }
           break;
         default:
-          console.warn("[Assistant] Worker로부터 알 수 없는 메시지:", type);
+          assiConsole.warn("[Assistant] Worker로부터 알 수 없는 메시지:", type);
       }
     });
 
@@ -7357,7 +7392,7 @@ function connectToWorker(workerPath, loginId, initialContext = {}) {
       type: "INIT",
       payload: { loginId, ...initialContext },
     });
-    console.log("[Assistant] SharedWorker 연결 완료:", workerPath);
+    assiConsole.log("[Assistant] SharedWorker 연결 완료:", workerPath);
   } catch (error) {
     console.error(
       "[Assistant] SharedWorker 연결 실패, 폴백 모드로 전환합니다.",
@@ -7372,7 +7407,7 @@ function connectToWorker(workerPath, loginId, initialContext = {}) {
  * @param {string} [loginId]
  */
 async function _bootstrapFallback(loginId) {
-  console.warn("[Assistant] 폴백 모드: IndexedDB 직접 접근");
+  assiConsole.warn("[Assistant] 폴백 모드: IndexedDB 직접 접근");
   const dbName = loginId ? `AssistantDB_${loginId}` : "AssistantDB_public";
   db = new AssistantDB(dbName, 5);
   try {
@@ -7396,7 +7431,7 @@ async function bootstrapAssistant(config = {}) {
   if (!root) return;
 
   window.assistantInitialized = true;
-  console.log("[Assistant] 초기화 시작 (Shared Worker 모드)...");
+  assiConsole.log("[Assistant] 초기화 시작 (Shared Worker 모드)...");
 
   // 1단계: 초기 스타일 적용 (깨짐 방지)
   initializeStyles();
@@ -7424,7 +7459,7 @@ async function bootstrapAssistant(config = {}) {
           state.selectedArea = _areaId;
         }
       }
-      console.log(
+      assiConsole.log(
         `[Assistant] 초기 컨텍스트 수집 → menuId: ${_initialCtx.menuId}, areaId: ${_initialCtx.areaId || "-"}`,
       );
     }
@@ -7457,7 +7492,7 @@ async function bootstrapAssistant(config = {}) {
     }
   }, 5000);
 
-  console.log("[Assistant] 초기화 완료 (Shared Worker 연결 중)");
+  assiConsole.log("[Assistant] 초기화 완료 (Shared Worker 연결 중)");
 }
 
 window.bootstrapAssistant = bootstrapAssistant;
@@ -7538,7 +7573,7 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
 
   if (key in state.hiddenUI) {
     state.hiddenUI[key] = !!visible;
-    console.log(
+    assiConsole.log(
       `[Assistant] 설정 UI '${key}' 상태가 ${visible ? "표시" : "숨김"}로 변경되었습니다.`,
     );
 
@@ -7567,7 +7602,7 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
       renderAssistantContent();
     }
   } else {
-    console.warn(
+    assiConsole.warn(
       `[Assistant] 유효하지 않은 키입니다. 사용 가능한 키: ${Object.keys(state.hiddenUI).join(", ")}`,
     );
   }
@@ -7586,7 +7621,7 @@ window.showAllAssistantHiddenUI = function (visible = true) {
   Object.keys(state.hiddenUI).forEach((key) => {
     state.hiddenUI[key] = !!visible;
   });
-  console.log(
+  assiConsole.log(
     `[Assistant] 모든 설정 UI 항목이 ${visible ? "표시" : "숨김"}로 변경되었습니다.`,
   );
   // sideTabs 포함 시 사이드바 즉각 반영
@@ -7679,7 +7714,7 @@ function initPanelTopLeftResize(panel) {
           store.put(state.panelWidthCollapsed ?? null, "panelWidthCollapsed");
           store.put(state.panelWidthExpanded ?? null, "panelWidthExpanded");
           store.put(state.panelHeight ?? null, "panelHeight");
-        }).catch((e) => console.warn("[resize] 패널 크기 저장 실패:", e));
+        }).catch((e) => assiConsole.warn("[resize] 패널 크기 저장 실패:", e));
       }
     }
 
@@ -7826,7 +7861,7 @@ const AssistantGuide = {
     this.currentStep = 0;
     this._createDOM();
     await this._gotoStep(0);
-    console.log("[Assistant] 온보딩 가이드 시작");
+    assiConsole.log("[Assistant] 온보딩 가이드 시작");
   },
 
   async next() {
@@ -8108,7 +8143,7 @@ const AssistantGuide = {
     this._cleanup();
     workerSend("MARK_GUIDE_SEEN", {});
     state.hasSeenGuide = true;
-    console.log("[Assistant] 온보딩 가이드 완료");
+    assiConsole.log("[Assistant] 온보딩 가이드 완료");
   },
 
   _cleanup() {

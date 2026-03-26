@@ -10,6 +10,8 @@
     "memoSaved": "Memo saved",
     "memoSaveFail": "Failed to save memo",
     "memoPinned": "📌 Pinned",
+    "templatePinned": "📌 Template pinned",
+    "templateUnpinned": "Template unpinned",
     "memoUnpinned": "📌 Unpinned",
     "memoPinState": "Memo {pinState}",
     "reminderSet": "✓ Reminder set for {reminderStr}",

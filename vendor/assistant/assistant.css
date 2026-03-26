@@ -250,8 +250,8 @@
   left: 6px;
   width: 8px;
   height: 8px;
-  border-top: 2px solid rgba(128, 128, 128, 0.4);
-  border-left: 2px solid rgba(128, 128, 128, 0.4);
+  border-top: 2px so  lid rgba(128, 128, 128, 1);
+  border-left: 2px solid rgba(128, 128, 128, 1);
   border-radius: 2px 0 0 0;
   transition: border-color 0.2s;
 }
@@ -1046,9 +1046,13 @@
 }
 #assistant-root .imsmassi-memo-card-body {
   max-height: 300px;
-  overflow: hidden;
+  overflow-y: auto;
   flex: 1 1 0;
   min-height: 120px;
+  scrollbar-width: none;
+}
+#assistant-root .imsmassi-memo-card-body::-webkit-scrollbar {
+  display: none;
 }
 
 #assistant-root .imsmassi-clipboard-header {
@@ -2004,7 +2008,7 @@
   min-height: 150px !important;
   background: var(--area-sub2, #fff9c4) !important;
   border: 1px solid var(--area-sub1, #e6d98a) !important;
-  border-left: 4px solid var(--area-primary, #f1c40f) !important;
+  border-left: 4px solid var(--imsmassi-primary, #f1c40f) !important;
   border-radius: 8px !important;
   padding: 0 !important;
   resize: none !important;
@@ -2294,6 +2298,35 @@
   font-size: 13px;
   margin-bottom: 8px;
 }
+#assistant-root .imsmassi-template-pin-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  border: none;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  border-radius: 12px;
+  padding: 0;
+  -webkit-mask: url(../asset/images/icon_fix.svg) center / 14px no-repeat;
+  mask: url(../asset/images/icon_fix.svg) center / 14px no-repeat;
+  background-color: var(--blue-gray-400);
+  opacity: 0.5;
+}
+#assistant-root .imsmassi-template-pin-btn:hover {
+  opacity: 1;
+}
+#assistant-root .imsmassi-template-item-pinned .imsmassi-template-pin-btn {
+  background-color: var(--imsmassi-primary);
+  opacity: 1;
+}
+#assistant-root .imsmassi-template-item-pinned {
+  border: 1px solid var(--imsmassi-primary);
+  background: #fffbeb;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-template-item-pinned {
+  background: #353535;
+}
 #assistant-root .imsmassi-template-edit-btn {
   position: absolute;
   top: 8px;
@@ -2313,6 +2346,7 @@
   display: flex;
   justify-content: space-between;
   margin-bottom: 6px;
+  padding-left: 22px;
   padding-right: 52px;
 }
 #assistant-root .imsmassi-template-item-title {
@@ -3868,7 +3902,8 @@
 
 /* ── Task 2: 대시보드 최근 메모 업무영역 색상 ── */
 #assistant-root .imsmassi-recent-memo-menu {
-  color: var(--imsmassi-area-color);
+  color: #111; 
+  /* var(--imsmassi-primary); */
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-recent-memo-menu {
   color: var(--gray-0);
