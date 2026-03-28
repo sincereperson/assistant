@@ -191,6 +191,8 @@ function handleStateUpdate(newState) {
   // - memoDraftHtml/Text: 화면 전환(CONTEXT_CHANGE) 시 입력 중인 메모 초안이 사라지는 현상 방지
   const savedDraftHtml = state.memoDraftHtml;
   const savedDraftText = state.memoDraftText;
+  // 다른 탭의 읽음 처리 감지를 위해 이전 미확인 상태를 보존
+  const wasUnread = !!state.hasUnreadReminder;
 
   // 드래그/리사이즈 중에는 로컬 stickyNotes 변경사항을 worker 스냅샷으로 덮어쓰지 않습니다.
   if (state.stickyDragActive || state.stickyResizeActive) {
@@ -215,6 +217,11 @@ function handleStateUpdate(newState) {
   // 드래그 중에는 sticky notes를 다시 그리지 않습니다 — 드래그 mouseup 후 saveStickyNotes() → 새 STATE_UPDATE에서 처리됩니다.
   if (!state.stickyDragActive) {
     renderStickyNotes();
+  }
+
+  // 다른 탭에서 읽음 처리(MARK_REMINDER_READ 브로드캐스트)된 경우 현재 탭 카운트 즉시 초기화
+  if (wasUnread && !state.hasUnreadReminder) {
+    setUnreadReminder(false);
   }
 
   // 온보딩 가이드: DB 로드 후 최초 1회만 표시
@@ -1579,6 +1586,33 @@ function isQuillAvailable() {
   return typeof Quill !== "undefined";
 }
 
+/**
+ * quill-better-table ↔ Quill 버전 호환 shim
+ *
+ * quill-better-table 은 내부 paste 핸들러에서
+ *   this.quill.scrollSelectionIntoView()
+ * 를 호출합니다. 그러나 현재 로드된 Quill 버전에 해당 메서드가 없으면
+ *   "TypeError: this.quill.scrollSelectionIntoView is not a function"
+ * 에러가 발생해 붙여넣기 자체가 중단됩니다.
+ *
+ * - Quill 2.x  → scrollSelectionIntoView 가 prototype 에 존재 (정상)
+ * - Quill 1.x  → 해당 메서드 없음 → scrollIntoView 로 폴백
+ *
+ * Quill 로드 직후 prototype 에 shim 을 한 번만 삽입합니다.
+ */
+function _applyQuillCompatShim() {
+  if (typeof Quill === "undefined") return;
+  if (Quill.prototype.scrollSelectionIntoView) return; // 이미 존재하면 스킵
+
+  Quill.prototype.scrollSelectionIntoView = function () {
+    // Quill 1.x 폴백: scrollIntoView 또는 호환 없으면 조용히 무시
+    if (typeof this.scrollIntoView === "function") {
+      this.scrollIntoView();
+    }
+  };
+  assiConsole.log("[Quill] scrollSelectionIntoView shim 적용 완료");
+}
+
 function sanitizeHtml(input) {
   if (!input) return "";
   if (typeof DOMPurify === "undefined") return input;
@@ -1824,6 +1858,8 @@ function initInlineMemoEditors() {
       Quill.register({ "modules/table-better": window.QuillTableBetter }, true);
     } catch (e) { assiConsole.warn("[Quill] table-better 등록 실패 (중복 무시)", e); }
   }
+  // quill-better-table 버전 호환 shim (scrollSelectionIntoView 미존재 시 폴백)
+  _applyQuillCompatShim();
 
   nodes.forEach((node) => {
     if (node.dataset.quillInit === "true") return;
@@ -2524,6 +2560,8 @@ function initStickyNoteRichText() {
       Quill.register({ "modules/table-better": window.QuillTableBetter }, true);
     } catch (e) { assiConsole.warn("[Quill] table-better 등록 실패 (중복 무시)", e); }
   }
+  // quill-better-table 버전 호환 shim (scrollSelectionIntoView 미존재 시 폴백)
+  _applyQuillCompatShim();
 
   const nodes = document.querySelectorAll(".imsmassi-sticky-note-richtext");
   nodes.forEach((node) => {
@@ -2754,6 +2792,12 @@ let _stickyLayerResizeObserver = null;
 /** @type {AbortController|null} scroll 리스너 정리용 */
 let _stickyLayerScrollAC = null;
 
+/** @type {MutationObserver|null} .pg-id 미발견 시 DOM 변화 감지 후 relocate 재시도 */
+let _resolveRetryObserver = null;
+
+/** @type {string|null} 재시도 옵저버가 대기 중인 menuId */
+let _resolveRetryMenuId = null;
+
 /**
  * #sticky-layer(position:fixed)의 top/left/width/height를
  * 타겟의 parentElement 기준 getBoundingClientRect()으로 갱신합니다.
@@ -2939,25 +2983,33 @@ function _resolveTargetContainer() {
   const cfg = _stickyLayerConfig;
   const anchorClass = cfg.windowContainerClass;
   const pgIdClass = cfg.pgIdClass || "pg-id";
-  const menuId = state.selectedMenu;
 
-  if (!anchorClass || !menuId) return null;
+  if (!anchorClass) return null;
 
+  // anchorEl = 현재 활성 화면 컨테이너 (class에 windowContainerClass 포함)
+  // state.selectedMenu 매칭 없이 anchorEl 안의 pg-id를 직접 읽음
+  // → getMenuId() stale값 문제 구조적 해결
   const anchorEl = document.querySelector(`.${anchorClass}`);
   if (!anchorEl) {
     assiConsole.warn(`[Assistant] _resolveTargetContainer: .${anchorClass} 미발견`);
     return null;
   }
-  const windowContainer = anchorEl.parentElement;
-  if (!windowContainer) return null;
 
-  const pgEls = windowContainer.querySelectorAll(`.${pgIdClass}`);
-  const pgEl = Array.from(pgEls).find((el) => el.textContent.trim() === menuId);
+  const pgEl = anchorEl.querySelector(`.${pgIdClass}`);
   if (!pgEl) {
-    assiConsole.warn(
-      `[Assistant] _resolveTargetContainer: textContent="${menuId}" 인 .${pgIdClass} 미발견`,
-    );
+    assiConsole.warn(`[Assistant] _resolveTargetContainer: .${anchorClass} 내 .${pgIdClass} 미발견`);
     return null;
+  }
+
+  // DOM에서 실제 menuId를 읽어 state 자동 동기화
+  const domMenuId = pgEl.textContent.trim();
+  if (domMenuId && domMenuId !== state.selectedMenu) {
+    assiConsole.log(`[Assistant] menuId DOM 동기화: "${state.selectedMenu}" → "${domMenuId}"`);
+    state.selectedMenu = domMenuId;
+    if (typeof _stickyLayerConfig.getAreaId === "function") {
+      const areaId = _stickyLayerConfig.getAreaId(domMenuId);
+      if (areaId) state.selectedArea = areaId;
+    }
   }
 
   // depth=0 : pgEl.parentElement (기본)
@@ -3014,6 +3066,14 @@ function relocateStickyLayer() {
   ) {
     // 이미 body에 있지만 #assistant-root 뒤에 있는 경우 → 앞으로 이동
     document.body.insertBefore(layer, _assistantRoot);
+  }
+
+
+  // menuId가 바뀌었을 때만 재시도 옵저버 해제
+  // (같은 menuId를 이미 기다리는 중이라면 옵저버를 유지 → warn 로그 반복 방지)
+  if (_resolveRetryObserver && _resolveRetryMenuId !== state.selectedMenu) {
+    _resolveRetryObserver.disconnect();
+    _resolveRetryObserver = null;
   }
 
   const targetElement = _resolveTargetContainer();
@@ -3146,14 +3206,16 @@ function setSelectedArea(areaId) {
 
 function selectMenu(menu) {
   state.selectedMenu = menu;
-  workerSend("CONTEXT_CHANGE", { menuId: menu });
+  // menuId + areaId를 한 번에 전송 → Worker STATE_UPDATE 1회만 발생 (이중 렌더링 방지)
+  const payload = { menuId: menu };
   if (typeof _stickyLayerConfig.getAreaId === "function") {
     const areaId = _stickyLayerConfig.getAreaId(menu);
     if (areaId) {
       state.selectedArea = areaId;
-      workerSend("CONTEXT_CHANGE", { areaId });
+      payload.areaId = areaId;
     }
   }
+  workerSend("CONTEXT_CHANGE", payload);
   relocateStickyLayer();
 }
 
@@ -3744,6 +3806,13 @@ function showRightTopToast(title, content, areaId = "", duration = 6000) {
   setTimeout(() => {
     toastEl.classList.remove("imsmassi-show");
     setTimeout(() => toastEl.remove(), 300);
+    // 창이 활성화(포커스)되어 있고 패널이 열려 있으면 이미 인지한 것으로 간주 → 즉시 읽음 처리
+    if (document.hasFocus() && state.assistantOpen) {
+      workerSend("MARK_REMINDER_READ", {});
+    } else {
+      setUnreadReminder(true);
+      incrementTabTitleCount();
+    }
   }, duration);
 }
 
@@ -3776,7 +3845,10 @@ function showBalloonNotification(title, content = "", duration = 6000) {
   setTimeout(() => {
     balloonEl.classList.remove("imsmassi-show");
     setTimeout(() => balloonEl.remove(), 400);
-    if (!state.assistantOpen) {
+    // 창이 활성화(포커스)되어 있고 패널이 열려 있으면 이미 인지한 것으로 간주 → 즉시 읽음 처리
+    if (document.hasFocus() && state.assistantOpen) {
+      workerSend("MARK_REMINDER_READ", {});
+    } else {
       setUnreadReminder(true);
       incrementTabTitleCount();
     }
@@ -3846,7 +3918,8 @@ async function checkReminders() {
             areaId,
             6000,
           );
-          incrementTabTitleCount();
+          // incrementTabTitleCount()는 showBalloonNotification 내부에서
+          // 말풍선이 사라질 때 1회만 호출되므로 여기서는 중복 호출하지 않습니다.
 
           // 브라우저 알림 발송
           sendBrowserNotification(title, {
@@ -3934,6 +4007,10 @@ function testReminderNotification() {
 // ========================================
 function openAssistant() {
   state.assistantOpen = true;
+  // 패널 오픈 = 알림 인지로 간주 → 미확인 상태이면 Worker에 읽음 처리 전파 (모든 탭 일괄 초기화)
+  if (state.hasUnreadReminder) {
+    workerSend("MARK_REMINDER_READ", {});
+  }
   setUnreadReminder(false);
   renderAssistant();
 }
@@ -4701,6 +4778,7 @@ function initSettingsTab() {
     { id: "setting-debug-logs", label: "디버그 로그" },
     { id: "setting-auto-dashboard", label: "대시보드 자동 이동" },
     { id: "setting-backup", label: "백업 알림" },
+    { id: "setting-reminder-notification", label: "리마인더 알림" },
     { id: "setting-browser-notification", label: "브라우저 알림" },
     { id: "setting-toast", label: "토스트 알림" },
     { id: "setting-show-time-tab", label: "시간 탭 표시" },
@@ -7545,6 +7623,11 @@ window.addEventListener("assistant:mounted", (event) => {
   function notifyActive(isActive) {
     if (!window.assistantInitialized) return;
     workerSend("TAB_ACTIVE", { isActive });
+    // 탭 복귀(isActive=true) 시: 패널이 이미 열려 있고 미확인 알림이 있으면 즉시 카운트 0 초기화 + 모든 탭 동기화
+    if (isActive && state.assistantOpen && state.hasUnreadReminder) {
+      setUnreadReminder(false);
+      workerSend("MARK_REMINDER_READ", {});
+    }
   }
 
   // Page Visibility API: 탭 전환/최소화 감지
@@ -7563,11 +7646,6 @@ window.addEventListener("beforeunload", () => {
   // Worker에게 저장 요청 (sync-over-async 불필요, Worker가 자체 처리)
   workerSend("BEFORE_UNLOAD", {});
   stopReminderSystem();
-  // 컨텍스트 옵저버 해제
-  if (_contextObserver) {
-    _contextObserver.disconnect();
-    _contextObserver = null;
-  }
   // sticky-layer 옵저버 및 바운드 리소스 해제
   if (_stickyLayerObserver) {
     _stickyLayerObserver.disconnect();

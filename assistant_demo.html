@@ -185,15 +185,13 @@
 
       <!-- 화면 컨테이너 영역 -->
       <div class="sys-content" id="sys-content">
-        <!-- w2ui 앵커: parentElement(sys-content) 가 윈도우 컨테이너 역할 -->
-        <div
-          class="w2windowContainer_selectedNameLayer"
-          style="display: none"
-        ></div>
+        <!-- w2windowContainer_selectedNameLayer 클래스는 현재 활성 화면 패널에 동적으로 추가됩니다.
+             실제 WebSquare 시스템과 동일한 방식: 활성 패널 자체가 windowContainerClass 역할 →
+             _resolveTargetContainer()가 .pg-id를 올바르게 탐색할 수 있습니다. -->
 
         <!-- ══ UW-001 언더라이팅 조회 ══ -->
         <div
-          class="screen-panel selected"
+          class="screen-panel selected w2windowContainer_selectedNameLayer"
           id="screen-UW-001"
           data-screen-id="UW-001"
           data-area-id="UW"
@@ -572,6 +570,35 @@
             >
               결재요청
             </button>
+          </div>
+        </div>
+
+        <!-- ══ CT-STALE : pg-id 불일치 테스트 ══
+             data-screen-id = "CT-002"    → getMenuId() 가 반환하는 값
+             .pg-id 텍스트   = "CT-STALE" → DOM 실제값 (의도적 불일치)
+        ══ -->
+        <div
+          class="screen-panel"
+          id="screen-CT-STALE"
+          data-screen-id="CT-002"
+          data-area-id="CT"
+        >
+          <!-- pg-id 텍스트를 data-screen-id와 다르게 설정 -->
+          <div class="pg-id" style="display:none">CT-STALE</div>
+          <div class="screen-label" style="background:#fff3cd; padding:6px 10px; border-radius:4px; margin-bottom:10px; color:#856404; font-size:11px;">
+            ⚠️ pg-id 불일치 테스트 화면
+          </div>
+          <div class="screen-title">CT-STALE 불일치 테스트</div>
+          <div style="background:#fff3cd; border:1px solid #ffc107; border-radius:6px; padding:12px; font-size:12px; color:#333; line-height:1.7;">
+            <strong>시뮬레이션 시나리오:</strong><br>
+            • <code style="background:#eee;padding:1px 4px;border-radius:3px;">getMenuId()</code> → <code style="background:#ffd;">"CT-002"</code> (data-screen-id 기준)<br>
+            • <code style="background:#eee;padding:1px 4px;border-radius:3px;">.pg-id</code> 텍스트 → <code style="background:#dfd;">"CT-STALE"</code> (DOM 실제값)<br><br>
+            이 화면이 <strong style="color:#c0392b">정상적으로 포스트잇이 붙으면</strong><br>
+            <code>_resolveTargetContainer()</code>가 pg-id 직접 탐색으로<br>
+            stale값 무시하고 올바르게 동작하는 것입니다.
+          </div>
+          <div style="margin-top:12px; font-size:11px; color:#888;">
+            콘솔에서 <code>state.selectedMenu</code> 확인 → <strong>CT-STALE</strong>로 동기화되면 정상
           </div>
         </div>
 
@@ -1991,6 +2018,7 @@
           { id: "CT-001", label: "CT-001 계약목록" },
           { id: "CT-002", label: "CT-002 계약등록" },
           { id: "CT-003", label: "CT-003 계약변경" },
+          { id: "CT-STALE", label: "⚠️ CT-STALE (pg-id 불일치 테스트)" },
         ],
         CL: [
           { id: "CL-001", label: "CL-001 사고접수" },
@@ -2033,6 +2061,7 @@
         "UW-001": "screen-UW-001",
         "UW-002": "screen-UW-002",
         "CT-001": "screen-CT-001",
+        "CT-002": "screen-CT-STALE",  // data-screen-id="CT-002" 이지만 pg-id="CT-STALE" (불일치 테스트)
         "CL-001": "screen-CL-001",
         "AC-001": "screen-AC-001",
         "PF-001": "screen-PF-001",
@@ -2087,12 +2116,17 @@
       // data-area-id / data-screen-id 를 브리지로 전달 → Worker CONTEXT_CHANGE
       // GNB·LNB DOM 은 건드리지 않습니다 (내부 시스템도 동일)
       function activateScreen(screenId) {
+        // .selected 와 windowContainerClass 를 함께 토글
+        // → _resolveTargetContainer()가 활성 패널 안의 .pg-id를 정확히 탐색하도록 보장
         document
           .querySelectorAll(".screen-panel")
-          .forEach((p) => p.classList.remove("selected"));
+          .forEach((p) => {
+            p.classList.remove("selected");
+            p.classList.remove("w2windowContainer_selectedNameLayer");
+          });
         const target = document.getElementById(screenId);
         if (!target) return;
-        target.classList.add("selected");
+        target.classList.add("selected", "w2windowContainer_selectedNameLayer");
 
         const areaId = target.dataset.areaId;
         const menuId = target.dataset.screenId;
@@ -2104,11 +2138,14 @@
       }
 
       // ── getMenuId / getAreaId: setupStickyLayerObserver 초기화·옵저버에서 호출 ──
-      // 현재 .selected 화면 패널의 data-screen-id / data-area-id 를 반환합니다.
+      // 실제 WebSquare 내부시스템과 동일한 패턴:
+      //   getMenuId()는 windowContainerClass(=현재 포커스된 화면 패널)의 data-screen-id를 반환합니다.
+      // CT-STALE 테스트: data-screen-id="CT-STALE" (stale) vs .pg-id 텍스트 "CT-002" (실제) 불일치를
+      //   _resolveTargetContainer()가 감지하여 state.selectedMenu를 "CT-002"로 자동 교정합니다.
       window.getMenuId = function () {
         return (
-          document.querySelector(".screen-panel.selected")?.dataset.screenId ||
-          ""
+          document.querySelector(".w2windowContainer_selectedNameLayer")?.dataset
+            .screenId || ""
         );
       };
       window.getAreaId = function (menuId) {

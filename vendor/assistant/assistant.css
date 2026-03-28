@@ -1940,8 +1940,22 @@
 #sticky-layer button {
   box-sizing: border-box !important;
 }
-#sticky-layer div,
-#sticky-layer span {
+/* 호스트 CSS 오염 방지 리셋: 포스트잇 구조 요소에만 적용
+   ▸ .imsmassi-sticky-note-richtext 하위(Quill 내부 div/span)는 의도적으로 제외합니다.
+     — Quill은 syntax-highlight 색상을 span에 인라인 style로 주입하는데,
+       !important 리셋이 인라인 스타일마저 덮어써 서식이 모두 파괴됩니다.
+   ▸ 각 구조 클래스별 개별 CSS 규칙이 이미 올바른 값을 선언하므로
+     richtext 영역 없이도 호스트 CSS 침범을 충분히 차단합니다. */
+#sticky-layer .imsmassi-sticky-note-wrapper,
+#sticky-layer .imsmassi-sticky-note,
+#sticky-layer .imsmassi-sticky-note-header,
+#sticky-layer .imsmassi-sticky-note-header > div,
+#sticky-layer .imsmassi-sticky-note-header > span,
+#sticky-layer .imsmassi-sticky-note-actions,
+#sticky-layer .imsmassi-sticky-note-actions > div,
+#sticky-layer .imsmassi-sticky-note-actions > span,
+#sticky-layer .imsmassi-sticky-note-body:not(.imsmassi-sticky-note-richtext),
+#sticky-layer .imsmassi-sticky-resize-handle {
   margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;

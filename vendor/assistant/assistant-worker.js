@@ -410,6 +410,7 @@ const state = {
   nextTemplateId: 10,
   nextClipboardId: 10,
   hasSeenGuide: null,
+  hasUnreadReminder: false, // 미확인 리마인더 알림 전역 상태
   panelHeight: null,          // px, null = CSS 기본값
   panelWidth: null,           // px, null = CSS 기본값
   panelWidthCollapsed: null,  // 접힌 상태 저장 너비
@@ -520,6 +521,7 @@ function getSnapshot(port) {
     nextTemplateId:      state.nextTemplateId,
     userInfo:            state.userInfo,
     hasSeenGuide:        state.hasSeenGuide,
+    hasUnreadReminder:   state.hasUnreadReminder,
     panelHeight:            state.panelHeight,
     panelWidth:             state.panelWidth,
     panelWidthCollapsed:    state.panelWidthCollapsed,
@@ -1438,6 +1440,12 @@ async function handleClearMemoAndClipboard(port) {
   }
 }
 
+// 미확인 리마인더 읽음 처리: 상태를 false로 변경하고 모든 탭에 브로드캐스트
+async function handleMarkReminderRead(port, payload) {
+  state.hasUnreadReminder = false;
+  broadcastState();
+}
+
 const HANDLERS = {
   INIT:              handleInit,
   CONTEXT_CHANGE:    handleContextChange,
@@ -1474,6 +1482,7 @@ const HANDLERS = {
   SAVE_UI_PREFS:     handleSaveUIPrefs,
   SAVE_USER_INFO:    handleSaveUserInfo,
   MARK_GUIDE_SEEN:   handleMarkGuideSeen,
+  MARK_REMINDER_READ: handleMarkReminderRead,
 };
 
 async function dispatchMessage(port, event) {
