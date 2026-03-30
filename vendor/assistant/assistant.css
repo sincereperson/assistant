@@ -12,7 +12,7 @@
   /* 테마 컬러 */
   --imsmassi-primary: #006DB3;
   --imsmassi-primary-light: #e8f4f8;
-  --imsmassi-primary-dark: #7ce0d380;
+  --imsmassi-primary-dark: #005A96;
   /* 패널 배경/텍스트/경계 */
   --imsmassi-bg: #ffffff;
   --imsmassi-sub-bg: #f8f9fa;
@@ -1836,9 +1836,9 @@
   height: 100%;
   min-width: 150px;
   min-height: 150px;
-  background: var(--area-sub2, #fff9c4);
-  border: 1px solid var(--area-sub1, #e6d98a);
-  border-left: 4px solid var(--area-primary, #f1c40f);
+  background: var(--imsmassi-primary-light);
+  border: 1px solid var(--imsmassi-primary-light);
+  border-left: 4px solid var(--imsmassi-primary);
   border-radius: 12px;
   padding: 0;
   resize: both;
@@ -1858,7 +1858,7 @@
   align-items: center;
   justify-content: space-between;
   height: 18px;
-  color: var(--area-primary, #7d6b00);
+  color: var(--imsmassi-primary);
   font-weight: 600;
   background: rgba(0, 0, 0, 0.06);
   padding: 0 6px;
@@ -1920,7 +1920,7 @@
   background: rgba(0, 0, 0, 0.08);
   border: none;
   cursor: pointer;
-  color: var(--area-primary, #7d6b00);
+  color: var(--imsmassi-primary);
   width: 16px;
   height: 16px;
   border-radius: 12px;
@@ -2020,9 +2020,9 @@
   height: 100% !important;
   min-width: 150px !important;
   min-height: 150px !important;
-  background: var(--area-sub2, #fff9c4) !important;
-  border: 1px solid var(--area-sub1, #e6d98a) !important;
-  border-left: 4px solid var(--imsmassi-primary, #f1c40f) !important;
+  background: var(--imsmassi-primary-light) !important;
+  border: 1px solid var(--imsmassi-primary-light) !important;
+  border-left: 4px solid var(--imsmassi-primary) !important;
   border-radius: 8px !important;
   padding: 0 !important;
   resize: none !important;
@@ -2058,7 +2058,7 @@
 #sticky-layer .imsmassi-sticky-resize-handle::after {
   content: "" !important;
   position: absolute !important;
-  background: var(--area-primary, #a09060) !important;
+  background: var(--imsmassi-primary) !important;
   border-radius: 2px !important;
   display: block !important;
 }
@@ -2086,7 +2086,7 @@
   align-items: center !important;
   justify-content: space-between !important;
   height: 18px !important;
-  color: var(--area-primary, #7d6b00) !important;
+  color: var(--imsmassi-primary) !important;
   font-weight: 600 !important;
   background: rgba(0, 0, 0, 0.06) !important;
   padding: 0 6px !important;
@@ -2167,7 +2167,7 @@
   background: rgba(0, 0, 0, 0.08) !important;
   border: none !important;
   cursor: pointer !important;
-  color: var(--area-primary, #7d6b00) !important;
+  color: var(--imsmassi-primary) !important;
   width: 16px !important;
   height: 16px !important;
   border-radius: 4px !important;
@@ -2656,7 +2656,7 @@
 }
 #assistant-root .imsmassi-screen-btn-active {
   background: transparent;
-  color: var(--imsmassi-area-color);
+  color: var(--imsmassi-primary);
   font-weight: 600;
   opacity: 1;
 }
@@ -2878,12 +2878,16 @@
   margin-bottom: 10px;
 }
 #assistant-root .imsmassi-settings-row-backup {
-  border: 1px solid #f0e6cc;
-  background: #fff9e6;
+  border: 1px solid transparent;
+  background: #fff;
 }
-#assistant-root.imsmassi-dark-mode .imsmassi-settings-row-backup {
-  background: #191f28;
-  border-color: #444;
+#assistant-root .imsmassi-settings-row-backup-warn {
+  border: 1px solid #f0c36d;
+  background: #fff3cd;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-settings-row-backup-warn {
+  background: #2a2210;
+  border-color: #7a5c00;
 }
 #assistant-root .imsmassi-settings-row-label {
   font-size: 13px;
@@ -3701,7 +3705,7 @@
 
 /* ── Task 3: 포커스 상태 클래스 ── */
 #assistant-root .imsmassi-memo-textarea.imsmassi-focused {
-  border-color: var(--imsmassi-area-color) !important;
+  border-color: var(--imsmassi-primary) !important;
 }
 /* ── Task 3: 용량 경고/위험 클래스 ── */
 #assistant-root .imsmassi-capacity-warning {
@@ -3717,8 +3721,8 @@
   border-left-color: transparent;
 }
 #assistant-root .imsmassi-assistant-tab.imsmassi-active {
-  border-left-color: var(--imsmassi-area-color);
-  color: var(--imsmassi-area-color);
+  border-left-color: var(--imsmassi-primary);
+  color: var(--imsmassi-primary);
 }
 #assistant-root
   .imsmassi-assistant-tab.imsmassi-active
@@ -3778,7 +3782,7 @@
 /* ── Task 2: 메모 에디터 (Quill 래퍼) — CSS 변수를 CSS 변수로 연결 ── */
 #assistant-root .imsmassi-memo-quill-wrapper {
   --memo-border-color: var(--imsmassi-border);
-  --memo-focus-color: var(--imsmassi-area-color);
+  --memo-focus-color: var(--imsmassi-primary);
   --memo-bg: var(--imsmassi-bg);
   --memo-text: var(--imsmassi-text);
   --memo-placeholder: var(--imsmassi-sub-text);
@@ -3865,17 +3869,17 @@
 
 /* ── Task 2: 메모 필터 버튼 — area-color CSS 변수 자동 연결 ── */
 #assistant-root .imsmassi-memo-filter-btn {
-  --filter-color: var(--imsmassi-area-color);
+  --filter-color: var(--imsmassi-primary);
 }
 
 /* ── Task 2: 핀 고정 아이템 테두리 ── */
 #assistant-root .imsmassi-memo-item-pinned {
-  --memo-pin-border: var(--imsmassi-area-color);
+  --memo-pin-border: var(--imsmassi-primary);
 }
 
 /* ── Task 2: 스크린(스티커) 버튼 비활성 색상 ── */
 #assistant-root .imsmassi-screen-btn:not(.imsmassi-screen-btn-active) {
-  --screen-btn-color: var(--imsmassi-area-color);
+  --screen-btn-color: var(--imsmassi-primary);
 }
 
 /* ── Task 2: 시간 차트 색상 ── */
@@ -3889,7 +3893,7 @@
   color: var(--imsmassi-sub-text);
 }
 #assistant-root .imsmassi-time-summary {
-  background: var(--imsmassi-area-bg);
+  background: var(--imsmassi-primary-light);
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-time-summary {
   background: #252525;
@@ -3914,7 +3918,7 @@
   transition: all 0.2s;
 }
 #assistant-root .imsmassi-time-period-btn.imsmassi-active {
-  border-color: var(--imsmassi-area-color);
+  border-color: var(--imsmassi-primary);
   background: #f5f5f5;
   color: #111;
   font-weight: 600;

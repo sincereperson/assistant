@@ -189,8 +189,12 @@ let _guideTriggered = false;
 function handleStateUpdate(newState) {
   // Worker STATE_UPDATE가 덮어쓰면 안 되는 로컬 전용 상태값을 보존합니다.
   // - memoDraftHtml/Text: 화면 전환(CONTEXT_CHANGE) 시 입력 중인 메모 초안이 사라지는 현상 방지
+  // - selectedMenu/selectedArea: MutationObserver·bridge가 권위적 소스(authoritative source)
+  //   이미 큐에 쌓인 이전 STATE_UPDATE가 늦게 도착해 로컬에서 방금 설정한 값을 덮어쓰는 race 방지
   const savedDraftHtml = state.memoDraftHtml;
   const savedDraftText = state.memoDraftText;
+  const savedMenu = state.selectedMenu;
+  const savedArea = state.selectedArea;
   // 다른 탭의 읽음 처리 감지를 위해 이전 미확인 상태를 보존
   const wasUnread = !!state.hasUnreadReminder;
 
@@ -206,6 +210,9 @@ function handleStateUpdate(newState) {
   // 메모 초안 복원 (Worker는 draft를 관리하지 않으므로 로컬값 우선)
   state.memoDraftHtml = savedDraftHtml;
   state.memoDraftText = savedDraftText;
+  // 컨텍스트 복원: MutationObserver/bridge가 설정한 값이 race로 덮어쓰이지 않도록 보존
+  if (savedMenu) state.selectedMenu = savedMenu;
+  if (savedArea) state.selectedArea = savedArea;
   // CSS 커스텀 프로퍼티: state 복원 후 DOM에 테마/다크모드 반영
   const root = getAssistantStyleRoot();
   if (root) {
@@ -2974,42 +2981,34 @@ function setupStickyLayerObserver(cfg = {}) {
 /**
  * sticky-layer 주입 타겟 탐색
  *
- *   .{windowContainerClass} (앵커)
- *       └── parentElement (윈도우 컨테이너)
- *             └── .{pgIdClass} 중 innerText === state.selectedMenu
- *                   └── parentElement  ← 위치 기준 타겟
+ *   .{windowContainerClass} (앵커) 범위 내 .{pgIdClass} 를 모두 탐색하여
+ *   innerText === state.selectedMenu 인 요소의 부모를 타겟으로 사용.
+ *   → 여러 .pg-id 가 존재하는 내부시스템에서 현재 화면과 레이어가 항상 일치함.
+ *   → state 를 건드리지 않으므로 race condition 없음.
  */
 function _resolveTargetContainer() {
   const cfg = _stickyLayerConfig;
   const anchorClass = cfg.windowContainerClass;
   const pgIdClass = cfg.pgIdClass || "pg-id";
+  const currentMenuId = state.selectedMenu;
 
-  if (!anchorClass) return null;
+  if (!currentMenuId || !anchorClass) return null;
 
-  // anchorEl = 현재 활성 화면 컨테이너 (class에 windowContainerClass 포함)
-  // state.selectedMenu 매칭 없이 anchorEl 안의 pg-id를 직접 읽음
-  // → getMenuId() stale값 문제 구조적 해결
   const anchorEl = document.querySelector(`.${anchorClass}`);
   if (!anchorEl) {
     assiConsole.warn(`[Assistant] _resolveTargetContainer: .${anchorClass} 미발견`);
     return null;
   }
 
-  const pgEl = anchorEl.querySelector(`.${pgIdClass}`);
-  if (!pgEl) {
-    assiConsole.warn(`[Assistant] _resolveTargetContainer: .${anchorClass} 내 .${pgIdClass} 미발견`);
-    return null;
-  }
+  // anchorEl 범위 내에서 pg-id 텍스트가 현재 menuId와 일치하는 요소를 찾는다
+  const allPgEls = anchorEl.querySelectorAll(`.${pgIdClass}`);
+  const pgEl = Array.from(allPgEls).find(
+    (el) => el.textContent.trim() === currentMenuId,
+  );
 
-  // DOM에서 실제 menuId를 읽어 state 자동 동기화
-  const domMenuId = pgEl.textContent.trim();
-  if (domMenuId && domMenuId !== state.selectedMenu) {
-    assiConsole.log(`[Assistant] menuId DOM 동기화: "${state.selectedMenu}" → "${domMenuId}"`);
-    state.selectedMenu = domMenuId;
-    if (typeof _stickyLayerConfig.getAreaId === "function") {
-      const areaId = _stickyLayerConfig.getAreaId(domMenuId);
-      if (areaId) state.selectedArea = areaId;
-    }
+  if (!pgEl) {
+    assiConsole.warn(`[Assistant] _resolveTargetContainer: .${anchorClass} 내 "${currentMenuId}" 미발견`);
+    return null;
   }
 
   // depth=0 : pgEl.parentElement (기본)
@@ -3139,6 +3138,38 @@ function relocateStickyLayer() {
     layer.style.display = "none";
     layer.style.visibility = "";
     assiConsole.log("[Assistant] sticky-layer 비활성화 (대상 없음)");
+
+    // pg-id 미발견 시 DOM 변화 감지 후 relocate 재시도
+    // ① 같은 menuId를 이미 기다리는 중이면 옵저버 재생성 금지 → 무한 재호출 차단
+    if (!_resolveRetryObserver && state.selectedMenu) {
+      _resolveRetryMenuId = state.selectedMenu;
+      const _retryAnchorEl = document.querySelector(
+        `.${_stickyLayerConfig.windowContainerClass}`,
+      );
+      if (_retryAnchorEl) {
+        _resolveRetryObserver = new MutationObserver(() => {
+          // ② pg-id 텍스트가 selectedMenu와 일치할 때만 relocate 재시도
+          //    일치하지 않으면 아무것도 하지 않고 계속 대기
+          //    → relocateStickyLayer() 미호출 = 옵저버 재생성 없음 = 무한루프 차단
+          const found = _resolveTargetContainer();
+          if (found) {
+            _resolveRetryObserver.disconnect();
+            _resolveRetryObserver = null;
+            _resolveRetryMenuId = null;
+            relocateStickyLayer();
+          }
+        });
+        // childList/characterData 감시: pg-id 텍스트 갱신 감지용
+        // (class 변화 감시 시 CSS 전환 애니메이션마다 발화 → 과호출 위험)
+        _resolveRetryObserver.observe(
+          _retryAnchorEl.parentElement || document.body,
+          { subtree: true, childList: true, characterData: true },
+        );
+        assiConsole.log(
+          `[Assistant] pg-id retry 감시 시작 → 대기 menuId: "${_resolveRetryMenuId}"`,
+        );
+      }
+    }
   }
 
   _stickyLayerRelocating = false;
@@ -4643,7 +4674,7 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div class="imsmassi-settings-row imsmassi-settings-row-mt imsmassi-settings-row-backup">
+          <div class="imsmassi-settings-row imsmassi-settings-row-mt imsmassi-settings-row-backup${(() => { if (state.settings.backupReminder) { const _d = Math.floor((new Date() - new Date(state.settings.lastBackup)) / 86400000); if (_d >= 7) return ' imsmassi-settings-row-backup-warn'; } return ''; })()}">
             <div>
               <span class="imsmassi-settings-label">${t("settings.backupNotifLabel")}</span>
               <div class="imsmassi-settings-desc">${t("settings.backupNotifDesc", {lastBackup: state.settings.lastBackup})}</div>
