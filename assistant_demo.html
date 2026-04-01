@@ -2191,48 +2191,320 @@
       //   name : 'menuName'
       // }
       loadAssistant({
+        // ══════════════════════════════════════════════════════════════════════
+        // 1. 기본 설정
+        // ══════════════════════════════════════════════════════════════════════
+
+        // 어시스턴트 패널이 마운트될 DOM 요소 ID
         mountId: "assistant-mount",
+
+        // 로그인 사용자 ID — IndexedDB DB명 식별자로 사용됨 (미입력 시 공용 모드)
         loginId: "test_user_01",
+
+        // UI 언어 설정 ("ko-kr" | "en-us")
         locale: "ko-kr",
-        // locale: "en-us",
-        // ── 유저 정보: 있을 때만 암호화되어 IndexedDB userinfo 스토어에 저장됨
-        getUserInfo: {
-          userId: "test_user_01",
-          userEmpNo: "2017806",
-          userNm: "홍길동",
-          userEnglNm: "Hong Gildong",
-        },
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 2. 리소스 경로
+        // ══════════════════════════════════════════════════════════════════════
+
+        // 어시스턴트 HTML 조각 파일 경로
         htmlPath: "vendor/assistant/assistant-fragment.html",
+
+        // 어시스턴트 메인 CSS 경로
         cssPath: "vendor/assistant/assistant.css",
+
+        // 추가 CSS 목록 (Quill 에디터 등)
         cssPaths: [
           "vendor/quill/quill.bubble.css",
           "vendor/quill/quill-better-table.css",
         ],
+
+        // 어시스턴트 메인 JS 경로
         jsPath: "vendor/assistant/assistant.js",
+
+        // 추가 JS 목록 (jsPath 로드 전에 순서대로 주입됨)
         scriptPaths: [
           "vendor/quill/quill.min.js",
           "vendor/quill/quill-better-table.min.js",
           "vendor/quill/quill-markdown-shortcuts.js",
           "vendor/purify/purify.min.js",
         ],
-        // ── Worker 경로 (명시)
+
+        // SharedWorker 경로 (미입력 시 jsPath 기준 자동 추론)
         workerPath: "vendor/assistant/assistant-worker.js",
 
-        // ── sticky-layer 주입 (pg-id innerText 매칭)
+        // ══════════════════════════════════════════════════════════════════════
+        // 3. 사용자 정보 (암호화 저장) HTTPS 환경에서만 제공
+        // loginId + getUserInfo 둘 다 있을 때만 AES-256-GCM 암호화 후 IndexedDB에 저장됨
+        // ══════════════════════════════════════════════════════════════════════
+        getUserInfo: {
+          userId:     "test_user_01",
+          userEmpNo:  "2017806",
+          userNm:     "홍길동",
+          userEnglNm: "Hong Gildong",
+        },
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 4. sticky-layer 컨텍스트 감지 설정
+        // false 로 지정하면 옵저버 자체를 비활성화합니다.
+        // ══════════════════════════════════════════════════════════════════════
         stickyLayerSelectors: {
+          // ── 폴백 방식 (클래스명 기반 탐색) ────────────────────────────────
+          // 현재 활성 화면 컨테이너를 감싸는 클래스명 (MutationObserver 감시 대상)
           windowContainerClass: "w2windowContainer_selectedNameLayer",
+          // 화면 ID를 담고 있는 hidden 요소의 클래스명
           pgIdClass: "pg-id",
-          // pgEl.parentElement 기준 뎁스 조절 (0=기본, +n=더 내려감, -n=더 올라감)
+          // pgEl.parentElement 기준 이동 뎁스 (0=기본, +n=더 내려감, -n=더 올라감)
           targetDepth: 0,
-          // 앵커 클래스 변경 시 호출 → 현재 활성 menuId 반환
+          // windowContainerClass 발견 후 이동 뎁스 (0=발견된 요소 그대로, +n=firstElementChild 내려감, -n=parentElement 올라감)
+          // 앵커 자체의 DOM 위치를 조정할 필요가 있을 때 사용
+          anchorDepth: 0,
+
+          // ── [IoC] 주입 방식 (클래스명 탐색 대체) ──────────────────────────
+          // [신규] 포스트잇 타겟 컨테이너를 직접 반환하는 함수
+          // 주입 시 windowContainerClass/pgIdClass/targetDepth/anchorDepth 탐색 로직은 실행되지 않음
+          // resolveStickyTarget: (menuId) => document.querySelector(`#screen-${menuId}`),
+
+          // [신규] MutationObserver 기준 요소를 직접 반환하는 함수
+          // 주입 시 windowContainerClass 기반 탐색 대신 이 함수 결과를 감시 대상으로 사용
+          // getObserverAnchor: () => document.getElementById("sys-content"),
+
+          // ── 컨텍스트 감지 함수 (공통) ──────────────────────────────────────
+          // 현재 활성 화면의 menuId를 반환하는 함수 (화면 전환 감지 + 초기화에 사용)
           getMenuId: () => window.getMenuId?.(),
-          // menuId로부터 areaId 파생
+          // menuId로부터 areaId를 파생하는 함수
           getAreaId: (menuId) => window.getAreaId?.(menuId),
+          // 현재 locale을 반환하는 함수 (언어 변경 자동 감지용, 선택)
+          // getLocale: () => window.gcm?.gv_LANG_CD,
+        },
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 5. 라이프사이클 훅
+        // 등록하지 않은 훅은 조용히 무시됩니다.
+        // (선택) 어시스턴트 내부 이벤트에 대한 콜백 함수들을 등록할 수 있습니다.
+        // 주석해제 후 사용가능
+        // ══════════════════════════════════════════════════════════════════════
+        hooks: {
+          // ── 패널 ──────────────────────────────────────────────────────────
+          // onPanelOpen:  () => {},              // 인자 없음
+          // onPanelClose: () => {},              // 인자 없음
+
+          // ── 메모 ──────────────────────────────────────────────────────────
+          // onMemoAdd:       ({ memoId, memoData }) => {},
+          //   memoData: { title, content, areaId, menuId, date, isRichText, ... }
+          // onMemoAdded:     (memo) => {},
+          //   memo: DB 저장 확인된 메모 객체 (id, title, content, areaId, menuId, date, ...)
+          // onMemoDelete:    ({ memoId }) => {},
+          // onMemoEdit:      ({ memoId, content, isRichText, meta? }) => {},
+          //   meta: { tags }
+          // onMemoTitleSave: ({ memoId, title }) => {},
+          // onMemoPin:       ({ memoId }) => {},
+          // onMemoLabel:     ({ memoId, menuId, force? }) => {},
+          // onTodoToggle:    ({ memoId }) => {},
+          // onMemoCopy:      ({ memoId, targetMenuId, targetAreaId, placement }) => {},
+
+          // ── 포스트잇 ──────────────────────────────────────────────────────
+          // onStickyAdd:    ({ memoId, placement, menuId }) => {},
+          // onStickyRemove: ({ memoId, menuId }) => {},
+          // onStickySave:   ({ stickyNotes }) => {},
+          //   stickyNotes: 현재 활성 포스트잇 배열
+
+          // ── 클립보드 ──────────────────────────────────────────────────────
+          // onClipboardAdd:     ({ content, options }) => {},
+          // onClipboardDelete:  ({ itemId }) => {},
+          // onClipboardRefresh: () => {},        // 인자 없음
+
+          // ── 템플릿 ────────────────────────────────────────────────────────
+          // onTemplateAdd:     ({ template }) => {},
+          //   template: { title, content, pinned, ... }
+          // onTemplateDelete:  ({ templateId }) => {},
+          // onTemplateEdit:    ({ templateId, title, content, pinned }) => {},
+          // onTemplatePin:     ({ templateId }) => {},
+          // onTemplateUse:     ({ templateId }) => {},
+          // onTemplateSuggest: (payload) => {},  // Worker가 전달하는 자동완성 제안 객체
+
+          // ── 리마인더 ──────────────────────────────────────────────────────
+          // onReminderSet: ({ memoId, reminderStr, title, reminderRepeat }) => {},
+          //   reminderStr: "2026-04-01T09:00" 형태 날짜 문자열
+          //   reminderRepeat: boolean
+
+          // ── 테마/설정 ─────────────────────────────────────────────────────
+          // onThemeChange:    ({ themeKey }) => {},
+          // onDarkModeChange: ({ isDark }) => {},
+          // onSettingsSave:   ({ settings }) => {},  // settings: 전체 설정 객체
+          // onAreaColorsSave: ({ areaId, colors }) => {},
+          // onUiPrefsSave:    ({ panelWidth, panelWidthCollapsed, panelWidthExpanded, panelHeight } | { memoFilter }) => {},
+          // onUserInfoSave:   ({ userInfo }) => {},  // userInfo: AES-256-GCM 암호화된 문자열
+
+          // ── 내비게이션 ────────────────────────────────────────────────────
+          // onContextChange: ({ menuId?, areaId? }) => {},
+          //   화면(메뉴) 전환 시 발화. areaId는 변경이 있을 때만 포함
+          // onTabActive:     ({ isActive }) => {},
+          //   isActive: 브라우저 탭 포커스 여부 (Page Visibility API)
+
+          // ── 데이터 관리 ───────────────────────────────────────────────────
+          // onDataExport:  () => {},              // 내보내기 요청 시 (인자 없음)
+          // onExportReady: (data) => {},          // Worker→UI 파일 준비 완료 시. data: JSON 문자열
+          // onDataImport:  ({ importedData }) => {},
+          // onDataClear:   () => {},              // 메모+클립보드 전체 삭제 (인자 없음)
+          // onDataCleanup: ({ settings, silent?, reason? }) => {},
+
+          // ── 상태/공통 ─────────────────────────────────────────────────────
+          // onStateUpdate:    (state) => {},      // 모든 STATE_UPDATE 처리 후. state: 전체 상태 객체
+          // onToast:          ({ messageKey?, params?, message? }) => {},
+          //   messageKey 우선. 없으면 message 문자열 사용
+          // onAreaTimeRecord: ({ areaId, elapsedMs }) => {},
+          // onGuideSeen:      () => {},           // 인자 없음
         },
       }).then(() => {
         showAllAssistantHiddenUI();
         console.log("[Assistant] 어시스턴트 로드 완료");
       });
+
+      // ════════════════════════════════════════════════════════════════════════
+      // 💡 훅 사용 예시 (hooks 옵션에 복사하여 사용)
+      // ════════════════════════════════════════════════════════════════════════
+      //
+      // ── [예시 1] 리마인더 설정 완료 → 대시보드 탭으로 자동 이동 ─────────────
+      //
+      //   onReminderSet: (payload) => {
+      //     // payload: { memoId, reminderStr, title, reminderRepeat }
+      //     console.log(`[훅] 리마인더 등록 → ${payload.title} (${payload.reminderStr})`);
+      //     assistantBridge.open();
+      //     assistantBridge.setActiveTab("dashboard");
+      //   },
+      //
+      // ── [예시 2] 내보내기 파일 준비 → 자동 다운로드 ───────────────────────
+      //
+      //   onExportReady: (data) => {
+      //     // data: JSON 문자열
+      //     const url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+      //     const a = Object.assign(document.createElement("a"), { href: url, download: "backup.json" });
+      //     a.click();
+      //     URL.revokeObjectURL(url);
+      //   },
+      //
+      // ── [예시 3] 테마 변경 → 호스트 페이지 data 속성 동기화 ─────────────────
+      //
+      //   onThemeChange: (payload) => {
+      //     // payload: { themeKey }
+      //     // 어시스턴트 테마를 호스트 루트 속성에 반영 (CSS 변수 연동 등)
+      //     document.documentElement.dataset.assistantTheme = payload.themeKey;
+      //   },
+      //
+      // ── [예시 4] 토스트 메시지 감지 → 접근성 로그 ──────────────────────────
+      //
+      //   onToast: (payload) => {
+      //     // payload: { messageKey?, params?, message? }
+      //     if (payload.message) console.info(`[Assistant] ${payload.message}`);
+      //   },
+      //
+      // ── [예시 5] 클립보드 항목 추가 → 패널 열기 + 탭 이동 ──────────────────
+      //
+      //   onClipboardAdd: () => {
+      //     assistantBridge.open();
+      //     assistantBridge.setActiveTab("clipboard");
+      //   },
+      //
+      // ── [예시 6] 설정 저장 → 서버에 사용자 설정 동기화 ──────────────────────
+      //
+      //   onSettingsSave: (payload) => {
+      //     fetch("/api/user-settings", {
+      //       method: "POST",
+      //       headers: { "Content-Type": "application/json" },
+      //       body: JSON.stringify(payload),
+      //     });
+      //   },
+      //
+      // ════════════════════════════════════════════════════════════════════════
+
+      // ════════════════════════════════════════════════════════════════════════
+      // 📖 어시스턴트 패널 연동 API 레퍼런스
+      // ════════════════════════════════════════════════════════════════════════
+      
+      // ┌─ A. window.assistantBridge  (same-origin 직접 호출) ─────────────────
+      // │
+      // │  assistantBridge.open()              패널 열기
+      // │  assistantBridge.close()             패널 닫기
+      // │  assistantBridge.ping()              연결 확인 → "ok" 반환
+      // │
+      // │  assistantBridge.setArea(areaId)     현재 업무 영역 변경
+      // │                                       areaId: "UW"|"CT"|"CL"|"AC"|"PF"|"ST"|"FN"
+      // │  assistantBridge.setMenu(menuId)     현재 화면(메뉴) 변경
+      // │                                       menuId: "UW-001" 등 화면 ID 문자열
+      // │
+      // │  assistantBridge.pushText(payload)   텍스트를 클립보드 탭에 추가하고 패널 열기
+      // │  assistantBridge.pushGridData(payload) 그리드 데이터를 클립보드 탭에 추가
+      // │    payload: { text: "내용" }
+      // │           | { title: "제목", rows: [...], columns: [...] }  // 그리드
+      // │
+      // │  assistantBridge.setLocale(locale)   UI 언어 변경
+      // │                                       locale: "ko-kr" | "en-us"
+      // │
+      // │  assistantBridge.setupStickyLayerObserver(cfg)  옵저버 재설정
+      // │  assistantBridge.relocateStickyLayer()          포스트잇 레이어 위치 재동기화
+      // │
+      // ├─ B. postMessage  (cross-frame / iframe 환경) ─────────────────────────
+      // │
+      // │  window.postMessage({ type: "assistant:open" }, "*")
+      // │  window.postMessage({ type: "assistant:close" }, "*")
+      // │  window.postMessage({ type: "assistant:setArea",  payload: "UW" }, "*")
+      // │  window.postMessage({ type: "assistant:setMenu",  payload: "UW-001" }, "*")
+      // │  window.postMessage({ type: "assistant:text",     payload: { text: "..." } }, "*")
+      // │  window.postMessage({ type: "assistant:gridData", payload: { title, rows, columns } }, "*")
+      // │  window.postMessage({ type: "assistant:setLocale", payload: "en-us" }, "*")
+      // │
+      // ├─ C. 탭 전환  (패널 내 탭을 외부에서 직접 이동) ───────────────────────
+      // │
+      // │  assistantBridge.setActiveTab(tabId)  — 패널이 열려 있을 때 탭을 강제 전환
+      // │    tabId 목록:
+      // │      "memo"       메모 탭 (기본)
+      // │      "clipboard"  클립보드 탭
+      // │      "template"   템플릿 탭
+      // │      "reminder"   리마인더/할 일 탭
+      // │      "dashboard"  대시보드 탭 ("time" 전달 시 자동 매핑)
+      // │
+      // │  사용 예)  알림 설정 완료 후 대시보드로 자동 이동:
+      // │    hooks: {
+      // │      onReminderSet: () => {
+      // │        assistantBridge.open();
+      // │        assistantBridge.setActiveTab("dashboard");
+      // │      }
+      // │    }
+      // │
+      // ├─ D. 고급 설정 UI 노출 제어  (히든 모드 기능 on/off) ──────────────────
+      // │
+      // │  toggleAssistantHiddenUI(key, true/false)  특정 설정 항목 노출 여부 제어
+      // │  showAllAssistantHiddenUI(true/false)       모든 설정 항목 일괄 제어
+      // │
+      // │  key 목록 (기본값: 모두 false = 숨김):
+      // │    "areaColor"          영역별 색상 설정 버튼
+      // │    "timeInsight"        업무 시간 인사이트 기능
+      // │    "markdown"           마크다운 편집 기능
+      // │    "debugLog"           Worker 통신 디버그 로그
+      // │    "autoNav"            자동 네비게이션 기능
+      // │    "theme"              테마 변경 버튼
+      // │    "darkMode"           다크모드 토글 버튼
+      // │    "sideTabs"           사이드 탭 레이아웃
+      // │    "shortcutManual"     단축키 도움말 버튼
+      // │    "featureSectionTitle" 설정 섹션 제목
+      // │
+      // │  사용 예)  특정 사용자에게만 테마 변경 노출:
+      // │    if (userRole === "admin") toggleAssistantHiddenUI("theme", true);
+      // │
+      // ├─ E. 패널 동작 연계 시나리오 예시 ─────────────────────────────────────
+      // │
+      // │  [시나리오 1] 리마인더 설정 완료 → 대시보드 탭으로 자동 이동
+      // │    hooks: { onReminderSet: () => { assistantBridge.open(); setActiveTab("dashboard"); } }
+      // │
+      // │  [시나리오 2] 호스트 버튼 클릭 → 그리드 데이터를 클립보드에 추가 후 패널 열기
+      // │    assistantBridge.pushGridData({ title: "조회결과", columns: [...], rows: [...] });
+      // │
+      // │  [시나리오 3] 언어 변경 이벤트 수신 시 어시스턴트 locale 동기화
+      // │    window.addEventListener("langChange", (e) => assistantBridge.setLocale(e.detail));
+      // │
+      // └───────────────────────────────────────────────────────────────────────
 
       // Worker 연결 완료 시 초기 화면 및 컨텍스트 등록
       window.addEventListener("assistant:mounted", () => {
@@ -2247,6 +2519,7 @@
             window.assistantBridge.setMenu(menuId);
         }
       });
+
       const _origBootstrap = window.bootstrapAssistant;
       window.bootstrapAssistant = async function (cfg) {
         await _origBootstrap?.(cfg);
@@ -2256,48 +2529,5 @@
         indexedDB.deleteDatabase(dbName);
       };
     </script>
-
-    <!-- =====================================================
-  🔴 [배포시 제거] 테스트 전용 버튼
-  ===================================================== -->
-    <div id="test-toolbar" style="
-      bottom: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 9999;
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      background: rgba(30,30,30,0.85);
-      border-radius: 10px;
-      padding: 8px 14px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-      backdrop-filter: blur(6px);
-      font-family: monospace;
-      font-size: 12px;
-      color: #ccc;
-    ">
-      <span style="opacity:0.6; font-size:11px;">🧪 TEST</span>
-      <button onclick="
-        const dbName = 'AssistantDB_test_user_01';
-        req = deleteDatabase(dbName);
-        // const req = indexedDB.deleteDatabase(dbName);
-        // req.onsuccess = () => { console.log('[TEST] DB 삭제 완료:', dbName); alert('✅ DB 삭제 완료\n' + dbName + '\n\n페이지를 새로고침하세요.'); };
-        // req.onerror   = () => { console.error('[TEST] DB 삭제 실패:', req.error); alert('❌ DB 삭제 실패: ' + req.error); };
-        // req.onblocked = () => { console.warn('[TEST] DB 삭제 차단됨 (열린 연결 있음)'); alert('⚠️ DB 연결이 열려 있어 삭제가 차단됐습니다.\n새 탭을 모두 닫은 뒤 다시 시도하세요.'); };
-      " style="
-        background: #e74c3c;
-        color: #fff;
-        border: none;
-        border-radius: 6px;
-        padding: 5px 12px;
-        cursor: pointer;
-        font-size: 12px;
-        font-weight: 600;
-        font-family: monospace;
-        white-space: nowrap;
-      ">🗑 Delete DB (test_user_01)</button>
-    </div>
-    <!-- ===================================================== 🔴 [배포시 제거] 끝 ===== -->
   </body>
 </html>
