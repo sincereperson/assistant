@@ -2194,6 +2194,7 @@
         mountId: "assistant-mount",
         loginId: "test_user_01",
         locale: "ko-kr",
+        // locale: "en-us",
         // ── 유저 정보: 있을 때만 암호화되어 IndexedDB userinfo 스토어에 저장됨
         getUserInfo: {
           userId: "test_user_01",
@@ -2250,6 +2251,53 @@
       window.bootstrapAssistant = async function (cfg) {
         await _origBootstrap?.(cfg);
       };
+
+      function deleteDatabase(dbName) {
+        indexedDB.deleteDatabase(dbName);
+      };
     </script>
+
+    <!-- =====================================================
+  🔴 [배포시 제거] 테스트 전용 버튼
+  ===================================================== -->
+    <div id="test-toolbar" style="
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: rgba(30,30,30,0.85);
+      border-radius: 10px;
+      padding: 8px 14px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      backdrop-filter: blur(6px);
+      font-family: monospace;
+      font-size: 12px;
+      color: #ccc;
+    ">
+      <span style="opacity:0.6; font-size:11px;">🧪 TEST</span>
+      <button onclick="
+        const dbName = 'AssistantDB_test_user_01';
+        req = deleteDatabase(dbName);
+        // const req = indexedDB.deleteDatabase(dbName);
+        // req.onsuccess = () => { console.log('[TEST] DB 삭제 완료:', dbName); alert('✅ DB 삭제 완료\n' + dbName + '\n\n페이지를 새로고침하세요.'); };
+        // req.onerror   = () => { console.error('[TEST] DB 삭제 실패:', req.error); alert('❌ DB 삭제 실패: ' + req.error); };
+        // req.onblocked = () => { console.warn('[TEST] DB 삭제 차단됨 (열린 연결 있음)'); alert('⚠️ DB 연결이 열려 있어 삭제가 차단됐습니다.\n새 탭을 모두 닫은 뒤 다시 시도하세요.'); };
+      " style="
+        background: #e74c3c;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 5px 12px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        font-family: monospace;
+        white-space: nowrap;
+      ">🗑 Delete DB (test_user_01)</button>
+    </div>
+    <!-- ===================================================== 🔴 [배포시 제거] 끝 ===== -->
   </body>
 </html>

@@ -61,7 +61,8 @@
     "memoSaveSuccess": "메모가 저장되었습니다",
     "tagAdded": "\u201c{tag}\u201d 태그가 추가되었습니다",
     "memoLabelAlreadyAdded": "⚠️ 이 메모는 이미 현재 메뉴({currentMenu})에 추가되었습니다",
-    "clipboardCopySuccess": "✓ 클립보드에 복사됨: {preview}"
+    "clipboardCopySuccess": "✓ 클립보드에 복사됨: {preview}",
+    "memoCopied": "✓ 메모가 현재 화면으로 복사되었습니다"
   },
 
   "ui": {
@@ -123,6 +124,9 @@
     "memoDeleteTitle": "메모 삭제",
     "memoDeleteBody": "이 메모를 삭제하시겠습니까? (포스트잇도 함께 삭제됩니다.)",
 
+    "templateDeleteTitle": "템플릿 삭제",
+    "templateDeleteBody": "이 템플릿을 삭제하시겠습니까?",
+
     "clearAllTitle": "데이터 영구 삭제",
     "clearAllBody": "저장된 모든 메모와 클립보드 기록을 완전히 삭제하시겠습니까?",
     "clearAllBodySub": "(설정 및 템플릿은 유지됩니다. 이 작업은 되돌릴 수 없습니다.)",
@@ -134,7 +138,14 @@
     "shortcutGroupEtc": "기타",
     "shortcutFooter": "이 외 더 많은 도움말은 관리자에게 문의하세요",
 
-    "settingsTitle": "설정"
+    "settingsTitle": "설정",
+
+    "memoContextActionTitle": "메모 추가 방법 선택",
+    "memoContextActionBody": "현재 화면({menu}) \n 메모를 추가하는 방법을 선택하세요.",
+    "memoContextActionCopyTitle": "복사하기",
+    "memoContextActionCopyDesc": "메모를 복사하여 현재 화면에 새로 추가합니다.",
+    "memoContextActionShareTitle": "공유하기",
+    "memoContextActionShareDesc": "원본 메모를 현재 화면에서도 함께 표시합니다."
   },
 
   "settings": {
@@ -184,7 +195,7 @@
 
   "memoTab": {
     "filterCurrentScreen": "현재 화면",
-    "filterCurrentArea": "현재 업무",
+    "filterCurrentArea": "현재<br>업무 영역",
     "filterAll": "전체",
     "countLabel": "메모 {count}건",
     "listEmpty": "메모가 없습니다",
@@ -202,11 +213,13 @@
     "btnClearReminder": "알림 해제",
     "reminderSetTitle": "리마인더 설정",
     "reminderEditTitle": "리마인더 수정",
-    "offScreenBadge": "📍 화면 밖",
+    "offScreenBadge": "화면 밖",
     "offScreenBadgeTitle": "포스트잇이 현재 화면 밖에 위치합니다",
     "storageInitial": "0 B / 2 MB",
     "clipboardPanelHeader": "클립보드",
-    "templatePanelHeader": "템플릿"
+    "templatePanelHeader": "복사 템플릿",
+    "btnCopyMemo": "복사하기",
+    "btnShareMemo": "공유하기"
   },
 
   "sticky": {
@@ -245,7 +258,7 @@
     "sectionToday": "오늘 할 일",
     "sectionPast": "지난 일",
     "sectionRecentMemo": "최근 메모",
-    "sectionAreaColor": "🎨 업무 컬러 설정",
+    "sectionAreaColor": "업무 컬러 설정",
     "sectionTimeInsight": "시간 인사이트",
     "todayEmpty": "오늘 할 일이 없습니다",
     "pastEmpty": "지난 할 일이 없습니다",
@@ -256,7 +269,11 @@
     "colorMain": "메인",
     "colorSub1": "서브1",
     "colorSub2": "서브2",
-    "colorResetTitle": "기본값으로 초기화"
+    "colorResetTitle": "기본값으로 초기화",
+    "sectionUnreadNotifications": "확인하지 않은 알림",
+    "unreadNotificationsEmpty": "확인하지 않은 알림이 없습니다",
+    "notifMarkRead": "확인",
+    "notifMarkAllRead": "모두 확인"
   },
 
   "timeInsight": {

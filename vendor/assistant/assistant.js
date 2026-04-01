@@ -13,6 +13,17 @@ const assiConsole = {
   error: (...args) => { console.error(...args); },
 };
 
+/**
+ * 로컬 타임존 기준 YYYY-MM-DD 문자열 반환
+ * toISOString()은 UTC 기준이라 KST(UTC+9) 환경에서 자정~오전9시 사이에
+ * 날짜가 하루 밀리는 문제를 방지합니다.
+ * @param {Date} [date=new Date()]
+ * @returns {string} "YYYY-MM-DD"
+ */
+function toLocalDateStr(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 if (typeof Quill !== "undefined") {
   assiConsole.log("✅ Quill 라이브러리 로드 성공!");
 } else {
@@ -170,11 +181,13 @@ function normalizeLocale(raw) {
  */
 function workerSend(type, payload) {
   if (!workerPort) {
-    assiConsole.warn(
-      "[Assistant] Worker가 연결되지 않았습니다. 메시지 무시:",
-      type,
-    );
+    assiConsole.warn("[WorkerSend] Worker 연결 안됨. 메시지 무시:", type);
     return;
+  }
+  if (state?.settings?.debugLogs) {
+    console.groupCollapsed(`%c ⬆️ [Worker Send] ${type}`, 'color: #3498db; font-weight: bold;');
+    console.log('Payload:', payload);
+    console.groupEnd();
   }
   workerPort.postMessage({ type, payload });
 }
@@ -226,17 +239,15 @@ function handleStateUpdate(newState) {
     renderStickyNotes();
   }
 
-  // 다른 탭에서 읽음 처리(MARK_REMINDER_READ 브로드캐스트)된 경우 현재 탭 카운트 즉시 초기화
-  if (wasUnread && !state.hasUnreadReminder) {
-    setUnreadReminder(false);
-  }
+  // 알림 미확인 수 → 탭 타이틀 동기화 (toggleNotificationRead/markAll 이후 즉시 반영)
+  syncNotifTabTitle();
 
-  // 온보딩 가이드: DB 로드 후 최초 1회만 표시
+  // 온보딩 가이드: 첫 입장 시(Worker 초기 상태 로드 후) 최초 1회만 표시
   if (!_guideTriggered && state.hasSeenGuide === false) {
     _guideTriggered = true;
     setTimeout(() => {
       if (typeof AssistantGuide !== "undefined") AssistantGuide.start();
-    }, 800);
+    }, 600);
   }
 }
 
@@ -252,14 +263,14 @@ function downloadExportData(data) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `assistant-backup-${new Date().toISOString().split("T")[0]}.json`;
+    link.download = `assistant-backup-${toLocalDateStr()}.json`;
     getAssistantRoot().appendChild(link);
     link.click();
     getAssistantRoot().removeChild(link);
     URL.revokeObjectURL(url);
 
     // 백업 일자 자동 갱신
-    const today = new Date().toISOString().split("T")[0];
+    const today = toLocalDateStr();
     state.settings.lastBackup = today;
     saveSettings({ silent: true });
 
@@ -267,6 +278,58 @@ function downloadExportData(data) {
   } catch (error) {
     console.error("내보내기 실패:", error);
     showToast(t("system.exportFail"));
+  }
+}
+
+// ========================================
+// Worker 수신 라우터 (Dispatcher)
+// ========================================
+
+/**
+ * Worker로부터 수신된 메시지를 중앙에서 라우팅합니다.
+ * connectToWorker 내부 익명 핸들러에서 분리하여 가독성 및 추적성을 높입니다.
+ * WORKER_DEBUG_LOG 타입은 Worker 내부 workerConsole이 전달한 포워딩 로그입니다.
+ * @param {MessageEvent} event
+ */
+function dispatchWorkerMessage(event) {
+  const { type, payload } = event.data || {};
+
+  // ⬇️ 수신 로그 (WORKER_DEBUG_LOG 자체는 재귀 방지를 위해 제외)
+  if (state?.settings?.debugLogs && type !== 'WORKER_DEBUG_LOG') {
+    console.groupCollapsed(`%c ⬇️ [Worker Receive] ${type}`, 'color: #2ecc71; font-weight: bold;');
+    console.log('Payload:', payload);
+    console.groupEnd();
+  }
+
+  switch (type) {
+    case 'STATE_UPDATE':
+      handleStateUpdate(payload);
+      break;
+    case 'TOAST':
+      if (payload?.messageKey) {
+        showToast(t(payload.messageKey, payload.params));
+      } else {
+        showToast(payload?.message || '');
+      }
+      break;
+    case 'EXPORT_DATA_RESULT':
+      downloadExportData(payload?.data);
+      break;
+    case 'TEMPLATE_SUGGEST':
+      if (!state.currentModal) {
+        openModal('templateSuggest', { suggestedText: payload?.suggestedText || '' });
+      }
+      break;
+    case 'WORKER_DEBUG_LOG': {
+      // Worker 내부 workerConsole이 전달한 로그를 메인 F12 콘솔에 출력
+      const logArgs = payload?.args || [];
+      if (payload?.level === 'error')     console.error('[Worker Inner]', ...logArgs);
+      else if (payload?.level === 'warn') console.warn('[Worker Inner]', ...logArgs);
+      else                                console.log('%c[Worker Inner]', 'color: #9b59b6;', ...logArgs);
+      break;
+    }
+    default:
+      assiConsole.warn('[Assistant] Worker로부터 알 수 없는 메시지:', type);
   }
 }
 
@@ -1359,6 +1422,7 @@ let state = {
     darkMode: false, // 푸터 다크모드 토글 버튼 노줄 여부
     sideTabs: false, // 좌측 사이드 탭 버튼 그룹 (기본값 false: 표시)
     shortcutManual: false, // 헤더 단축키 메뉴얼 버튼 노출 여부
+    featureSectionTitle: false, // 기능 설정 섹션 타이틀 노출 여부 (기본값 true: 표시)
   },
 };
 // state 초기화 완료 — 이후부터 assiConsole 로깅 활성화
@@ -2043,28 +2107,10 @@ function upsertStickyNote(memoId, patch) {
   return note;
 }
 
-function getStickyNote(memoId) {
-  if (!memoId || !state.stickyNotes) return null;
-  return state.stickyNotes.find((note) => note.memoId === memoId) || null;
-}
-
 function setStickyNotePosition(memoId, x, y) {
   const nextX = Math.max(0, Number.isFinite(Number(x)) ? Number(x) : 0);
   const nextY = Math.max(0, Number.isFinite(Number(y)) ? Number(y) : 0);
   return upsertStickyNote(memoId, { x: nextX, y: nextY });
-}
-
-function setStickyNoteSize(memoId, width, height) {
-  const patch = {};
-  const nextWidth = Number(width);
-  const nextHeight = Number(height);
-  // 최소 150, 최대 1200/900 제한
-  if (Number.isFinite(nextWidth) && nextWidth > 50)
-    patch.width = Math.min(1200, Math.max(150, nextWidth));
-  if (Number.isFinite(nextHeight) && nextHeight > 50)
-    patch.height = Math.min(900, Math.max(150, nextHeight));
-
-  return upsertStickyNote(memoId, patch);
 }
 
 // 2. 포스트잇 생성 위치 계산 로직 개선
@@ -2138,6 +2184,7 @@ function addStickyNote(memoId, x, y) {
     assiConsole.warn(
       "[Assistant] addStickyNote: 화면 ID(menuId) 미확인 — 포스트잇 생성 취소",
     );
+    showToast(t("system.stickyNoScreen"), "warning");
     return;
   }
   const hasDropPosition =
@@ -2413,17 +2460,6 @@ function renderStickyNotes() {
     wrapperEl.style.left = `${Math.max(0, note.x || 0)}px`;
     wrapperEl.style.top = `${Math.max(0, note.y || 0)}px`;
 
-    // 업무 영역 컬러 CSS 변수 주입 (getAreaWithColors로 커스텀 컬러 병합)
-    const noteAreaId =
-      memo.createdAreaId || note.menuId?.split("-")?.[0] || state.selectedArea;
-    const noteArea = getAreaWithColors(noteAreaId);
-    wrapperEl.style.setProperty("--area-primary", noteArea.color);
-    wrapperEl.style.setProperty("--area-sub1", noteArea.bgColor);
-    wrapperEl.style.setProperty(
-      "--area-sub2",
-      noteArea.sub2 || noteArea.bgColor,
-    );
-
     const noteEl = document.createElement("div");
     noteEl.className = `imsmassi-sticky-note${isCollapsed ? " imsmassi-is-collapsed" : ""}`;
     noteEl.innerHTML = `
@@ -2449,7 +2485,7 @@ function renderStickyNotes() {
           ? ""
           : isRichText
             ? `<div class="imsmassi-sticky-note-body imsmassi-sticky-note-richtext" data-memo-id="${note.memoId}" data-content="${encodeURIComponent(sanitizeHtml(memo.content || ""))}"></div>`
-            : `<div class="imsmassi-sticky-note-body" contenteditable="true" data-memo-id="${note.memoId}" onfocus="state.isStickyNoteEditing = true; scrollToMemoItem('${note.memoId}')" onblur="saveStickyNoteEdit('${note.memoId}', this)" style="outline: none;">${displayText || "내용 없음"}</div>`
+            : `<div class="imsmassi-sticky-note-body" contenteditable="true" data-memo-id="${note.memoId}" onfocus="state.isStickyNoteEditing = true; scrollToMemoItem('${note.memoId}')" oninput="stickyNotePlainDirtyMap['${note.memoId}'] = true" onblur="saveStickyNoteEdit('${note.memoId}', this)" style="outline: none;">${displayText || "내용 없음"}</div>`
       }
       ${isCollapsed ? "" : '<div class="imsmassi-sticky-resize-handle" title="크기 조절"></div>'}
     `;
@@ -2554,11 +2590,13 @@ function enableStickyNoteResize(wrapperEl, note) {
 
 let stickyNoteQuillMap = {};
 let stickyNoteDirtyMap = {};
+let stickyNotePlainDirtyMap = {}; // plain contenteditable dirty 플래그
 
 function initStickyNoteRichText() {
   if (!isQuillAvailable()) return;
   stickyNoteQuillMap = {};
   stickyNoteDirtyMap = {};
+  stickyNotePlainDirtyMap = {};
 
   // table-better 등록 (미등록 시)
   const hasBetterTable = typeof window.QuillTableBetter !== "undefined";
@@ -2648,13 +2686,46 @@ async function saveStickyNoteRichText(memoId, quillInst) {
 function saveStickyNoteEdit(memoId, element) {
   const memo = state.memos?.[memoId];
   if (!memo || !element) return;
+  // oninput으로 dirty 플래그가 세팅된 경우에만 저장
+  if (!stickyNotePlainDirtyMap[memoId]) return;
   const content = (element.innerText || "").trim();
+  stickyNotePlainDirtyMap[memoId] = false;
   state.suppressInlineFocus = true;
   workerSend("SAVE_INLINE_EDIT", { memoId, content, isRichText: false });
   state.isStickyNoteEditing = false;
   state.suppressInlineFocus = false;
   renderAssistantContent();
   renderStickyNotes();
+}
+
+/**
+ * saveAllDirtyNotes()
+ * dirty 상태인 모든 포스트잇(Quill + plain contenteditable)을 강제 저장합니다.
+ * closeAssistant / relocateStickyLayer / beforeunload / visibilitychange 에서 호출합니다.
+ */
+function saveAllDirtyNotes() {
+  // ① Quill rich-text dirty 노트 저장
+  Object.entries(stickyNoteDirtyMap).forEach(([memoId, dirty]) => {
+    if (!dirty) return;
+    const quill = stickyNoteQuillMap[memoId];
+    if (quill && document.body.contains(quill.root)) {
+      saveStickyNoteRichText(memoId, quill);
+    }
+  });
+
+  // ② plain contenteditable dirty 노트 저장
+  Object.entries(stickyNotePlainDirtyMap).forEach(([memoId, dirty]) => {
+    if (!dirty) return;
+    const el = document.querySelector(
+      `#sticky-layer .imsmassi-sticky-note-body[data-memo-id="${memoId}"]`
+    );
+    if (el) {
+      saveStickyNoteEdit(memoId, el);
+    } else {
+      // DOM이 없어도 state.memos에 현재 표시 텍스트가 없다면 스킵
+      stickyNotePlainDirtyMap[memoId] = false;
+    }
+  });
 }
 
 function focusInlineMemoEditor() {
@@ -2732,8 +2803,18 @@ function initStickyNoteDrop() {
       event.dataTransfer?.getData("text/plain");
     if (!memoId) return;
     event.preventDefault();
-    // 패널 내 드롭: 기본 위치 배치 (패널과 sticky-layer 좌표계가 다름)
-    addStickyNote(memoId);
+    const memo = state.memos[memoId];
+    const currentMenu = state.selectedMenu;
+    const isCurrentMenuMemo = !!(
+      memo?.labels?.includes(currentMenu) || memo?.menuId === currentMenu
+    );
+    if (memo && !isCurrentMenuMemo) {
+      // 다른 화면의 메모 → 복사/공유 선택 모달 호출
+      openMemoContextActionModal(memoId, null);
+    } else {
+      // 현재 화면 메모 → 바로 포스트잇 배치
+      addStickyNote(memoId);
+    }
   });
 
   // ── 2. sticky-layer 오버레이 영역 dragover/drop (내부시스템 오버레이 대응) ─
@@ -2768,7 +2849,17 @@ function initStickyNoteDrop() {
       if (!memoId) return;
 
       const { x, y } = _toLayerCoords(event);
-      addStickyNote(memoId, x, y);
+      const memo = state.memos[memoId];
+      const currentMenu = state.selectedMenu;
+      const isCurrentMenuMemo = !!(
+        memo?.labels?.includes(currentMenu) || memo?.menuId === currentMenu
+      );
+      if (memo && !isCurrentMenuMemo) {
+        // 다른 화면의 메모 → 복사/공유 선택 모달 호출
+        openMemoContextActionModal(memoId, { x, y, width: 220, height: 150 });
+      } else {
+        addStickyNote(memoId, x, y);
+      }
     },
     true /* capture */,
   );
@@ -2986,6 +3077,8 @@ function setupStickyLayerObserver(cfg = {}) {
  *   → 여러 .pg-id 가 존재하는 내부시스템에서 현재 화면과 레이어가 항상 일치함.
  *   → state 를 건드리지 않으므로 race condition 없음.
  */
+// windowContainerClass 자체가 DOM에 없을 때 반환하는 sentinel (pg-id 미발견과 구분)
+const _ANCHOR_MISSING = Symbol("ANCHOR_MISSING");
 function _resolveTargetContainer() {
   const cfg = _stickyLayerConfig;
   const anchorClass = cfg.windowContainerClass;
@@ -2997,7 +3090,7 @@ function _resolveTargetContainer() {
   const anchorEl = document.querySelector(`.${anchorClass}`);
   if (!anchorEl) {
     assiConsole.warn(`[Assistant] _resolveTargetContainer: .${anchorClass} 미발견`);
-    return null;
+    return _ANCHOR_MISSING;
   }
 
   // anchorEl 범위 내에서 pg-id 텍스트가 현재 menuId와 일치하는 요소를 찾는다
@@ -3042,6 +3135,7 @@ function _resolveTargetContainer() {
  */
 function relocateStickyLayer() {
   if (_stickyLayerRelocating) return;
+  saveAllDirtyNotes(); // 화면 컨텍스트 전환 전 미저장 내용 강제 플러시
 
   let layer = document.getElementById("sticky-layer");
   if (!layer) {
@@ -3077,7 +3171,29 @@ function relocateStickyLayer() {
 
   const targetElement = _resolveTargetContainer();
 
-  // 이미 같은 타겟이면 bounds 재동기화 + 노트 재렌더링만
+  // ── windowContainerClass 자체가 DOM에 없는 경우 ──
+  // sticky-layer DOM 제거 + 화면 ID 초기화 (pg-id 미발견과 구분)
+  if (targetElement === _ANCHOR_MISSING) {
+    layer.style.display = "none";
+    layer.style.visibility = "";
+    if (_stickyLayerResizeObserver) {
+      _stickyLayerResizeObserver.disconnect();
+      _stickyLayerResizeObserver = null;
+    }
+    if (_stickyLayerScrollAC) {
+      _stickyLayerScrollAC.abort();
+      _stickyLayerScrollAC = null;
+    }
+    _stickyLayerTargetEl = null;
+    // 화면 ID 초기화 (컨텍스트 무효)
+    if (state.selectedMenu) {
+      assiConsole.warn(`[Assistant] windowContainerClass 소실 → selectedMenu(${state.selectedMenu}) 초기화`);
+      state.selectedMenu = null;
+      workerSend("CONTEXT_CHANGE", { menuId: null });
+    }
+    _stickyLayerRelocating = false;
+    return;
+  }
   if (_stickyLayerTargetEl === targetElement && targetElement) {
     _syncStickyLayerBounds();
     renderStickyNotes();
@@ -3649,7 +3765,7 @@ window.addEventListener("message", (event) => {
 function getTodosFromReminders() {
   const todos = [];
 
-  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const today = toLocalDateStr(); // YYYY-MM-DD
 
   // 모든 메모 탐색 (state.memos는 객체 구조: {memoId: memoData})
   Object.values(state.memos).forEach((memo) => {
@@ -3833,17 +3949,10 @@ function showRightTopToast(title, content, areaId = "", duration = 6000) {
   // 애니메이션 트리거
   setTimeout(() => toastEl.classList.add("imsmassi-show"), 10);
 
-  // 자동 제거
+  // 자동 제거 (뱃지/타이틀은 RECORD_NOTIFICATION→Worker→syncNotifTabTitle 경로로만 처리)
   setTimeout(() => {
     toastEl.classList.remove("imsmassi-show");
     setTimeout(() => toastEl.remove(), 300);
-    // 창이 활성화(포커스)되어 있고 패널이 열려 있으면 이미 인지한 것으로 간주 → 즉시 읽음 처리
-    if (document.hasFocus() && state.assistantOpen) {
-      workerSend("MARK_REMINDER_READ", {});
-    } else {
-      setUnreadReminder(true);
-      incrementTabTitleCount();
-    }
   }, duration);
 }
 
@@ -3872,17 +3981,10 @@ function showBalloonNotification(title, content = "", duration = 6000) {
   // 애니메이션 트리거
   setTimeout(() => balloonEl.classList.add("imsmassi-show"), 10);
 
-  // 자동 제거
+  // 자동 제거 (뱃지/타이틀은 RECORD_NOTIFICATION→Worker→syncNotifTabTitle 경로로만 처리)
   setTimeout(() => {
     balloonEl.classList.remove("imsmassi-show");
     setTimeout(() => balloonEl.remove(), 400);
-    // 창이 활성화(포커스)되어 있고 패널이 열려 있으면 이미 인지한 것으로 간주 → 즉시 읽음 처리
-    if (document.hasFocus() && state.assistantOpen) {
-      workerSend("MARK_REMINDER_READ", {});
-    } else {
-      setUnreadReminder(true);
-      incrementTabTitleCount();
-    }
   }, duration);
 }
 
@@ -3901,10 +4003,44 @@ function clearTabTitleCount() {
   document.title = _originalDocTitle.replace(/^\(\d+\)\s*/, "");
 }
 
+/**
+ * syncNotifTabTitle()
+ * state.notifications 기준 미확인 수를 탭 타이틀 카운터와 동기화합니다.
+ * toggleNotificationRead / markAllNotificationsRead / STATE_UPDATE 이후 호출됩니다.
+ */
+function syncNotifTabTitle() {
+  const unread = (state.notifications || []).filter(n => !n.isRead).length;
+  _unreadReminderCount = unread;
+  const base = _originalDocTitle.replace(/^\(\d+\)\s*/, "");
+  if (unread > 0) {
+    document.title = `(${unread}) ${base}`;
+  } else {
+    document.title = base;
+  }
+  // 플로팅 버튼 뱃지 숫자 + 노출 동기화
+  const floatingBtn = document.getElementById("imsmassi-floating-btn");
+  if (floatingBtn) {
+    const badge = floatingBtn.querySelector(".imsmassi-assistant-badge");
+    if (badge) badge.textContent = unread > 0 ? String(unread) : "";
+    floatingBtn.classList.toggle("imsmassi-show-badge", unread > 0);
+  }
+  state.hasUnreadReminder = unread > 0;
+}
+
 function setUnreadReminder(isUnread) {
   state.hasUnreadReminder = isUnread;
   const floatingBtn = document.getElementById("imsmassi-floating-btn");
   if (floatingBtn) {
+    const badge = floatingBtn.querySelector(".imsmassi-assistant-badge");
+    if (badge) {
+      if (isUnread) {
+        // 정확한 숫자가 있으면 사용, 없으면 ! 표시
+        const unread = (state.notifications || []).filter(n => !n.isRead).length;
+        badge.textContent = unread > 0 ? String(unread) : "!";
+      } else {
+        badge.textContent = "";
+      }
+    }
     floatingBtn.classList.toggle("imsmassi-show-badge", !!isUnread);
   }
   if (!isUnread) {
@@ -3959,6 +4095,9 @@ async function checkReminders() {
             requireInteraction: false,
           });
         }
+
+        // 알림 이력 기록 (대시보드 미확인 알림 목록용)
+        workerSend('RECORD_NOTIFICATION', { memoId, title, firedAt: Date.now() });
 
         // 반복 알림이면 다음날로 이동
         if (memo.reminderRepeat) {
@@ -4018,19 +4157,15 @@ function testReminderNotification() {
   const title = "리마인더 테스트";
   const content = "리마인더 알림 테스트 메시지입니다.";
   const areaId = state.selectedArea || "underwriting";
-
-  console.group("[testReminderNotification] 알림 테스트 시작");
-  assiConsole.log("Notification API 존재:", "Notification" in window);
-  assiConsole.log("Notification.permission:", typeof Notification !== "undefined" ? Notification.permission : "N/A");
-  assiConsole.log("browserNotificationEnabled:", state.settings.browserNotificationEnabled);
-
+  const now = Date.now();
   showNotificationToast(title, content, areaId, 6000);
   sendBrowserNotification(title, {
     body: content,
-    tag: `reminder-test-${Date.now()}`,
+    tag: `reminder-test-${now}`,
     requireInteraction: false,
   });
-  console.groupEnd();
+  // 알림 이력 저장 (RECORD_NOTIFICATION) — 뱃지/타이틀은 Worker broadcastState→syncNotifTabTitle 경로로 반영
+  workerSend('RECORD_NOTIFICATION', { memoId: null, title, firedAt: now });
 }
 
 // ========================================
@@ -4038,15 +4173,11 @@ function testReminderNotification() {
 // ========================================
 function openAssistant() {
   state.assistantOpen = true;
-  // 패널 오픈 = 알림 인지로 간주 → 미확인 상태이면 Worker에 읽음 처리 전파 (모든 탭 일괄 초기화)
-  if (state.hasUnreadReminder) {
-    workerSend("MARK_REMINDER_READ", {});
-  }
-  setUnreadReminder(false);
   renderAssistant();
 }
 
 function closeAssistant() {
+  saveAllDirtyNotes(); // 포스트잇 미저장 내용 강제 플러시
   state.assistantOpen = false;
   renderAssistant();
 }
@@ -4086,7 +4217,7 @@ function buildReminderModal(data) {
   const memoId = data ? data.memoId : null;
   const memoForReminder = state.memos[memoId];
 
-  const todayDate = new Date().toISOString().split("T")[0];
+  const todayDate = toLocalDateStr();
   let reminderDate = todayDate,
     reminderTime = "14:00",
     reminderTitle = "",
@@ -4403,6 +4534,56 @@ function buildEditTemplateModal(data) {
   return { content, firstFocus: titleInput };
 }
 
+// ── 빌더: 메모 복사/공유 선택 모달 ──────────────────────────
+function buildMemoContextActionModal(data) {
+  const { memoId, placement } = data || {};
+  const currentMenu = state.selectedMenu;
+
+  const title = createElement("div", { className: "imsmassi-modal-title" });
+  title.innerHTML = `<span class="imsmassi-modal-icon imsmassi-icon-memo"></span>${t("modal.memoContextActionTitle")}`;
+
+  const bodyText = createElement("p", { className: "imsmassi-modal-body-text" });
+  bodyText.textContent = t("modal.memoContextActionBody", { menu: currentMenu });
+
+  const bodyDiv = createElement("div", { className: "imsmassi-modal-body" });
+  bodyDiv.appendChild(bodyText);
+
+  const optionsDiv = createElement("div", { className: "imsmassi-modal-options" });
+
+  const copyOption = createElement("button", { className: "imsmassi-modal-option-btn" });
+  copyOption.innerHTML = `<strong>${t("modal.memoContextActionCopyTitle")}</strong><span>${t("modal.memoContextActionCopyDesc")}</span>`;
+  copyOption.addEventListener("click", () => {
+    workerSend("COPY_MEMO_AND_STICKY", {
+      memoId,
+      targetMenuId: currentMenu,
+      targetAreaId: state.selectedArea,
+      placement: placement || null,
+    });
+    closeModal();
+  });
+
+  const shareOption = createElement("button", { className: "imsmassi-modal-option-btn" });
+  shareOption.innerHTML = `<strong>${t("modal.memoContextActionShareTitle")}</strong><span>${t("modal.memoContextActionShareDesc")}</span>`;
+  shareOption.addEventListener("click", () => {
+    addCurrentAreaLabel(memoId);
+    addStickyNote(memoId, placement?.x, placement?.y);
+    closeModal();
+  });
+
+  optionsDiv.append(copyOption, shareOption);
+
+  const cancelBtn = createElement("button", { className: "imsmassi-modal-btn imsmassi-modal-btn-secondary" });
+  cancelBtn.textContent = t("ui.btnCancel");
+  cancelBtn.addEventListener("click", closeModal);
+
+  const btnsGroup = createElement("div", { className: "imsmassi-modal-btns" });
+  btnsGroup.appendChild(cancelBtn);
+
+  const content = createElement("div");
+  content.append(title, bodyDiv, optionsDiv, btnsGroup);
+  return { content, firstFocus: copyOption };
+}
+
 // ── 빌더: 메모 삭제 확인 모달 ─────────────────────────
 function buildDeleteConfirmModal(data) {
   const c = getColors();
@@ -4439,6 +4620,38 @@ function buildDeleteConfirmModal(data) {
   return { content, firstFocus: null };
 }
 
+// ── 빌더: 템플릿 삭제 확인 모달 ─────────────────────────
+function buildTemplateDeleteConfirmModal(data) {
+  const { templateId } = data || {};
+
+  const title = createElement("div", { className: "imsmassi-modal-title" });
+  title.innerHTML = `<span class="imsmassi-modal-icon imsmassi-icon-warning"></span>${t("modal.templateDeleteTitle")}`;
+
+  const bodyText = createElement("p", { className: "imsmassi-modal-body-text" });
+  bodyText.textContent = t("modal.templateDeleteBody");
+
+  const bodyDiv = createElement("div", { className: "imsmassi-modal-body" });
+  bodyDiv.appendChild(bodyText);
+
+  const cancelBtn = createElement("button", { className: "imsmassi-modal-btn imsmassi-modal-btn-secondary" });
+  cancelBtn.textContent = t("ui.btnCancel");
+  cancelBtn.addEventListener("click", closeModal);
+
+  const deleteBtn = createElement("button", { className: "imsmassi-modal-btn imsmassi-modal-btn-danger" });
+  deleteBtn.textContent = t("ui.btnDelete");
+  deleteBtn.addEventListener("click", () => {
+    workerSend("DELETE_TEMPLATE", { templateId });
+    closeModal();
+  });
+
+  const btnsGroup = createElement("div", { className: "imsmassi-modal-btns" });
+  btnsGroup.append(cancelBtn, deleteBtn);
+
+  const content = createElement("div");
+  content.append(title, bodyDiv, btnsGroup);
+  return { content, firstFocus: cancelBtn };
+}
+
 // ── 빌더: 설정 모달 ───────────────────────────────────
 function buildSettingsModal(data) {
   const container = createElement("div");
@@ -4448,11 +4661,13 @@ function buildSettingsModal(data) {
 
 // ── 모달 빌더 라우팅 맵 ───────────────────────────────
 const MODAL_BUILDERS = {
+  memoContextAction: buildMemoContextActionModal,
   setReminder: buildReminderModal,
   templateSuggest: buildTemplateSuggestModal,
   addTemplate: buildAddTemplateModal,
   editTemplate: buildEditTemplateModal,
   deleteConfirm: buildDeleteConfirmModal,
+  templateDeleteConfirm: buildTemplateDeleteConfirmModal,
   settings: buildSettingsModal,
   clearAllDataConfirm: buildClearAllDataConfirmModal,
   shortcutManual: buildShortcutManualModal,
@@ -4674,7 +4889,7 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div class="imsmassi-settings-row imsmassi-settings-row-mt imsmassi-settings-row-backup${(() => { if (state.settings.backupReminder) { const _d = Math.floor((new Date() - new Date(state.settings.lastBackup)) / 86400000); if (_d >= 7) return ' imsmassi-settings-row-backup-warn'; } return ''; })()}">
+          <div class="imsmassi-settings-row imsmassi-settings-row-mt">
             <div>
               <span class="imsmassi-settings-label">${t("settings.backupNotifLabel")}</span>
               <div class="imsmassi-settings-desc">${t("settings.backupNotifDesc", {lastBackup: state.settings.lastBackup})}</div>
@@ -4688,7 +4903,7 @@ function getSettingsHtml(closeHandler) {
 
         <!-- 기능 설정 -->
         <div class="imsmassi-settings-section">
-          <div class="imsmassi-settings-section-title"><span class="imsmassi-modal-icon imsmassi-icon-settings"></span>${t("settings.sectionFeature")}</div>
+          <div class="imsmassi-settings-section-title" style="display: ${state.hiddenUI.featureSectionTitle !== false ? 'block' : 'none'};"><span class="imsmassi-modal-icon imsmassi-icon-settings"></span>${t("settings.sectionFeature")}</div>
           <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.areaColor ? "flex" : "none"};">
             <div>
               <span class="imsmassi-settings-label">${t("settings.areaColorLabel")}</span>
@@ -4761,7 +4976,7 @@ function getSettingsHtml(closeHandler) {
             <div class="imsmassi-cleanup-row">
               <span class="imsmassi-cleanup-label">${t("settings.oldMemoLabel")}</span>
               <select class="imsmassi-modal-input imsmassi-select-sm" id="setting-oldmemos">
-                <option value="0">${t("settings.cleanupNever")}</option>
+                <option value="0" ${(state.settings.autoCleanup.oldMemos === 0 || state.settings.autoCleanup.oldMemos == null) ? "selected" : ""}>${t("settings.cleanupNever")}</option>
                 <option value="90" ${state.settings.autoCleanup.oldMemos === 90 ? "selected" : ""}>${t("settings.cleanup90days")}</option>
                 <option value="180" ${state.settings.autoCleanup.oldMemos === 180 ? "selected" : ""}>${t("settings.cleanup180days")}</option>
                 <option value="365" ${state.settings.autoCleanup.oldMemos === 365 ? "selected" : ""}>${t("settings.cleanup1year")}</option>
@@ -4964,7 +5179,7 @@ async function addMemo() {
     menuId: state.selectedMenu,
     labels: [state.selectedMenu], // 현재 menuId만 포함
     reminder: null,
-    date: new Date().toISOString().split("T")[0],
+    date: toLocalDateStr(),
     isRichText: useRichText,
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -5290,6 +5505,19 @@ function _copyToClipboardFallback(content) {
     "position:fixed;top:0;left:0;opacity:0;pointer-events:none;z-index:-9999;";
   getAssistantRoot().appendChild(tempElement);
 
+  // quill-better-table 등 외부 라이브러리가 document 레벨 copy 이벤트를 가로채
+  // null.table 접근 오류를 일으키는 문제를 방지:
+  // 캡처 단계(capture phase)에서 먼저 실행하여 clipboardData를 직접 채우고
+  // stopImmediatePropagation()으로 이후 모든 리스너 실행을 차단한다.
+  const guardCopyHandler = (e) => {
+    e.stopImmediatePropagation();
+    if (e.clipboardData) {
+      e.clipboardData.setData("text/plain", content);
+      e.preventDefault();
+    }
+  };
+  document.addEventListener("copy", guardCopyHandler, { capture: true });
+
   try {
     tempElement.focus();
     tempElement.select();
@@ -5312,6 +5540,7 @@ function _copyToClipboardFallback(content) {
     showToast(t("system.clipboardCopyFail"));
     return false;
   } finally {
+    document.removeEventListener("copy", guardCopyHandler, { capture: true });
     getAssistantRoot().removeChild(tempElement);
     // 포커스 복구 (Quill 에디터 등 이전 포커스 상태로 되돌림)
     if (prevFocused && typeof prevFocused.focus === "function") {
@@ -5341,12 +5570,52 @@ function toggleCurrentAreaLabel(memoId) {
   workerSend("TOGGLE_LABEL", { memoId, menuId: currentMenu });
 }
 
+// 업무 화면의 메모를 현재 컨텍스트로 복사 (reminder/done 상태 초기화)
+function copyMemoToCurrentContext(memoId) {
+  const targetMenuId = state.selectedMenu;
+  const targetAreaId = state.selectedArea;
+  if (!targetMenuId) {
+    showToast(t("system.menuNotSelected"));
+    return;
+  }
+  workerSend('COPY_MEMO', { memoId, targetMenuId, targetAreaId });
+}
+
+// 개별 알림 읽음 토글
+function toggleNotificationRead(notifId) {
+  workerSend('MARK_NOTIFICATION_READ', { notifId });
+}
+
+// 모든 알림 읽음 처리
+function markAllNotificationsRead() {
+  workerSend('MARK_ALL_NOTIFICATIONS_READ', {});
+}
+
+// 알림 발송 시각 상대적 표시 (firedAt ms 타임스탬프 입력)
+function formatNotifTime(firedAt) {
+  const diffMs = Date.now() - firedAt;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return t('timeInsight.justNow');
+  if (diffMin < 60) return t('timeInsight.nMinutesAgo', { n: diffMin });
+  const diffHours = Math.floor(diffMin / 60);
+  const remMin = diffMin % 60;
+  if (diffHours < 24) return t('timeInsight.nHoursAgo', { hours: diffHours, minutes: remMin });
+  return t('timeInsight.nDaysAgo', { n: Math.floor(diffHours / 24) });
+}
+
+function openMemoContextActionModal(memoId, placement) {
+  openModal("memoContextAction", { memoId, placement: placement || null });
+}
+
 function createStickyNoteForMemo(memoId) {
   const memo = state.memos[memoId];
   if (!memo) return;
 
   const currentMenu = state.selectedMenu;
-  if (!currentMenu) return;
+  if (!currentMenu) {
+    showToast(t("system.stickyNoScreen"), "warning");
+    return;
+  }
 
   // 현재 화면(menuId) 기준으로 이미 포스트잇이 있는지 확인 (다른 화면 포스트잇과 혼동 방지)
   const alreadyOnScreen = (state.stickyNotes || []).some(
@@ -5354,6 +5623,15 @@ function createStickyNoteForMemo(memoId) {
   );
   if (alreadyOnScreen) {
     removeStickyNote(memoId);
+    return;
+  }
+
+  // 다른 화면의 메모 → 복사/공유 선택 모달 호출
+  const isCurrentMenuMemo = !!(
+    memo.labels?.includes(currentMenu) || memo.menuId === currentMenu
+  );
+  if (!isCurrentMenuMemo) {
+    openMemoContextActionModal(memoId, null);
     return;
   }
 
@@ -5573,9 +5851,11 @@ function _readSettingsFromDOM() {
       clipboard:
         parseInt(g("setting-clipboard")?.value) ||
         state.settings.autoCleanup.clipboard,
-      oldMemos:
-        parseInt(g("setting-oldmemos")?.value) ||
-        state.settings.autoCleanup.oldMemos,
+      oldMemos: (() => {
+        const raw = g("setting-oldmemos")?.value;
+        if (raw === undefined || raw === null) return state.settings.autoCleanup.oldMemos;
+        return Number(raw); // 0 입력이면 0 (삭제안함)
+      })(),
     },
     backupReminder:
       g("setting-backup")?.checked ?? state.settings.backupReminder,
@@ -5699,13 +5979,9 @@ function loadStateFromDB() {
 function renderAll() {
   initializeStyles();
   rebuildAssistantTabs();
-  renderControlPanel();
-  renderSystemPreview();
-  renderPalette();
   renderAssistant();
 }
 
-// ====== 배포시 제거 시작: 데모/미리보기 렌더링 함수 ======
 function renderControlPanel() {
   const theme = getTheme();
   const themeButtons = document.getElementById("theme-buttons");
@@ -5935,7 +6211,6 @@ function renderPalette() {
   if (!areaColors) return;
   areaColors.innerHTML = areaColorsHtml;
 }
-// ====== 배포시 제거 끝: 데모/미리보기 렌더링 함수 ======
 /**
  * fragment HTML의 정적 요소(패널 제목, 푸터 버튼 등)를 현재 언어로 동기화합니다.
  * renderAssistant 조기 반환 여부와 무관하게 setLocale에서 직접 호출됩니다.
@@ -6107,8 +6382,16 @@ function calculateAppUsageMB() {
 }
 
 async function updateStorageEstimate() {
+  // Worker 모드: storageUsed/storageLimit 은 Worker가 STATE_UPDATE로 이미 제공합니다.
+  // 모든 탭이 동일한 Worker 값을 공유하므로 클라이언트에서 재계산하지 않습니다.
+  if (workerPort) {
+    updateFooterStorageInfo(getColors());
+    return;
+  }
+
+  // 폴백 모드 (Worker 연결 없음): 직접 계산
   const limitMB = 50;
-  let usedMB = calculateAppUsageMB(); // 기본값: Blob 추정치
+  let usedMB = calculateAppUsageMB();
 
   try {
     if (navigator.storage && navigator.storage.estimate) {
@@ -6261,9 +6544,7 @@ function renderMemoItemDOM(memo) {
     draggable: "false",
     title: memo.pinned ? t("memoTab.unpinTitle") : t("memoTab.pinTitle"),
   });
-  pinBtn.addEventListener("click", () =>
-    togglePin(memo.id).catch((e) => console.error("고정 실패:", e)),
-  );
+  pinBtn.addEventListener("click", () => togglePin(memo.id));
   pinBtn.addEventListener("mousedown", (e) => e.stopPropagation());
 
   const titleSpan = createElement("span", {
@@ -6337,7 +6618,16 @@ function renderMemoItemDOM(memo) {
     contentDiv.appendChild(inlineText);
   }
 
-  // ── 푸터 (원산지 · 날짜 · 액션 버튼) ──
+  // ── 날짜 행 (날짜 + 컨텍스트 바 토글) ──
+  const dateRow = createElement("div", {
+    className: "imsmassi-memo-date-row",
+  });
+
+  const dateSpan = createElement("span", { className: "imsmassi-memo-date" });
+  dateSpan.textContent = memo.date;
+  dateRow.appendChild(dateSpan);
+
+  // ── 하단 푸터 (화면ID · 스티커추가 · 알림설정) ──
   const footer = createElement("div", {
     className: "imsmassi-memo-item-tags imsmassi-memo-item-footer",
   });
@@ -6348,9 +6638,6 @@ function renderMemoItemDOM(memo) {
     className: "imsmassi-memo-origin-badge",
   });
   originBadge.textContent = createdAreaName;
-
-  const dateSpan = createElement("span", { className: "imsmassi-memo-date" });
-  dateSpan.textContent = memo.date;
 
   const currentMenu = state.selectedMenu;
   const currentStickyNote = (state.stickyNotes || []).find(
@@ -6365,11 +6652,11 @@ function renderMemoItemDOM(memo) {
   });
 
   const screenBtn = createElement("button", {
-    className: `imsmassi-memo-action-btn imsmassi-screen-btn${hasStickyNote ? " imsmassi-screen-btn-active" : ""}`,
+    className: `imsmassi-memo-action-btn imsmassi-screen-btn${hasStickyNote ? " imsmassi-screen-btn-active" : ""}${isStickyOutOfView ? " imsmassi-screen-btn-offview" : ""}`,
     draggable: "false",
-    title: hasStickyNote ? t("memoTab.btnRemoveSticky") : t("memoTab.btnAddSticky"),
+    title: isStickyOutOfView ? t("memoTab.offScreenBadgeTitle") : hasStickyNote ? t("memoTab.btnRemoveSticky") : t("memoTab.btnAddSticky"),
   });
-  screenBtn.innerHTML = `${hasStickyNote ? t("memoTab.btnRemoveSticky") : t("memoTab.btnAddSticky")}`;
+  screenBtn.innerHTML = `${isStickyOutOfView ? t("memoTab.offScreenBadge") : hasStickyNote ? t("memoTab.btnRemoveSticky") : t("memoTab.btnAddSticky")}`;
   // --screen-btn-color/shadow는 CSS .imsmassi-screen-btn:not(.imsmassi-screen-btn-active)에서 var(--imsmassi-area-color)로 자동 연결
   screenBtn.addEventListener("click", () => createStickyNoteForMemo(memo.id));
   screenBtn.addEventListener("mousedown", (e) => e.stopPropagation());
@@ -6385,18 +6672,10 @@ function renderMemoItemDOM(memo) {
 
   actionsDiv.append(screenBtn, reminderBtn);
 
-  // 포스트잇이 현재 화면 밖에 위치한 경우 → 화면 밖 표시 뱃지
-  if (isStickyOutOfView) {
-    const outBadge = createElement("span", {
-      className: "imsmassi-sticky-outofview-badge",
-      title: t("memoTab.offScreenBadgeTitle"),
-    });
-    outBadge.textContent = t("memoTab.offScreenBadge");
-    actionsDiv.appendChild(outBadge);
-  }
+  footer.append(originBadge, actionsDiv);
 
-  footer.append(originBadge, dateSpan, actionsDiv);
-  item.append(header, contentDiv, footer);
+  item.append(header, contentDiv, dateRow, footer);
+
   return item;
 }
 
@@ -7018,7 +7297,7 @@ function renderTemplateItemDOM(template) {
   // 기본 색상은 CSS .imsmassi-memo-delete-btn { color: var(--imsmassi-sub-text) }
   deleteBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    deleteTemplate(template.id);
+    openModal("templateDeleteConfirm", { templateId: template.id });
   });
 
   const editBtn = createElement("button", {
@@ -7211,7 +7490,7 @@ function renderDashboardTab() {
     const daysSinceBackup = Math.floor(
       (today - lastBackup) / (1000 * 60 * 60 * 24),
     );
-    if (daysSinceBackup >= 7) {
+    if (daysSinceBackup >= 30) {
       backupBannerHtml = `
         <div class="imsmassi-dashboard-banner imsmassi-dashboard-banner-backup">
           <span class="imsmassi-dashboard-banner-icon imsmassi-icon-save"></span>
@@ -7317,23 +7596,50 @@ function renderDashboardTab() {
     `;
     });
 
-  // 테스트 버튼 영역
-  const testButtonsHtml = `
-    <div style="margin-bottom: 16px; padding: 12px; background: ${state.isDarkMode ? "#1a2a1a" : "#F0FFF0"}; border: 1px dashed ${state.isDarkMode ? "#4a6a4a" : "#90EE90"}; border-radius: 8px;">
-      <div style="font-size: 11px; color: ${state.isDarkMode ? "#90EE90" : "#228B22"}; margin-bottom: 8px; font-weight: 600;">🧪 상태 시뮬레이션 (테스트용)</div>
-      <div style="display: flex; gap: 6px; imsmassi-flex-wrap: wrap;">
-        <button style="padding: 5px 10px; font-size: 10px; background: #FFF3CD; color: #856404; border: 1px solid #F0D78C; border-radius: 4px; cursor: pointer;" onclick="simulateBackupWarning()">백업 경고</button>
-        <button style="padding: 5px 10px; font-size: 10px; background: #F8D7DA; color: #721C24; border: 1px solid #F5C6CB; border-radius: 4px; cursor: pointer;" onclick="simulateStorageWarning()">용량 부족</button>
-        <button style="padding: 5px 10px; font-size: 10px; background: #FFE4B5; color: #8B4513; border: 1px solid #DEB887; border-radius: 4px; cursor: pointer;" onclick="simulateBothWarnings()">둘 다</button>
-        <button style="padding: 5px 10px; font-size: 10px; background: #E8F5E9; color: #2E7D32; border: 1px solid #A5D6A7; border-radius: 4px; cursor: pointer;" onclick="simulateNormal()">정상</button>
+  // ${backupBannerHtml}
+
+  // 알림 내역 — 미확인(unread) 항목만 표시, 확인 처리 시 목록에서 제거됨
+  const allUnreadNotifs = (state.notifications || []).filter(n => !n.isRead);
+  const unreadCount = allUnreadNotifs.length; // 전체 미확인 알림 수 (뱃지/타이틀 카운트 기준)
+  const allNotifs = allUnreadNotifs
+    .slice()
+    .sort((a, b) => (b.firedAt || 0) - (a.firedAt || 0))
+    .slice(0, 7);
+  let notifItemsHtml = '';
+  allNotifs.forEach(notif => {
+    const ago = formatNotifTime(notif.firedAt);
+    const safeTitle = escapeHtml(notif.title || t('modal.reminderTitle') || '알림');
+    const readBtn = `<button class="imsmassi-dashboard-unread-read-btn" onclick="toggleNotificationRead(${notif.id})">${t('dashboard.notifMarkRead')}</button>`;
+    notifItemsHtml += `
+      <div class="imsmassi-dashboard-unread-item imsmassi-notif-unread">
+        <span class="imsmassi-dashboard-unread-title">${safeTitle}</span>
+        <span class="imsmassi-dashboard-unread-time">${ago}</span>
+        ${readBtn}
       </div>
+    `;
+  });
+  const notifEmptyHtml = allNotifs.length === 0
+    ? `<div class="imsmassi-dashboard-empty">${t('dashboard.unreadNotificationsEmpty')}</div>`
+    : '';
+  const notifBadge = unreadCount > 0
+    ? `<span class="imsmassi-notif-count-badge">${unreadCount}</span>`
+    : '';
+  const unreadNotifsSection = `
+    <div class="imsmassi-dashboard-section imsmassi-dashboard-section-unread">
+      <div class="imsmassi-dashboard-section-header">
+        <span>${t('dashboard.sectionUnreadNotifications')}${notifBadge}</span>
+        ${unreadCount > 0 ? `<button class="imsmassi-notif-markall-btn" onclick="markAllNotificationsRead()">${t('dashboard.notifMarkAllRead')}</button>` : ''}
+      </div>
+      ${notifItemsHtml}
+      ${notifEmptyHtml}
     </div>
   `;
-  // ${testButtonsHtml}
-  // ${backupBannerHtml}
+
   return `
     <div>
+      ${backupBannerHtml}
       ${storageWarningHtml}
+      ${unreadNotifsSection}
       <div id="imsmassi-dashboard-today" class="imsmassi-dashboard-section">
         <div class="imsmassi-dashboard-section-header">
           <span>${t("dashboard.sectionToday")}</span> 
@@ -7503,34 +7809,8 @@ function connectToWorker(workerPath, loginId, initialContext = {}) {
     const worker = new SharedWorker(workerPath, { name: "assistant-worker" });
     workerPort = worker.port;
 
-    workerPort.addEventListener("message", (event) => {
-      const { type, payload } = event.data || {};
-      switch (type) {
-        case "STATE_UPDATE":
-          handleStateUpdate(payload);
-          break;
-        case "TOAST":
-          if (payload?.messageKey) {
-            showToast(t(payload.messageKey, payload.params));
-          } else {
-            showToast(payload?.message || "");
-          }
-          break;
-        case "EXPORT_DATA_RESULT":
-          downloadExportData(payload?.data);
-          break;
-        case "TEMPLATE_SUGGEST":
-          // 모달이 이미 열려있으면 무시
-          if (!state.currentModal) {
-            openModal("templateSuggest", {
-              suggestedText: payload?.suggestedText || "",
-            });
-          }
-          break;
-        default:
-          assiConsole.warn("[Assistant] Worker로부터 알 수 없는 메시지:", type);
-      }
-    });
+    // 수신 메시지를 중앙 라우터(dispatchWorkerMessage)에 위임
+    workerPort.addEventListener('message', dispatchWorkerMessage);
 
     workerPort.start();
     // INIT 메시지로 초기 상태 요청 (initialContext 포함 → 레이스 없이 원자적 컨텍스트 설정)
@@ -7654,15 +7934,14 @@ window.addEventListener("assistant:mounted", (event) => {
   function notifyActive(isActive) {
     if (!window.assistantInitialized) return;
     workerSend("TAB_ACTIVE", { isActive });
-    // 탭 복귀(isActive=true) 시: 패널이 이미 열려 있고 미확인 알림이 있으면 즉시 카운트 0 초기화 + 모든 탭 동기화
-    if (isActive && state.assistantOpen && state.hasUnreadReminder) {
-      setUnreadReminder(false);
-      workerSend("MARK_REMINDER_READ", {});
-    }
+
   }
 
   // Page Visibility API: 탭 전환/최소화 감지
   document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      saveAllDirtyNotes(); // 탭 비활성화 시 미저장 포스트잇 강제 플러시
+    }
     notifyActive(document.visibilityState === "visible");
   });
 
@@ -7674,6 +7953,7 @@ window.addEventListener("assistant:mounted", (event) => {
 // 페이지 닫기 전 Worker에 저장 요청
 window.addEventListener("beforeunload", () => {
   if (!window.assistantInitialized) return;
+  saveAllDirtyNotes(); // 창 닫기 전 미저장 포스트잇 강제 플러시
   // Worker에게 저장 요청 (sync-over-async 불필요, Worker가 자체 처리)
   workerSend("BEFORE_UNLOAD", {});
   stopReminderSystem();
@@ -7689,17 +7969,18 @@ window.addEventListener("beforeunload", () => {
 });
 /**
  * [개발자 도구 전용] 특정 고급 설정 UI 항목 노출/숨김 개별 토글
- * @param {string} key - 'areaColor' | 'timeInsight' | 'markdown' | 'debugLog' | 'autoNav' | 'theme' | 'darkMode' | 'sideTabs' | 'shortcutManual'
+ * @param {string} key - 'areaColor' | 'timeInsight' | 'markdown' | 'debugLog' | 'autoNav' | 'theme' | 'darkMode' | 'sideTabs' | 'shortcutManual' | 'featureSectionTitle'
  * @param {boolean} visible - 노출 여부 (true: 표시, false: 숨김)
  *
  * 사용 예시 (브라우저 콘솔):
- *   toggleAssistantHiddenUI('sideTabs', false);       // 좌측 사이드 탭 버튼 그룹 숨김
- *   toggleAssistantHiddenUI('sideTabs', true);        // 좌측 사이드 탭 버튼 그룹 표시
- *   toggleAssistantHiddenUI('theme', true);           // 푸터 테마 UI 표시
- *   toggleAssistantHiddenUI('darkMode', true);        // 푸터 다크모드 버튼 표시
- *   toggleAssistantHiddenUI('areaColor', true);       // 업무 컬러 설정 표시
- *   toggleAssistantHiddenUI('markdown', false);       // 마크다운 단축키 숨김
- *   toggleAssistantHiddenUI('shortcutManual', true);  // 헤더 단축키 메뉴얼 버튼 표시
+ *   toggleAssistantHiddenUI('sideTabs', false);              // 좌측 사이드 탭 버튼 그룹 숨김
+ *   toggleAssistantHiddenUI('sideTabs', true);               // 좌측 사이드 탭 버튼 그룹 표시
+ *   toggleAssistantHiddenUI('theme', true);                  // 푸터 테마 UI 표시
+ *   toggleAssistantHiddenUI('darkMode', true);               // 푸터 다크모드 버튼 표시
+ *   toggleAssistantHiddenUI('areaColor', true);              // 업무 컬러 설정 표시
+ *   toggleAssistantHiddenUI('markdown', false);              // 마크다운 단축키 숨김
+ *   toggleAssistantHiddenUI('shortcutManual', true);         // 헤더 단축키 메뉴얼 버튼 표시
+ *   toggleAssistantHiddenUI('featureSectionTitle', false);   // 기능 설정 섹션 타이틀 숨김
  */
 window.toggleAssistantHiddenUI = function (key, visible = true) {
   // 상태 안전성 검사
@@ -7714,6 +7995,7 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
       darkMode: false,
       sideTabs: false,
       shortcutManual: false,
+      featureSectionTitle: true,
     };
   }
 
@@ -8034,8 +8316,13 @@ const AssistantGuide = {
     this._active = false;
     this._cleanup();
     this._removeDemoPostit();
-    // 딜레이 없이 바로 시작 (패널 닫힘은 step 1 setup에서 처리)
-    setTimeout(() => this.start(), 80);
+    _guideTriggered = true; // handleStateUpdate 재트리거 방지
+    // 모달 → 패널 닫고, 플로팅 버튼이 노출된 상태에서 가이드 시작 (step 1 타겟)
+    closeModal();
+    setTimeout(() => {
+      closeAssistant();
+      setTimeout(() => this.start(), 300);
+    }, 120);
   },
 
   // ── 내부 헬퍼 ──────────────────────────────────────────────────────────────────

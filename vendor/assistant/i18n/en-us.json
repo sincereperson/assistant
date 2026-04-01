@@ -33,6 +33,7 @@
     "memoCompleted": "Marked as complete",
     "memoUncompleted": "Marked as incomplete",
     "stickyCreated": "✓ Sticky note created",
+    "stickyNoScreen": "⚠️ Current screen not recognized. Please open a work screen first.",
     "externalDataReceived": "External data received",
     "memoSizeExceeded": "⚠️ Memo size limit exceeded (max 2MB)",
     "memo2mbExceeded": "⚠️ Memo size exceeds 2MB",
@@ -61,7 +62,8 @@
     "memoSaveSuccess": "Memo saved",
     "tagAdded": "\u201c{tag}\u201d tag added",
     "memoLabelAlreadyAdded": "⚠️ This memo is already added to the current menu ({currentMenu})",
-    "clipboardCopySuccess": "✓ Copied to clipboard: {preview}"
+    "clipboardCopySuccess": "✓ Copied to clipboard: {preview}",
+    "memoCopied": "✓ Memo copied to current screen"
   },
 
   "ui": {
@@ -123,6 +125,9 @@
     "memoDeleteTitle": "Delete Memo",
     "memoDeleteBody": "Are you sure you want to delete this memo? (Sticky notes will also be removed.)",
 
+    "templateDeleteTitle": "Delete Template",
+    "templateDeleteBody": "Are you sure you want to delete this template?",
+
     "clearAllTitle": "Permanently Delete Data",
     "clearAllBody": "Are you sure you want to permanently delete all saved memos and clipboard history?",
     "clearAllBodySub": "(Settings and templates will be kept. This action cannot be undone.)",
@@ -134,7 +139,14 @@
     "shortcutGroupEtc": "Other",
     "shortcutFooter": "For more help, please contact your administrator.",
 
-    "settingsTitle": "Settings"
+    "settingsTitle": "Settings",
+
+    "memoContextActionTitle": "Choose How to Add Memo",
+    "memoContextActionBody": "Choose how to add this memo to the current screen ({menu}).",
+    "memoContextActionCopyTitle": "Copy",
+    "memoContextActionCopyDesc": "Creates a new copy of the memo on the current screen.",
+    "memoContextActionShareTitle": "Share",
+    "memoContextActionShareDesc": "Displays the original memo on the current screen as well."
   },
 
   "settings": {
@@ -202,11 +214,13 @@
     "btnClearReminder": "Clear Reminder",
     "reminderSetTitle": "Set Reminder",
     "reminderEditTitle": "Edit Reminder",
-    "offScreenBadge": "📍 Off Screen",
+    "offScreenBadge": "Off Screen",
     "offScreenBadgeTitle": "Sticky note is currently off screen",
     "storageInitial": "0 B / 2 MB",
     "clipboardPanelHeader": "Clipboard",
-    "templatePanelHeader": "Templates"
+    "templatePanelHeader": "Templates",
+    "btnCopyMemo": "Copy",
+    "btnShareMemo": "Share"
   },
 
   "sticky": {
@@ -245,7 +259,7 @@
     "sectionToday": "Today's Tasks",
     "sectionPast": "Past Tasks",
     "sectionRecentMemo": "Recent Memos",
-    "sectionAreaColor": "🎨 Area Color Settings",
+    "sectionAreaColor": "Area Color Settings",
     "sectionTimeInsight": "Time Insight",
     "todayEmpty": "No tasks for today",
     "pastEmpty": "No past tasks",
@@ -256,7 +270,11 @@
     "colorMain": "Main",
     "colorSub1": "Sub1",
     "colorSub2": "Sub2",
-    "colorResetTitle": "Reset to defaults"
+    "colorResetTitle": "Reset to defaults",
+    "sectionUnreadNotifications": "Unread Notifications",
+    "unreadNotificationsEmpty": "No unread notifications",
+    "notifMarkRead": "Mark Read",
+    "notifMarkAllRead": "Mark All Read"
   },
 
   "timeInsight": {

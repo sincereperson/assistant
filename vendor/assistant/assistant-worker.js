@@ -18,11 +18,11 @@
 // Tier 3: IndexedDB 관리 모듈
 // ========================================
 class AssistantDB {
-  constructor(dbName = 'AssistantDB', dbVersion = 5) {
+  constructor(dbName = 'AssistantDB', dbVersion = 6) {
     this.dbName = dbName;
     this.dbVersion = dbVersion;
     this.db = null;
-    this.stores = ['memos', 'clipboard', 'templates', 'settings', 'metadata', 'userinfo'];
+    this.stores = ['memos', 'clipboard', 'templates', 'settings', 'metadata', 'userinfo', 'notifications'];
   }
 
   async init() {
@@ -58,6 +58,12 @@ class AssistantDB {
         // userinfo 스토어: 암호화된 사용자 정보 (key-value, key='current')
         if (!db.objectStoreNames.contains('userinfo')) {
           db.createObjectStore('userinfo');
+        }
+        // notifications 스토어: 알림 발송 이력 { id(자동증가), memoId, title, firedAt, isRead }
+        if (!db.objectStoreNames.contains('notifications')) {
+          const ns = db.createObjectStore('notifications', { keyPath: 'id', autoIncrement: true });
+          ns.createIndex('memoId', 'memoId', { unique: false });
+          ns.createIndex('isRead', 'isRead', { unique: false });
         }
       };
     });
@@ -278,14 +284,15 @@ class AssistantDB {
     const memos = await this.getAllMemos();
     const templates = await this.getAllTemplates();
     const settings = await this.getAllSettings();
-    const clipboard = await this.getClipboardItems(500); // Issue 4: 클립보드 포함
-    const filteredSettings = settings.filter(s => !['menu_time_stats', 'time_buckets'].includes(s.key));
-    return { version: '1.0', exportDate: new Date().toISOString(), data: { memos, templates, settings: filteredSettings, clipboard } };
+    const clipboard = await this.getClipboardItems(500);
+    const stickyNotes = (await this.getSetting('sticky_notes')) || [];
+    const filteredSettings = settings.filter(s => !['menu_time_stats', 'time_buckets', 'sticky_notes'].includes(s.key));
+    return { version: '1.0', exportDate: new Date().toISOString(), data: { memos, templates, settings: filteredSettings, clipboard, stickyNotes } };
   }
 
   async importData(importedData) {
     if (!importedData.data) throw new Error('잘못된 데이터 형식');
-    const { memos = [], templates = [], settings = [], clipboard = [] } = importedData.data;
+    const { memos = [], templates = [], settings = [], clipboard = [], stickyNotes } = importedData.data;
     const normalizedMemos = Array.isArray(memos) ? memos : Object.values(memos || {});
     const normalizedTemplates = Array.isArray(templates) ? templates : Object.values(templates || {});
     const normalizedClipboard = Array.isArray(clipboard) ? clipboard : Object.values(clipboard || {});
@@ -323,8 +330,15 @@ class AssistantDB {
     }
     for (const setting of normalizedSettings) {
       if (!setting || !setting.key) continue;
-      if (['menu_time_stats', 'time_buckets'].includes(setting.key)) continue;
+      if (['menu_time_stats', 'time_buckets', 'sticky_notes'].includes(setting.key)) continue;
       await this.saveSetting(setting.key, setting.value);
+    }
+    // 포스트잇 복원: 최상위 stickyNotes 필드 우선, 없으면 settings 내 sticky_notes 폴백
+    const stickyToRestore = Array.isArray(stickyNotes)
+      ? stickyNotes
+      : (normalizedSettings.find(s => s.key === 'sticky_notes')?.value || []);
+    if (Array.isArray(stickyToRestore)) {
+      await this.saveSetting('sticky_notes', stickyToRestore);
     }
     return { success: true, imported: normalizedMemos.length + normalizedTemplates.length + normalizedClipboard.length };
   }
@@ -349,6 +363,66 @@ class AssistantDB {
         const req = store.get('current');
         req.onsuccess = () => resolve(req.result || null);
         req.onerror   = () => resolve(null);
+      });
+    });
+  }
+
+  // ── 알림 이력 메서드 ──
+  async addNotification(notification) {
+    return this.transaction('notifications', 'readwrite', (store) => {
+      return new Promise((resolve, reject) => {
+        const req = store.add(notification);
+        req.onsuccess = () => resolve(req.result); // 새로 생성된 id 반환
+        req.onerror   = () => reject(req.error);
+      });
+    });
+  }
+
+  async getAllNotifications() {
+    return this.transaction('notifications', 'readonly', (store) => {
+      return new Promise((resolve) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve((req.result || []).sort((a, b) => b.firedAt - a.firedAt));
+      });
+    });
+  }
+
+  async markNotificationRead(notifId) {
+    return this.transaction('notifications', 'readwrite', (store) => {
+      return new Promise((resolve, reject) => {
+        const req = store.get(notifId);
+        req.onsuccess = () => {
+          const notif = req.result;
+          if (notif) { notif.isRead = true; store.put(notif); }
+          resolve();
+        };
+        req.onerror = () => reject(req.error);
+      });
+    });
+  }
+
+  async markAllNotificationsRead() {
+    return this.transaction('notifications', 'readwrite', (store) => {
+      return new Promise((resolve) => {
+        const req = store.getAll();
+        req.onsuccess = () => {
+          req.result.forEach(n => { n.isRead = true; store.put(n); });
+          resolve(req.result.length);
+        };
+      });
+    });
+  }
+
+  async clearOldNotifications(daysToKeep = 30) {
+    const cutoff = Date.now() - (daysToKeep * 24 * 60 * 60 * 1000);
+    return this.transaction('notifications', 'readwrite', (store) => {
+      return new Promise((resolve) => {
+        const req = store.getAll();
+        req.onsuccess = () => {
+          const old = req.result.filter(n => n.firedAt < cutoff);
+          old.forEach(n => store.delete(n.id));
+          resolve(old.length);
+        };
       });
     });
   }
@@ -393,11 +467,11 @@ const state = {
   areaColors: {},   // 업무영역별 커스텀 컬러 { UW: { primary, sub1, sub2 }, ... }
   userInfo: null,   // 암호화된 사용자 정보 (복호화는 클라이언트에서 처리)
   settings: {
-    autoCleanup: { clipboard: 7, oldMemos: 90 },
+    autoCleanup: { clipboard: 7, oldMemos: 0 },
     lowSpecMode: false,
     debugLogs: true,
     backupReminder: true,
-    lastBackup: '2026-02-28',
+    lastBackup: new Date().toISOString().split('T')[0],
     enableClipboardCapture: true,
     markdownEnabled: true,
     autoNavigateToDashboard: true,
@@ -411,10 +485,14 @@ const state = {
   nextClipboardId: 10,
   hasSeenGuide: null,
   hasUnreadReminder: false, // 미확인 리마인더 알림 전역 상태
+  notifications: [],        // 알림 발송 이력 { id, memoId, title, firedAt, isRead }
   panelHeight: null,          // px, null = CSS 기본값
   panelWidth: null,           // px, null = CSS 기본값
   panelWidthCollapsed: null,  // 접힌 상태 저장 너비
   panelWidthExpanded: null,   // 펼친 상태 저장 너비
+  // 용량 추적 — Worker가 권위적 소스 (모든 탭이 공유)
+  storageUsed: 0,   // MB
+  storageLimit: 50, // MB
 };
 
 // ========================================
@@ -485,6 +563,21 @@ function broadcast(type, payload) {
   });
 }
 
+// ========================================
+// Worker 디버그 포워더
+// Worker 내부 로그를 클라이언트 F12 콘솔로 전달 (chrome://inspect 없이 디버깅 가능)
+// ========================================
+/**
+ * workerConsole.log  - debugLogs 설정이 켜진 경우에만 전달 (노이즈 억제)
+ * workerConsole.warn  - 항상 전달 (알 수 없는 메시지 타입 등)
+ * workerConsole.error - 항상 전달 (핸들러 오류 등 크리티컬)
+ */
+const workerConsole = {
+  log:   (...args) => { if (state?.settings?.debugLogs) broadcast('WORKER_DEBUG_LOG', { level: 'log',   args }); },
+  warn:  (...args) => broadcast('WORKER_DEBUG_LOG', { level: 'warn',  args }),
+  error: (...args) => broadcast('WORKER_DEBUG_LOG', { level: 'error', args }),
+};
+
 /** 특정 포트에만 메시지 전송 */
 function sendTo(port, type, payload) {
   try { port.postMessage({ type, payload }); }
@@ -522,10 +615,14 @@ function getSnapshot(port) {
     userInfo:            state.userInfo,
     hasSeenGuide:        state.hasSeenGuide,
     hasUnreadReminder:   state.hasUnreadReminder,
+    notifications:       state.notifications,
     panelHeight:            state.panelHeight,
     panelWidth:             state.panelWidth,
     panelWidthCollapsed:    state.panelWidthCollapsed,
     panelWidthExpanded:     state.panelWidthExpanded,
+    // 용량 정보 — Worker가 계산해 클라이언트로 전달
+    storageUsed:            state.storageUsed,
+    storageLimit:           state.storageLimit,
   };
 }
 
@@ -650,13 +747,54 @@ async function saveMenuTimeStats() {
   }
 }
 
+// ── 워커 용량 추산 (Worker가 권위적 소스 — 모든 탭 공유) ──
+/**
+ * Worker state 데이터를 JSON 직렬화해 Blob 크기로 용량을 추정합니다.
+ * IndexedDB 오버헤드 1.5배 보정 적용.
+ */
+function calculateWorkerStorageMB() {
+  try {
+    const payload = {
+      memos:         state.memos,
+      stickyNotes:   state.stickyNotes,
+      clipboard:     state.clipboard,
+      templates:     state.templates,
+      menuTimeStats: state.menuTimeStats,
+      timeBuckets:   state.timeBuckets,
+    };
+    const bytes = new Blob([JSON.stringify(payload)]).size;
+    return (bytes * 1.5) / (1024 * 1024);
+  } catch (_) {
+    return 0;
+  }
+}
+
+/**
+ * state.storageUsed 를 최신 값으로 갱신합니다.
+ * navigator.storage.estimate() 지원 시 우선 사용, 미지원 시 Blob 추정치 사용.
+ * Worker 스코프에서 비동기 await 가능.
+ */
+async function refreshStorageUsed() {
+  state.storageLimit = 50;
+  try {
+    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.estimate) {
+      const estimate = await navigator.storage.estimate();
+      if (estimate.usage && estimate.usage > 0) {
+        state.storageUsed = estimate.usage / (1024 * 1024);
+        return;
+      }
+    }
+  } catch (_) { /* 미지원 환경 폴백 */ }
+  state.storageUsed = calculateWorkerStorageMB();
+}
+
 // ========================================
 // DB 초기화 및 상태 로드
 // ========================================
 async function ensureInit(loginId) {
   if (_initialized) return;
   const dbName = loginId ? `AssistantDB_${loginId}` : 'AssistantDB_public';
-  db = new AssistantDB(dbName, 5);
+  db = new AssistantDB(dbName, 6);
   await loadStateFromDB();
   _initialized = true;
 }
@@ -873,6 +1011,15 @@ async function loadStateFromDB() {
     console.warn('[Worker] userInfo 로드 실패:', e);
   }
 
+  // 알림 이력 로드 (30일 이상 된 항목 자동 정리)
+  try {
+    const savedNotifications = await db.getAllNotifications();
+    if (savedNotifications.length > 0) state.notifications = savedNotifications;
+    await db.clearOldNotifications(30);
+  } catch (e) {
+    console.warn('[Worker] notifications 로드 실패:', e);
+  }
+
   await loadMenuTimeStats();
   await runAutoCleanup({ silent: true });
 }
@@ -943,12 +1090,20 @@ async function handleContextChange(port, payload) {
 
 async function handleAddMemo(port, payload) {
   const { memoId, memoData } = payload;
+  // 저장 전 용량 갱신 — Worker가 모든 탭의 공유 상태를 기준으로 판단
+  await refreshStorageUsed();
+  if (state.storageUsed >= state.storageLimit) {
+    sendTo(port, 'TOAST', { messageKey: 'system.storageExceeded' });
+    return;
+  }
   await db.addMemo(memoId, memoData);
   state.memos[memoId] = memoData;
   ensureMenuIndex(memoData.menuId);
   if (!state.memosByArea[memoData.menuId].includes(memoId)) {
     state.memosByArea[memoData.menuId].unshift(memoId);
   }
+  // 저장 후 용량 재계산 → broadcastState로 모든 탭에 최신 storageUsed 전파
+  await refreshStorageUsed();
   broadcastState();
   sendTo(port, 'TOAST', { messageKey: 'system.memoAdded' });
 }
@@ -1004,6 +1159,8 @@ async function handleSaveInlineEdit(port, payload) {
   const { memoId, content, isRichText } = payload;
   const memo = state.memos[memoId];
   if (!memo) return;
+  // 내용이 실제로 변경되지 않았으면 저장/토스트 스킵
+  if (memo.content === content && memo.isRichText === isRichText) return;
   memo.content = content;
   memo.isRichText = isRichText;
   memo.updatedAt = Date.now();
@@ -1317,6 +1474,7 @@ async function handleImportData(port, payload) {
   await db.clearAll();
   await db.importData(payload.importedData);
   await loadStateFromDB();
+  await refreshStorageUsed();
   broadcastState();
   sendTo(port, 'TOAST', { messageKey: 'system.importSuccess' });
 }
@@ -1333,6 +1491,7 @@ async function handleClearOldData(port, payload) {
     await db.saveSetting('app_settings', state.settings);
   }
   await runAutoCleanup({ silent: true });
+  await refreshStorageUsed();
   broadcastState();
 }
 
@@ -1442,8 +1601,116 @@ async function handleClearMemoAndClipboard(port) {
 
 // 미확인 리마인더 읽음 처리: 상태를 false로 변경하고 모든 탭에 브로드캐스트
 async function handleMarkReminderRead(port, payload) {
+  // hasUnreadReminder 플래그만 리셋 — notifications DB는 연동하지 않음
+  // (알림 이력 읽음은 대시보드에서 명시적으로 확인 시에만 변경)
   state.hasUnreadReminder = false;
   broadcastState();
+}
+
+// 알림 이력 기록 (클라이언트가 리마인더 발동 시 전송)
+async function handleRecordNotification(port, payload) {
+  const { memoId, title, firedAt } = payload;
+  const notif = { memoId, title: title || '', firedAt: firedAt || Date.now(), isRead: false };
+  // DB 영속화 먼저 — 새로고침 시 데이터 손실 방지
+  try {
+    const newId = await db.addNotification(notif);
+    notif.id = newId;
+  } catch (e) {
+    console.warn('[Worker] 알림 이력 저장 실패 (인메모리에만 반영됨):', e);
+  }
+  // DB 성공/실패 무관하게 항상 인메모리 반영 + 브로드캐스트 (뱃지·카운트 즉시 갱신)
+  state.notifications.unshift(notif);
+  state.hasUnreadReminder = true;
+  broadcastState();
+}
+
+// 개별 알림 읽음 처리
+async function handleMarkNotificationRead(port, payload) {
+  const { notifId } = payload;
+  const notif = state.notifications.find(n => n.id === notifId);
+  if (!notif) return;
+  notif.isRead = true;
+  try { await db.markNotificationRead(notifId); } catch (e) { console.warn('[Worker] 알림 읽음 오류:', e); }
+  // 남은 미확인 알림이 없으면 븰지도 해제
+  if (!state.notifications.some(n => !n.isRead)) state.hasUnreadReminder = false;
+  broadcastState();
+}
+
+// 전체 알림 일괄 읽음 처리
+async function handleMarkAllNotificationsRead(port) {
+  state.notifications.forEach(n => { n.isRead = true; });
+  state.hasUnreadReminder = false;
+  try { await db.markAllNotificationsRead(); } catch (e) { console.warn('[Worker] 전체 알림 읽음 오류:', e); }
+  broadcastState();
+}
+
+// 메모 복사 (현재 컨텍스트로)
+async function handleCopyMemo(port, payload) {
+  const { memoId, targetMenuId, targetAreaId } = payload;
+  const source = state.memos[memoId];
+  if (!source) return;
+  const now = Date.now();
+  const today = new Date().toISOString().split('T')[0];
+  const newId = `mdi-${now}-${++memoIdSequence}`;
+  const newMemo = {
+    ...source,
+    id: newId,
+    menuId: targetMenuId,
+    createdAreaId: targetAreaId,
+    labels: [targetMenuId],
+    reminder: null,
+    reminderRepeat: false,
+    done: false,
+    pinned: false,
+    date: today,
+    createdAt: now,
+    updatedAt: now,
+  };
+  state.memos[newId] = newMemo;
+  ensureMenuIndex(targetMenuId);
+  state.memosByArea[targetMenuId].unshift(newId);
+  await db.addMemo(newId, newMemo);
+  broadcastState();
+  sendTo(port, 'TOAST', { messageKey: 'system.memoCopied' });
+}
+
+// 복사 + 포스트잇 동시 실행 (다른 화면의 메모를 현재 화면에 드래그할 때)
+async function handleCopyMemoAndSticky(port, payload) {
+  const { memoId, targetMenuId, targetAreaId, placement } = payload;
+  const source = state.memos[memoId];
+  if (!source) return;
+  const now = Date.now();
+  const today = new Date().toISOString().split('T')[0];
+  const newId = `mdi-${now}-${++memoIdSequence}`;
+  const newMemo = {
+    ...source,
+    id: newId,
+    menuId: targetMenuId,
+    createdAreaId: targetAreaId,
+    labels: [targetMenuId],
+    reminder: null,
+    reminderRepeat: false,
+    done: false,
+    pinned: false,
+    date: today,
+    createdAt: now,
+    updatedAt: now,
+  };
+  state.memos[newId] = newMemo;
+  ensureMenuIndex(targetMenuId);
+  state.memosByArea[targetMenuId].unshift(newId);
+  await db.addMemo(newId, newMemo);
+
+  // 복사된 메모에 대한 포스트잋 생성
+  const finalPlacement = placement || { x: 40, y: 40, width: 220, height: 150 };
+  const note = { memoId: newId, menuId: targetMenuId, ...finalPlacement };
+  if (!state.stickyNotes) state.stickyNotes = [];
+  state.stickyNotes.push(note);
+  await db.saveSetting('sticky_notes', state.stickyNotes);
+
+  await refreshStorageUsed();
+  broadcastState();
+  sendTo(port, 'TOAST', { messageKey: 'system.memoCopied' });
 }
 
 const HANDLERS = {
@@ -1483,19 +1750,25 @@ const HANDLERS = {
   SAVE_USER_INFO:    handleSaveUserInfo,
   MARK_GUIDE_SEEN:   handleMarkGuideSeen,
   MARK_REMINDER_READ: handleMarkReminderRead,
+  RECORD_NOTIFICATION:         handleRecordNotification,
+  MARK_NOTIFICATION_READ:      handleMarkNotificationRead,
+  MARK_ALL_NOTIFICATIONS_READ: handleMarkAllNotificationsRead,
+  COPY_MEMO:                   handleCopyMemo,
+  COPY_MEMO_AND_STICKY:        handleCopyMemoAndSticky,
 };
 
 async function dispatchMessage(port, event) {
   const { type, payload } = event.data || {};
   const handler = HANDLERS[type];
   if (!handler) {
-    console.warn('[Worker] 알 수 없는 메시지 타입:', type);
+    workerConsole.warn('[Worker] 알 수 없는 메시지 타입:', type);
     return;
   }
   try {
+    workerConsole.log(`📩 수신됨: ${type}`);
     await handler(port, payload);
   } catch (error) {
-    console.error(`[Worker] 핸들러 오류 (${type}):`, error);
+    workerConsole.error(`[Worker] 핸들러 오류 (${type}):`, error.message, error.stack);
     sendTo(port, 'TOAST', { messageKey: 'system.errorOccurred' });
   }
 }
