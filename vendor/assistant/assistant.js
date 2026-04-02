@@ -2404,12 +2404,16 @@ function renderAssistant() {
   if (footerModes) {
     if (state.hiddenUI.darkMode) {
       footerModes.style.display = "";
+      const _sunSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="3" fill="currentColor"/><line x1="8" y1="1" x2="8" y2="3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="13" x2="8" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="8" x2="3" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="13" y1="8" x2="15" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="3.05" y1="3.05" x2="4.46" y2="4.46" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="11.54" y1="11.54" x2="12.95" y2="12.95" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12.95" y1="3.05" x2="11.54" y2="4.46" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="4.46" y1="11.54" x2="3.05" y2="12.95" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+      const _moonSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13.5 9.5C12.6 11.7 10.5 13.3 8 13.3C4.97 13.3 2.5 10.83 2.5 7.8C2.5 5.3 4.1 3.2 6.3 2.3C5.8 3.1 5.5 4.1 5.5 5.2C5.5 8.24 7.96 10.7 11 10.7C11.88 10.7 12.73 10.47 13.5 9.5Z" fill="currentColor"/></svg>`;
+      // 두 아이콘 pill — 어느 쪽 클릭해도 토글
+      const _icon = state.isDarkMode ? _sunSvg : _moonSvg;
+      const _title = state.isDarkMode ? "라이트 모드로 전환" : t("ui.darkModeLabel");
       footerModes.innerHTML = `
-        <span style="font-size: 11px;">${t("ui.darkModeLabel")}</span>
-        <label class="imsmassi-toggle-switch" style="transform: scale(0.85);">
-          <input type="checkbox" ${state.isDarkMode ? "checked" : ""} onchange="setDarkMode(this.checked)">
-          <span class="imsmassi-toggle-slider"></span>
-        </label>
+        <div class="imsmassi-dark-toggle-pill">
+          <button class="imsmassi-dtp-btn${!state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="라이트 모드">${_sunSvg}</button>
+          <button class="imsmassi-dtp-btn${state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="${t("ui.darkModeLabel")}">${_moonSvg}</button>
+        </div>
       `;
     } else {
       footerModes.style.display = "none";

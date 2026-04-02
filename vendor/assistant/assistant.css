@@ -570,6 +570,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+#assistant-root .imsmassi-floating-panel.imsmassi-compact #footer-storage-info {
+  display: none;
+}
+#assistant-root .imsmassi-floating-panel.imsmassi-compact .imsmassi-assistant-footer {
+  justify-content: flex-end;
+}
 #assistant-root .imsmassi-assistant-footer-btn {
   padding: 4px 8px 4px 24px;
   background: transparent;
@@ -589,6 +595,47 @@
   display: flex;
   gap: 6px;
   align-items: center;
+}
+/* ── 다크모드 아이콘 pill 토글 ── */
+#assistant-root .imsmassi-dark-toggle-pill {
+  display: inline-flex;
+  align-items: center;
+  background: #e2e5ea;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 1px;
+  height: 30px;
+}
+#assistant-root .imsmassi-dtp-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #9aa0ab;
+  transition: background 0.2s, color 0.2s, box-shadow 0.15s;
+  padding: 0;
+  flex-shrink: 0;
+}
+#assistant-root .imsmassi-dtp-btn.imsmassi-active {
+  background: #fff;
+  color: #2d3440;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15), 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-dark-toggle-pill {
+  background: #3a3a3a;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-dtp-btn {
+  color: #5e6370;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-dtp-btn.imsmassi-active {
+  background: #606060;
+  color: #f0f0f0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 #assistant-root .imsmassi-assistant-footer-themes {
   display: flex;
@@ -734,6 +781,12 @@
 #assistant-root .imsmassi-memo-filter-btn:hover,
 #assistant-root .imsmassi-memo-filter-btn.imsmassi-memo-filter-active {
   background: var(--imsmassi-primary);
+  color: var(--imsmassi-on-primary);
+}
+#assistant-root .imsmassi-memo-filter-btn.imsmassi-memo-filter-active svg path,
+#assistant-root .imsmassi-memo-filter-btn.imsmassi-memo-filter-active svg rect,
+#assistant-root .imsmassi-memo-filter-btn.imsmassi-memo-filter-active svg circle {
+  stroke: var(--imsmassi-on-primary);
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-filter-btn:hover,
 #assistant-root.imsmassi-dark-mode
@@ -986,19 +1039,16 @@
   border: 1px solid var(--blue-gray-200);
   border-radius: 12px;
   overflow: hidden;
-  background: var(--blue-gray-50);
+  background: var(--memo-bg);
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
 }
 #assistant-root .imsmassi-memo-quill-wrapper .ql-container {
   border: none;
-  background: var(--blue-gray-50);
+  background: var(--memo-bg);
   min-height: 140px;
   overflow: hidden;
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-memo-quill-wrapper .ql-container {
-  background: var(--blue-gray-700);
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-quill-wrapper {
   border-color: var(--blue-gray-700);

@@ -2186,7 +2186,7 @@
        * <\/script>
        * ────────────────────────────────────────────────────────────
        */
-      // window.ASSISTANT_AREA_kEYS = {
+      // window.ASSISTANT_AREA_KEYS = {
       //   id : 'menuId',
       //   name : 'menuName'
       // }
@@ -2287,75 +2287,76 @@
         // ══════════════════════════════════════════════════════════════════════
         hooks: {
           // ── 패널 ──────────────────────────────────────────────────────────
-          // onPanelOpen:  () => {},              // 인자 없음
-          // onPanelClose: () => {},              // 인자 없음
+          onPanelOpen:  () => {console.log("call onPanelOpen")},              // 인자 없음
+          onPanelClose: () => {console.log("call onPanelClose")},              // 인자 없음
 
           // ── 메모 ──────────────────────────────────────────────────────────
-          // onMemoAdd:       ({ memoId, memoData }) => {},
+          onMemoAdd:       ({ memoId, memoData }) => {console.log("call onMemoAdd", memoId, memoData)}, 
           //   memoData: { title, content, areaId, menuId, date, isRichText, ... }
-          // onMemoAdded:     (memo) => {},
+          onMemoAdded:     (memo) => {console.log("call onMemoAdded", memo)},
           //   memo: DB 저장 확인된 메모 객체 (id, title, content, areaId, menuId, date, ...)
-          // onMemoDelete:    ({ memoId }) => {},
-          // onMemoEdit:      ({ memoId, content, isRichText, meta? }) => {},
+          onMemoDelete:    ({ memoId }) => {console.log("call onMemoDelete", memoId)},
+          onMemoEdit:      ({ memoId, content, isRichText, meta }) => {console.log("call onMemoEdit", memoId, content, isRichText, meta)},
           //   meta: { tags }
-          // onMemoTitleSave: ({ memoId, title }) => {},
-          // onMemoPin:       ({ memoId }) => {},
-          // onMemoLabel:     ({ memoId, menuId, force? }) => {},
-          // onTodoToggle:    ({ memoId }) => {},
-          // onMemoCopy:      ({ memoId, targetMenuId, targetAreaId, placement }) => {},
+          onMemoTitleSave: ({ memoId, title }) => {console.log("call onMemoTitleSave", memoId, title)},
+          onMemoPin:       ({ memoId }) => {  console.log("call onMemoPin", memoId)},
+          onMemoLabel:     ({ memoId, menuId, force }) => { console.log("call onMemoLabel", memoId, menuId, force)},
+          onTodoToggle:    ({ memoId }) => {console.log("call onTodoToggle", memoId)},
+          onMemoCopy:      ({ memoId, targetMenuId, targetAreaId, placement }) => {console.log("call onMemoCopy", memoId, targetMenuId, targetAreaId, placement)},
 
           // ── 포스트잇 ──────────────────────────────────────────────────────
-          // onStickyAdd:    ({ memoId, placement, menuId }) => {},
-          // onStickyRemove: ({ memoId, menuId }) => {},
-          // onStickySave:   ({ stickyNotes }) => {},
-          //   stickyNotes: 현재 활성 포스트잇 배열
+          onStickyAdd:    ({ memoId, placement, menuId }) => {  console.log("call onStickyAdd", memoId, placement, menuId)},
+           // placement: "top-left" | "top-right" | "bottom-left" | "bottom-right"
+          onStickyRemove: ({ memoId, menuId }) => {console.log("call onStickyRemove", memoId, menuId)},
+          onStickySave:   ({ stickyNotes }) => {console.log("call onStickySave", stickyNotes)},
+            // stickyNotes: 현재 활성 포스트잇 배열
 
           // ── 클립보드 ──────────────────────────────────────────────────────
-          // onClipboardAdd:     ({ content, options }) => {},
-          // onClipboardDelete:  ({ itemId }) => {},
-          // onClipboardRefresh: () => {},        // 인자 없음
+          onClipboardAdd:     ({ content, options }) => { console.log("call onClipboardAdd", content, options)},
+          onClipboardDelete:  ({ itemId }) => { console.log("call onClipboardDelete", itemId)},
+          onClipboardRefresh: () => {},        // 인자 없음
 
           // ── 템플릿 ────────────────────────────────────────────────────────
-          // onTemplateAdd:     ({ template }) => {},
+          onTemplateAdd:     ({ template }) => { console.log("call onTemplateAdd", template)},
           //   template: { title, content, pinned, ... }
-          // onTemplateDelete:  ({ templateId }) => {},
-          // onTemplateEdit:    ({ templateId, title, content, pinned }) => {},
-          // onTemplatePin:     ({ templateId }) => {},
-          // onTemplateUse:     ({ templateId }) => {},
-          // onTemplateSuggest: (payload) => {},  // Worker가 전달하는 자동완성 제안 객체
+          onTemplateDelete:  ({ templateId }) => { console.log("call onTemplateDelete", templateId)},
+          onTemplateEdit:    ({ templateId, title, content, pinned }) => { console.log("call onTemplateEdit", templateId, title, content, pinned)},
+          onTemplatePin:     ({ templateId }) => { console.log("call onTemplatePin", templateId)},
+          onTemplateUse:     ({ templateId }) => { console.log("call onTemplateUse", templateId)},
+          onTemplateSuggest: (payload) => { console.log("call onTemplateSuggest", payload)},  // Worker가 전달하는 자동완성 제안 객체
 
           // ── 리마인더 ──────────────────────────────────────────────────────
-          // onReminderSet: ({ memoId, reminderStr, title, reminderRepeat }) => {},
-          //   reminderStr: "2026-04-01T09:00" 형태 날짜 문자열
-          //   reminderRepeat: boolean
+          onReminderSet: ({ memoId, reminderStr, title, reminderRepeat }) => { console.log("call onReminderSet", memoId, reminderStr, title, reminderRepeat) },
+            reminderStr: "2026-04-01T09:00", //형태 날짜 문자열
+            reminderRepeat: 'boolean',
 
           // ── 테마/설정 ─────────────────────────────────────────────────────
-          // onThemeChange:    ({ themeKey }) => {},
-          // onDarkModeChange: ({ isDark }) => {},
-          // onSettingsSave:   ({ settings }) => {},  // settings: 전체 설정 객체
-          // onAreaColorsSave: ({ areaId, colors }) => {},
-          // onUiPrefsSave:    ({ panelWidth, panelWidthCollapsed, panelWidthExpanded, panelHeight } | { memoFilter }) => {},
-          // onUserInfoSave:   ({ userInfo }) => {},  // userInfo: AES-256-GCM 암호화된 문자열
+          onThemeChange:    ({ themeKey }) => { console.log("call onThemeChange", themeKey) },
+          onDarkModeChange: ({ isDark }) => { console.log("call onDarkModeChange", isDark) },
+          onSettingsSave:   ({ settings }) => { console.log("call onSettingsSave", settings) },  // settings: 전체 설정 객체
+          onAreaColorsSave: ({ areaId, colors }) => { console.log("call onAreaColorsSave", areaId, colors) },
+          onUiPrefsSave:    ({ panelWidth, panelWidthCollapsed, panelWidthExpanded, panelHeight }) => { console.log("call onUiPrefsSave", panelWidth, panelWidthCollapsed, panelWidthExpanded, panelHeight) },
+          onUserInfoSave:   ({ userInfo }) => { console.log("call onUserInfoSave", userInfo) },  // userInfo: AES-256-GCM 암호화된 문자열
 
           // ── 내비게이션 ────────────────────────────────────────────────────
-          // onContextChange: ({ menuId?, areaId? }) => {},
+          onContextChange: ({ menuId, areaId }) => { console.log("call onContextChange", menuId, areaId) },
+            // menuId: 변경된 화면의 ID (예: "UW-001"). 변경된 경우에만 포함
           //   화면(메뉴) 전환 시 발화. areaId는 변경이 있을 때만 포함
-          // onTabActive:     ({ isActive }) => {},
+          onTabActive:     ({ isActive }) => { console.log("call onTabActive", isActive) },
           //   isActive: 브라우저 탭 포커스 여부 (Page Visibility API)
 
           // ── 데이터 관리 ───────────────────────────────────────────────────
-          // onDataExport:  () => {},              // 내보내기 요청 시 (인자 없음)
-          // onExportReady: (data) => {},          // Worker→UI 파일 준비 완료 시. data: JSON 문자열
-          // onDataImport:  ({ importedData }) => {},
-          // onDataClear:   () => {},              // 메모+클립보드 전체 삭제 (인자 없음)
-          // onDataCleanup: ({ settings, silent?, reason? }) => {},
-
+          onDataExport:  () => { console.log("call onDataExport") },              // 내보내기 요청 시 (인자 없음)
+          onExportReady: (data) => { console.log("call onExportReady", data) },          // Worker→UI 파일 준비 완료 시. data: JSON 문자열
+          onDataImport:  ({ importedData }) => { console.log("call onDataImport", importedData) },
+          onDataClear:   () => { console.log("call onDataClear") },              // 메모+클립보드 전체 삭제 (인자 없음)
+          onDataCleanup: ({ settings, silent, reason }) => { console.log("call onDataCleanup", settings, silent, reason) },
           // ── 상태/공통 ─────────────────────────────────────────────────────
-          // onStateUpdate:    (state) => {},      // 모든 STATE_UPDATE 처리 후. state: 전체 상태 객체
-          // onToast:          ({ messageKey?, params?, message? }) => {},
-          //   messageKey 우선. 없으면 message 문자열 사용
-          // onAreaTimeRecord: ({ areaId, elapsedMs }) => {},
-          // onGuideSeen:      () => {},           // 인자 없음
+         // onStateUpdate:    (state) => { console.log("call onStateUpdate", state) },      // 모든 STATE_UPDATE 처리 후. state: 전체 상태 객체
+         // onToast:          ({ messageKey, params, message }) => { console.log("call onToast", messageKey, params, message) },
+            // messageKey 우선. 없으면 message 문자열 사용
+          onAreaTimeRecord: ({ areaId, elapsedMs }) => { console.log("call onAreaTimeRecord", areaId, elapsedMs) },
+          onGuideSeen:      () => { console.log("call onGuideSeen") },           // 인자 없음
         },
       }).then(() => {
         showAllAssistantHiddenUI();

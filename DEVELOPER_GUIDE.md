@@ -33,25 +33,25 @@
                                                    │
                               ┌────────────────────▼──────────────────┐
                               │  assistant.js  (UI 스레드)             │
-                              │                                        │
+                              │                                       │
                               │  [Section 1] AssistantConfig          │
-                              │             assistantBridge            │
-                              │             _assistantConfig (IoC)     │
+                              │             assistantBridge           │
+                              │             _assistantConfig (IoC)    │
                               │  [Section 2] workerSend / _runHook    │
                               │  [Section 3] state / 상수              │
                               │  [Section 4] 유틸 / i18n               │
-                              │  [Section 5] bootstrapAssistant        │
-                              │             stickyLayer Observer       │
+                              │  [Section 5] bootstrapAssistant       │
+                              │             stickyLayer Observer      │
                               │  [Section 6] 메모 / 포스트잇            │
                               │  [Section 7] 클립보드 / 템플릿          │
                               │  [Section 8] 리마인더 / 시간 추적        │
-                              │  [Section 9] 모달 / 설정               │
+                              │  [Section 9] 모달/설정                 │
                               └────────────────┬──────────────────────┘
                                                │ postMessage
-                              ┌────────────────▼──────────────────────┐
-                              │  assistant-worker.js  (SharedWorker)   │
+                              ┌────────────────▼──────────────────────────┐
+                              │  assistant-worker.js  (SharedWorker)      │
                               │  IndexedDB I/O · 리마인더 폴링 · 브로드캐스트 │
-                              └───────────────────────────────────────┘
+                              └───────────────────────────────────────────┘
 ```
 
 ### 핵심 원칙
