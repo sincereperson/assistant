@@ -61,7 +61,7 @@
     // ────────────────────────────────────────────────────────────────
 
     const mountId = config.mountId || 'assistant-mount';
-    // const mountContainerId = config.mountContainerId || 'mf_VFrames_Root';
+    const mountContainerId = config.mountContainerId || 'mf_VFrames_Root';
     const allowBodyFallback = config.allowBodyFallback === true;
     const htmlPath = config.htmlPath || 'assistant-fragment.html';
     const cssPath = config.cssPath || 'assistant.css';
@@ -84,12 +84,12 @@
       mount.style.margin = '0';
       mount.style.padding = '0';
       mount.style.border = '0';
-      // const container = document.getElementById(mountContainerId) || (allowBodyFallback ? document.body : null);
-      // if (!container) {
-      //   console.error('[assistant-loader] mount container not found:', mountContainerId);
-      //   return;
-      // }
-      document.body.appendChild(mount);
+      const container = document.getElementById(mountContainerId) || (allowBodyFallback ? document.body : null);
+      if (!container) {
+        console.error('[assistant-loader] mount container not found:', mountContainerId);
+        return;
+      }
+      container.appendChild(mount);
     }
 
     ensureStylesheet(cssPath);

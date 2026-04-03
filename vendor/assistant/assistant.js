@@ -68,6 +68,8 @@ window.assistantBridge = {
   setupStickyLayerObserver: (cfg)     => setupStickyLayerObserver(cfg || {}),
   relocateStickyLayer:      ()        => relocateStickyLayer(),
   setLocale:                (locale)  => setLocale(locale),
+  setTheme:                 (themeKey) => setTheme(themeKey),
+  setDarkMode:              (isDark)   => setDarkMode(isDark),
 };
 
 // postMessage 기반 브리지 (cross-frame / iframe 대응)
@@ -1453,10 +1455,18 @@ function createElement(tag, props = {}) {
 // ========================================
 // 탭 시스템 중앙 설정 (ASSISTANT_TABS)
 // ========================================
-/** ─── SVG 인라인 상수: CSS url()로 대체 불가한 경우만 유지 ─── */
+/** 스크립트 자신의 URL 기준으로 ../asset/ 경로를 런타임 해결 */
+const _ASSI_ASSET_BASE = (() => {
+  try {
+    const s = document.currentScript?.src ||
+      [...document.querySelectorAll('script')].map(e => e.src).find(src => src.includes('assistant.js')) || '';
+    return s ? new URL('../asset/', s).href : '';
+  } catch (_) { return ''; }
+})();
+/** ─── 아이콘: asset 파일 참조 (img 태그) ─── */
 const ICONS = {
-  // 알림 배지: 브랜드 파란색(#0074EB) 고정값이 필요해 인라인 유지
-  time: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="none"><path d="M5.83301 0C9.05467 0 11.666 2.61135 11.666 5.83301C11.666 9.05467 9.05467 11.666 5.83301 11.666C2.61135 11.666 0 9.05467 0 5.83301C3.5436e-07 2.61135 2.61135 3.54372e-07 5.83301 0ZM5.83301 2.25C5.51084 2.25 5.25 2.51084 5.25 2.83301V5.83301C5.25 6.05396 5.37464 6.25568 5.57227 6.35449L7.90527 7.52148C8.19343 7.66556 8.5444 7.5489 8.68848 7.26074C8.83255 6.97259 8.71491 6.62162 8.42676 6.47754L6.41602 5.47266V2.83301C6.41602 2.51084 6.15517 2.25 5.83301 2.25Z" fill="#0074EB"/></svg>`,
+  // 알림 배지: 리마인더 시계 아이콘 (#0074EB 고정색)
+  time: `<img src="${_ASSI_ASSET_BASE}images/ico_time_reminder.svg" width="12" height="12" alt="" style="vertical-align:middle">`,
 };
 
 /**
@@ -2404,15 +2414,11 @@ function renderAssistant() {
   if (footerModes) {
     if (state.hiddenUI.darkMode) {
       footerModes.style.display = "";
-      const _sunSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="3" fill="currentColor"/><line x1="8" y1="1" x2="8" y2="3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="13" x2="8" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="8" x2="3" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="13" y1="8" x2="15" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="3.05" y1="3.05" x2="4.46" y2="4.46" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="11.54" y1="11.54" x2="12.95" y2="12.95" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12.95" y1="3.05" x2="11.54" y2="4.46" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="4.46" y1="11.54" x2="3.05" y2="12.95" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
-      const _moonSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13.5 9.5C12.6 11.7 10.5 13.3 8 13.3C4.97 13.3 2.5 10.83 2.5 7.8C2.5 5.3 4.1 3.2 6.3 2.3C5.8 3.1 5.5 4.1 5.5 5.2C5.5 8.24 7.96 10.7 11 10.7C11.88 10.7 12.73 10.47 13.5 9.5Z" fill="currentColor"/></svg>`;
-      // 두 아이콘 pill — 어느 쪽 클릭해도 토글
-      const _icon = state.isDarkMode ? _sunSvg : _moonSvg;
-      const _title = state.isDarkMode ? "라이트 모드로 전환" : t("ui.darkModeLabel");
+      // 두 아이콘 pill — 어느 쪽 클릭해도 토글 (CSS mask로 currentColor 연동)
       footerModes.innerHTML = `
         <div class="imsmassi-dark-toggle-pill">
-          <button class="imsmassi-dtp-btn${!state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="라이트 모드">${_sunSvg}</button>
-          <button class="imsmassi-dtp-btn${state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="${t("ui.darkModeLabel")}">${_moonSvg}</button>
+          <button class="imsmassi-dtp-btn${!state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="라이트 모드"><span class="imsmassi-dtp-icon imsmassi-dtp-icon--sun"></span></button>
+          <button class="imsmassi-dtp-btn${state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="${t("ui.darkModeLabel")}"><span class="imsmassi-dtp-icon imsmassi-dtp-icon--moon"></span></button>
         </div>
       `;
     } else {
@@ -3746,9 +3752,7 @@ function openDeleteConfirmModal(memoId) {
     );
     if (reminderDisplay && memo.reminder) {
       reminderDisplay.innerHTML = `<div style="padding: 8px 12px; background: rgba(230, 126, 34, 0.1); border-left: 3px solid #E67E22; border-radius: 4px; margin: 8px 0; font-size: 13px;">
-        <strong><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-<path d="M5.83301 0C9.05467 0 11.666 2.61135 11.666 5.83301C11.666 9.05467 9.05467 11.666 5.83301 11.666C2.61135 11.666 0 9.05467 0 5.83301C3.5436e-07 2.61135 2.61135 3.54372e-07 5.83301 0ZM5.83301 2.25C5.51084 2.25 5.25 2.51084 5.25 2.83301V5.83301C5.25 6.05396 5.37464 6.25568 5.57227 6.35449L7.90527 7.52148C8.19343 7.66556 8.5444 7.5489 8.68848 7.26074C8.83255 6.97259 8.71491 6.62162 8.42676 6.47754L6.41602 5.47266V2.83301C6.41602 2.51084 6.15517 2.25 5.83301 2.25Z" fill="#0074EB"/>
-</svg> 알림 설정됨:</strong><br>
+        <strong>${ICONS.time} 알림 설정됨:</strong><br>
         ${memo.reminder}
       </div>`;
     } else if (reminderDisplay) {
@@ -4284,27 +4288,7 @@ function exportAllData() {
 }
 
 function importData() {
-  const confirmed = window.confirm(
-    "가져오기를 실행하면 기존 데이터가 모두 삭제됩니다. (시간 데이터 제외) 계속하시겠습니까?",
-  );
-  if (!confirmed) return;
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".json";
-  input.onchange = async (e) => {
-    try {
-      const file = e.target.files[0];
-      if (!file) return;
-      const text = await file.text();
-      const importedData = JSON.parse(text);
-      // Worker에 IMPORT_DATA 전송 → STATE_UPDATE 수신 후 자동 재렌더
-      workerSend("IMPORT_DATA", { importedData });
-    } catch (error) {
-      console.error("데이터 가져오기 실패:", error);
-      showToast(t("system.importFail"));
-    }
-  };
-  input.click();
+  openModal("importConfirm");
 }
 
 function clearOldData() {
@@ -5760,6 +5744,36 @@ function _resolveTargetContainer() {
  * ▸ ResizeObserver + scroll 리스너로 bounds 자동 동기화
  * ▸ rAF 2회 지연 렌더로 순간이동 깜빡임 방지
  */
+
+/**
+ * sticky-layer 가시 상태를 관리하는 전용 헬퍼.
+ * display / visibility 두 속성을 항상 쌍으로 처리해
+ * 각 속성을 개별 코드에서 흩어 쓸 때 생기는 불일치를 방지합니다.
+ *
+ * @param {'show'|'hide'|'pending'} mode
+ *   'show'    - 완전 표시  (display:'', visibility:'')
+ *   'hide'    - 완전 숨김  (display:'none', visibility:'')
+ *   'pending' - 레이아웃 준비 중 (display:'', visibility:'hidden')
+ *               rAF 완료 후 반드시 _setStickyLayerVisibility('show') 호출 필요
+ */
+function _setStickyLayerVisibility(layer, mode) {
+  if (!layer) return;
+  switch (mode) {
+    case 'show':
+      layer.style.display = '';
+      layer.style.visibility = '';
+      break;
+    case 'hide':
+      layer.style.display = 'none';
+      layer.style.visibility = '';
+      break;
+    case 'pending':
+      layer.style.display = '';
+      layer.style.visibility = 'hidden';
+      break;
+  }
+}
+
 function relocateStickyLayer() {
   if (_stickyLayerRelocating) return;
   saveAllDirtyNotes(); // 화면 컨텍스트 전환 전 미저장 내용 강제 플러시
@@ -5801,8 +5815,7 @@ function relocateStickyLayer() {
   // ── windowContainerClass 자체가 DOM에 없는 경우 ──
   // sticky-layer DOM 제거 + 화면 ID 초기화 (pg-id 미발견과 구분)
   if (targetElement === _ANCHOR_MISSING) {
-    layer.style.display = "none";
-    layer.style.visibility = "";
+    _setStickyLayerVisibility(layer, 'hide');
     if (_stickyLayerResizeObserver) {
       _stickyLayerResizeObserver.disconnect();
       _stickyLayerResizeObserver = null;
@@ -5841,7 +5854,7 @@ function relocateStickyLayer() {
   }
 
   // ② 전환 중 포스트잇 즉시 숨김 (순간이동 방지)
-  layer.style.visibility = "hidden";
+  _setStickyLayerVisibility(layer, 'pending');
   layer.innerHTML = "";
 
   _stickyLayerTargetEl = targetElement;
@@ -5857,11 +5870,13 @@ function relocateStickyLayer() {
     }
 
     // ③ rAF 2회: 레이아웃 확정 후 bounds 주입 → 렌더 → 표시
+    // _setStickyLayerVisibility('pending') 상태에서 진입하므로
+    // display는 이미 '' — visibility만 rAF 완료 후 복원
     requestAnimationFrame(() => {
       _syncStickyLayerBounds();
       renderStickyNotes();
       requestAnimationFrame(() => {
-        layer.style.visibility = "";
+        _setStickyLayerVisibility(layer, 'show');
       });
     });
 
@@ -5878,8 +5893,7 @@ function relocateStickyLayer() {
       `[Assistant] sticky-layer fixed → 타겟: ${targetElement.tagName}#${targetElement.id || ""}`,
     );
   } else {
-    layer.style.display = "none";
-    layer.style.visibility = "";
+    _setStickyLayerVisibility(layer, 'hide');
     assiConsole.log("[Assistant] sticky-layer 비활성화 (대상 없음)");
 
     // pg-id 미발견 시 DOM 변화 감지 후 relocate 재시도
@@ -6263,10 +6277,7 @@ function renderMemoTab() {
     className: "imsmassi-memo-option-btn imsmassi-template-add-btn",
   });
   // 테두리 색상은 CSS .imsmassi-template-add-btn { border-color: var(--imsmassi-area-color) }
-  addTemplateBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" >
-<path d="M13 8L8 8L3 8" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M8.00488 13.0059L8.00488 8.00586L8.00488 3.00586" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-</svg> ${t("ui.btnTemplateNew")}`;
+  addTemplateBtn.innerHTML = `<img src="${_ASSI_ASSET_BASE}images/ico_template_add.svg" width="16" height="16" alt="" style="vertical-align:middle"> ${t("ui.btnTemplateNew")}`;
   addTemplateBtn.addEventListener("click", openAddTemplateModal);
   templateCardHeader.append(templateTitleSpan, addTemplateBtn);
   const templateBody = createElement("div", {
@@ -6294,28 +6305,17 @@ function renderMemoTab() {
     [
       "menu",
       t("memoTab.filterCurrentScreen"),
-      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-<path d="M20 9H11C9.89543 9 9 9.89543 9 11V20C9 21.1046 9.89543 22 11 22H20C21.1046 22 22 21.1046 22 20V11C22 9.89543 21.1046 9 20 9Z" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M5 15H4C3.46957 15 2.96086 14.7893 2.58579 14.4142C2.21071 14.0391 2 13.5304 2 13V4C2 3.46957 2.21071 2.96086 2.58579 2.58579C2.96086 2.21071 3.46957 2 4 2H13C13.5304 2 14.0391 2.21071 14.4142 2.58579C14.7893 2.96086 15 3.46957 15 4V5" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`,
+      `<span class="imsmassi-fi imsmassi-fi--screen"></span>`,
     ],
     [
       "area",
       t("memoTab.filterCurrentArea"),
-      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-<path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M17 7H14V12H17V7Z" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M10 7H7V16H10V7Z" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`,
+      `<span class="imsmassi-fi imsmassi-fi--area"></span>`,
     ],
     [
       "all",
       t("memoTab.filterAll"),
-      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-<path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M9 21V9" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M3 9H21" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`,
+      `<span class="imsmassi-fi imsmassi-fi--all"></span>`,
     ],
   ].forEach(([val, label, icon]) => {
     const filterBtn = createElement("button", {
@@ -7022,12 +7022,21 @@ document.addEventListener("keydown", function (e) {
       }
     }
   }
-  // Escape: 모달/어시스턴트 닫기
+  // Escape: 모달 닫기
   if (e.key === "Escape") {
     if (state.currentModal) {
       closeModal();
-    } else if (state.assistantOpen) {
+    }
+  }
+  // Ctrl + `: 어시스턴트 패널 토글 (열기/닫기)
+  if (e.key === "`" && e.ctrlKey && !e.shiftKey && !e.altKey) {
+    e.preventDefault();
+    if (state.currentModal) return; // 모달 열려있으면 무시
+    if (state.assistantOpen) {
       closeAssistant();
+    } else {
+      state.assistantOpen = true;
+      renderAssistant();
     }
   }
 });
@@ -8334,6 +8343,7 @@ const MODAL_BUILDERS = {
   templateDeleteConfirm: buildTemplateDeleteConfirmModal,
   settings: buildSettingsModal,
   clearAllDataConfirm: buildClearAllDataConfirmModal,
+  importConfirm: buildImportConfirmModal,
   shortcutManual: buildShortcutManualModal,
 };
 
@@ -8370,6 +8380,51 @@ function executeClearAllData() {
   closeModal();
 }
 
+// ── 빌더: 데이터 가져오기 확인 모달 ─────────────────────────
+function buildImportConfirmModal() {
+  const title = createElement("div", { className: "imsmassi-modal-title" });
+  title.innerHTML = `<span class="imsmassi-modal-icon imsmassi-icon-warning"></span>${t("system.importConfirmTitle") || t("ui.btnImport")}`;
+
+  const bodyText = createElement("p", { className: "imsmassi-modal-body-text" });
+  bodyText.innerHTML = `${t("system.importConfirm")}<br><span style='color:#E74C3C; font-size:12px;'>${t("system.importConfirmSub") || ""}</span>`;
+
+  const bodyDiv = createElement("div", { className: "imsmassi-modal-body" });
+  bodyDiv.append(bodyText);
+
+  const cancelBtn = createElement("button", { className: "imsmassi-modal-btn imsmassi-modal-btn-secondary" });
+  cancelBtn.textContent = t("ui.btnCancel");
+  cancelBtn.addEventListener("click", closeModal);
+
+  const confirmBtn = createElement("button", { className: "imsmassi-modal-btn imsmassi-modal-btn-primary" });
+  confirmBtn.textContent = t("ui.btnImport");
+  confirmBtn.addEventListener("click", () => {
+    closeModal();
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = async (e) => {
+      try {
+        const file = e.target.files[0];
+        if (!file) return;
+        const text = await file.text();
+        const importedData = JSON.parse(text);
+        workerSend("IMPORT_DATA", { importedData });
+      } catch (error) {
+        console.error("데이터 가져오기 실패:", error);
+        showToast(t("system.importFail"));
+      }
+    };
+    input.click();
+  });
+
+  const btnsGroup = createElement("div", { className: "imsmassi-modal-btns" });
+  btnsGroup.append(cancelBtn, confirmBtn);
+
+  const content = createElement("div");
+  content.append(title, bodyDiv, btnsGroup);
+  return { content, firstFocus: cancelBtn };
+}
+
 // ── 빌더: 단축키 메뉴얼 모달 ─────────────────────────────────
 function buildShortcutManualModal() {
   const SHORTCUTS = [
@@ -8378,20 +8433,19 @@ function buildShortcutManualModal() {
       items: [
         { keys: ["Alt", "1"], desc: t("shortcut.tab1") },
         { keys: ["Alt", "2"], desc: t("shortcut.tab2") },
-        { keys: ["Alt", "3"], desc: t("shortcut.tab3") },
-        { keys: ["Alt", "4"], desc: t("shortcut.tab4") },
-        { keys: ["Alt", "5"], desc: t("shortcut.tab5") },
-        { keys: ["Alt", "6"], desc: t("shortcut.tab6") },
-        { keys: ["Alt", "7"], desc: t("shortcut.tab7") },
-        { keys: ["Alt", "8"], desc: t("shortcut.tab8") },
-        { keys: ["Alt", "9"], desc: t("shortcut.tab9") },
+      ],
+    },
+    {
+      group: t("modal.shortcutGroupAssistant") || "어시스턴트",
+      items: [
+        { keys: ["Ctrl", "`"], desc: t("shortcut.toggleAssistant") || "패널 열기/닫기" },
+        { keys: ["Escape"], desc: t("shortcut.closeModal") },
       ],
     },
     {
       group: t("modal.shortcutGroupScreen"),
       items: [
         { keys: ["Ctrl", "/"], desc: t("shortcut.screenHelp") },
-        { keys: ["Escape"], desc: t("shortcut.closeModal") },
         { keys: ["Ctrl", "Shift", "X"], desc: t("shortcut.gridZoom") },
       ],
     },
@@ -8800,3 +8854,4 @@ function confirmClearReminder() {
   if (state.autoNavigateToDashboard) setActiveTab("dashboard");
 }
 
+ㅠ

@@ -637,6 +637,28 @@
   color: #f0f0f0;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
+/* ── 다크모드 토글 아이콘 span (CSS mask → currentColor 자동 연동) ── */
+#assistant-root .imsmassi-dtp-icon {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  background-color: currentColor;
+  vertical-align: middle;
+}
+#assistant-root .imsmassi-dtp-icon--sun {
+  -webkit-mask-image: url(../asset/ico_sun.svg);
+  mask-image: url(../asset/ico_sun.svg);
+}
+#assistant-root .imsmassi-dtp-icon--moon {
+  -webkit-mask-image: url(../asset/ico_moon.svg);
+  mask-image: url(../asset/ico_moon.svg);
+}
 #assistant-root .imsmassi-assistant-footer-themes {
   display: flex;
   gap: 6px;
@@ -775,18 +797,36 @@
   color: #e5e8eb;
   border-color: #e5e8eb;
 }
-#assistant-root.imsmassi-dark-mode .imsmassi-memo-filter-btn svg path {
-  stroke: var(--blue-gray-200);
-}
 #assistant-root .imsmassi-memo-filter-btn:hover,
 #assistant-root .imsmassi-memo-filter-btn.imsmassi-memo-filter-active {
   background: var(--imsmassi-primary);
   color: var(--imsmassi-on-primary);
 }
-#assistant-root .imsmassi-memo-filter-btn.imsmassi-memo-filter-active svg path,
-#assistant-root .imsmassi-memo-filter-btn.imsmassi-memo-filter-active svg rect,
-#assistant-root .imsmassi-memo-filter-btn.imsmassi-memo-filter-active svg circle {
-  stroke: var(--imsmassi-on-primary);
+/* 필터 아이콘 (CSS mask – currentColor 자동 연동) */
+#assistant-root .imsmassi-fi {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  background-color: currentColor;
+  vertical-align: middle;
+}
+#assistant-root .imsmassi-fi--screen {
+  -webkit-mask-image: url(../asset/images/ico_filter_screen.svg);
+  mask-image: url(../asset/images/ico_filter_screen.svg);
+}
+#assistant-root .imsmassi-fi--area {
+  -webkit-mask-image: url(../asset/images/ico_filter_area.svg);
+  mask-image: url(../asset/images/ico_filter_area.svg);
+}
+#assistant-root .imsmassi-fi--all {
+  -webkit-mask-image: url(../asset/images/ico_filter_all.svg);
+  mask-image: url(../asset/images/ico_filter_all.svg);
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-filter-btn:hover,
 #assistant-root.imsmassi-dark-mode
@@ -1381,6 +1421,40 @@
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-modal-option-btn span {
   color: var(--blue-gray-400, #94a3b8);
+}
+
+/* ── 모달 다크모드 ── */
+#assistant-root.imsmassi-dark-mode .imsmassi-modal {
+  background: #1e2433;
+  color: #e2e8f0;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-modal-title {
+  color: #e2e8f0;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-modal-label {
+  color: #94a3b8;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-modal-input,
+#assistant-root.imsmassi-dark-mode .imsmassi-modal-textarea {
+  background: #2a3347;
+  border-color: #3d4f6e;
+  color: #e2e8f0;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-modal-input:focus,
+#assistant-root.imsmassi-dark-mode .imsmassi-modal-textarea:focus {
+  border-color: var(--imsmassi-primary, #4a90d9);
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-modal-input::placeholder,
+#assistant-root.imsmassi-dark-mode .imsmassi-modal-textarea::placeholder {
+  color: #64748b;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-modal-btn-secondary {
+  background: #2a3347;
+  color: #cbd5e1;
+  border: 1px solid #3d4f6e;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-modal-btn-secondary:hover {
+  background: #334060;
 }
 
 #assistant-root .imsmassi-toast {

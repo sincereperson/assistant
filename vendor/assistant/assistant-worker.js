@@ -903,6 +903,12 @@ async function loadStateFromDB() {
   state.memos = {};
   state.memosByArea = {};
 
+  const savedTheme = await db.getSetting('currentTheme');
+  if (savedTheme) state.currentTheme = savedTheme;
+
+  const savedDarkMode = await db.getSetting('isDarkMode');
+  if (typeof savedDarkMode === 'boolean') state.isDarkMode = savedDarkMode;
+
   const memoPanelExpanded = await db.getSetting('isMemoPanelExpanded');
   if (typeof memoPanelExpanded === 'boolean') state.isMemoPanelExpanded = memoPanelExpanded;
 
@@ -1312,11 +1318,13 @@ async function handleUseTemplate(port, payload) {
 
 async function handleSetTheme(port, payload) {
   state.currentTheme = payload.themeKey;
+  await db.saveSetting('currentTheme', payload.themeKey);
   broadcastState();
 }
 
 async function handleSetDarkMode(port, payload) {
   state.isDarkMode = payload.isDark;
+  await db.saveSetting('isDarkMode', payload.isDark);
   broadcastState();
 }
 

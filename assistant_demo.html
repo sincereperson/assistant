@@ -2217,7 +2217,7 @@
         // 추가 CSS 목록 (Quill 에디터 등)
         cssPaths: [
           "vendor/quill/quill.bubble.css",
-          "vendor/quill/quill-better-table.css",
+          "vendor/quill/quill-better-table.css",  
         ],
 
         // 어시스턴트 메인 JS 경로
@@ -2361,6 +2361,13 @@
       }).then(() => {
         showAllAssistantHiddenUI();
         console.log("[Assistant] 어시스턴트 로드 완료");
+
+        // ── 솔로몬시스템 테마/다크모드 초기 동기화 ──
+        // 내부시스템이 localStorage에 저장한 값을 읽어 어시스턴트에 적용
+        const _initTheme = localStorage.getItem('selectedTheme') || 'classic';
+        const _initMode  = localStorage.getItem('selectedMode')  || 'light';
+        assistantBridge.setTheme(_initTheme);
+        assistantBridge.setDarkMode(_initMode === 'dark');
       });
 
       // ════════════════════════════════════════════════════════════════════════
