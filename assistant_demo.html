@@ -2202,7 +2202,12 @@
         loginId: "test_user_01",
 
         // UI 언어 설정 ("ko-kr" | "en-us")
-        locale: "ko-kr",
+        locale: "en-us",
+
+        // 초기 테마 / 다크모드 설정
+        // → 콜백 없이 첫 렌더 전에 적용되므로 flash 없음
+        initialTheme:    localStorage.getItem('selectedTheme') || 'classic',
+        initialDarkMode: localStorage.getItem('selectedMode') === 'dark',
 
         // ══════════════════════════════════════════════════════════════════════
         // 2. 리소스 경로
@@ -2361,13 +2366,7 @@
       }).then(() => {
         showAllAssistantHiddenUI();
         console.log("[Assistant] 어시스턴트 로드 완료");
-
-        // ── 솔로몬시스템 테마/다크모드 초기 동기화 ──
-        // 내부시스템이 localStorage에 저장한 값을 읽어 어시스턴트에 적용
-        const _initTheme = localStorage.getItem('selectedTheme') || 'classic';
-        const _initMode  = localStorage.getItem('selectedMode')  || 'light';
-        assistantBridge.setTheme(_initTheme);
-        assistantBridge.setDarkMode(_initMode === 'dark');
+        // 테마/다크모드는 loadAssistant() config의 initialTheme / initialDarkMode 로 처리됨
       });
 
       // ════════════════════════════════════════════════════════════════════════

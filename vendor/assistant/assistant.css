@@ -1,4 +1,4 @@
-﻿@import url("../asset/font/pretendard.css");
+@import url("../asset/font/pretendard.css");
 
 /* ============================================================
    테마 토큰 — CSS 커스텀 프로퍼티 (Single Source of Truth)
@@ -23,6 +23,25 @@
   --imsmassi-header-text:             #ffffff;
   --imsmassi-header-sub-text:         rgba(255, 255, 255, 0.8);
   --imsmassi-on-primary:              #ffffff;
+  --imsmassi-action-primary-bg:       var(--imsmassi-primary-dark);
+  --imsmassi-action-primary-hover-bg:  var(--imsmassi-primary);
+  --imsmassi-action-primary-text:      var(--imsmassi-on-primary);
+  --imsmassi-action-primary-border:    var(--imsmassi-primary-dark);
+  --imsmassi-action-secondary-bg:      #e8e8e8;
+  --imsmassi-action-secondary-hover-bg: #d8d8d8;
+  --imsmassi-action-secondary-text:    #333333;
+  --imsmassi-action-secondary-border:  #cfd8e3;
+  --imsmassi-action-danger-bg:         #e74c3c;
+  --imsmassi-action-danger-hover-bg:   #c0392b;
+  --imsmassi-action-danger-text:       #ffffff;
+  --imsmassi-action-danger-border:     #c0392b;
+  --imsmassi-template-add-bg:          var(--imsmassi-action-primary-bg);
+  --imsmassi-template-add-hover-bg:    var(--imsmassi-action-primary-hover-bg);
+  --imsmassi-template-add-text:        var(--imsmassi-action-primary-text);
+  --imsmassi-template-add-border:      var(--imsmassi-action-primary-border);
+  --imsmassi-reminder-btn-color:       var(--imsmassi-sub-text);
+  --imsmassi-reminder-btn-active-color: var(--imsmassi-primary-dark);
+  --imsmassi-reminder-btn-offview-color: #e67e22;
   /* 헤더 버튼 (흰색 계열 — 어두운 헤더 배경용) */
   --imsmassi-header-btn-color:        rgba(255, 255, 255, 0.65);
   --imsmassi-header-btn-color-active: #ffffff;
@@ -38,6 +57,25 @@
   --imsmassi-text:     #e0e0e0;
   --imsmassi-sub-text: #a0a0a0;
   --imsmassi-border:   #404040;
+  --imsmassi-action-primary-bg:       var(--imsmassi-primary-dark);
+  --imsmassi-action-primary-hover-bg:  var(--imsmassi-primary);
+  --imsmassi-action-primary-text:      var(--imsmassi-on-primary);
+  --imsmassi-action-primary-border:    var(--imsmassi-primary-dark);
+  --imsmassi-action-secondary-bg:      #2a3347;
+  --imsmassi-action-secondary-hover-bg: #334060;
+  --imsmassi-action-secondary-text:    #cbd5e1;
+  --imsmassi-action-secondary-border:  #3d4f6e;
+  --imsmassi-action-danger-bg:         #c0392b;
+  --imsmassi-action-danger-hover-bg:   #a93226;
+  --imsmassi-action-danger-text:       #ffffff;
+  --imsmassi-action-danger-border:     #a93226;
+  --imsmassi-template-add-bg:          var(--imsmassi-action-primary-bg);
+  --imsmassi-template-add-hover-bg:    var(--imsmassi-action-primary-hover-bg);
+  --imsmassi-template-add-text:        var(--imsmassi-action-primary-text);
+  --imsmassi-template-add-border:      var(--imsmassi-action-primary-border);
+  --imsmassi-reminder-btn-color:       #cbd5e1;
+  --imsmassi-reminder-btn-active-color: var(--imsmassi-primary);
+  --imsmassi-reminder-btn-offview-color: #f59e0b;
   /* 다크 공통: 헤더·버튼은 항상 흰색 계열 유지 */
   --imsmassi-header-text:             #ffffff;
   --imsmassi-header-sub-text:         rgba(255, 255, 255, 0.8);
@@ -73,6 +111,14 @@
   --imsmassi-primary:       #c9beaa;
   --imsmassi-primary-light: #d6cec0;
   --imsmassi-primary-dark:  #9a9387;
+  --imsmassi-action-primary-bg:       #9a9387;
+  --imsmassi-action-primary-hover-bg:  #c9beaa;
+  --imsmassi-action-primary-text:      #191f28;
+  --imsmassi-action-primary-border:    #9a9387;
+  --imsmassi-action-secondary-bg:      #ede7dc;
+  --imsmassi-action-secondary-hover-bg: #e3dbcf;
+  --imsmassi-action-secondary-text:    #191f28;
+  --imsmassi-action-secondary-border:  #d3c8ba;
 }
 
 /* ── oceangreen 테마: primary 컬러 ── */
@@ -80,6 +126,14 @@
   --imsmassi-primary:       #7ce0d3;
   --imsmassi-primary-light: #a9e9e1;
   --imsmassi-primary-dark:  #44a79e;
+  --imsmassi-action-primary-bg:       #44a79e;
+  --imsmassi-action-primary-hover-bg:  #7ce0d3;
+  --imsmassi-action-primary-text:      #191f28;
+  --imsmassi-action-primary-border:    #44a79e;
+  --imsmassi-action-secondary-bg:      #daf4f1;
+  --imsmassi-action-secondary-hover-bg: #c8ece7;
+  --imsmassi-action-secondary-text:    #191f28;
+  --imsmassi-action-secondary-border:  #b5e0da;
 }
 
 /* ── lightbeige 테마: primary 컬러 ── */
@@ -87,6 +141,14 @@
   --imsmassi-primary:       #fbf1e6;
   --imsmassi-primary-light: #faf3eb;
   --imsmassi-primary-dark:  #d6cec5;
+  --imsmassi-action-primary-bg:       #d6cec5;
+  --imsmassi-action-primary-hover-bg:  #fbf1e6;
+  --imsmassi-action-primary-text:      #191f28;
+  --imsmassi-action-primary-border:    #d6cec5;
+  --imsmassi-action-secondary-bg:      #f4ece0;
+  --imsmassi-action-secondary-hover-bg: #ece2d6;
+  --imsmassi-action-secondary-text:    #191f28;
+  --imsmassi-action-secondary-border:  #e0d3c4;
 }
 
 /* 다크모드: 설정탭 셀렉트박스/토글버튼 스타일 */
@@ -296,33 +358,6 @@
   align-items: center;
   gap: 6px;
 }
-#assistant-root .imsmassi-assistant-header-btn {
-  padding: 4px 10px;
-  border: 0;
-  border-radius: 30px;
-  background: var(--blue-gray-200);
-  color: var(--blue-gray-800);
-  cursor: pointer;
-  font-size: 12px;
-  transition: background 0.15s, color 0.15s;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-#assistant-root .imsmassi-assistant-header-btn:hover {
-  background: var(--blue-gray-300);
-}
-#assistant-root .imsmassi-assistant-header-btn.imsmassi-active {
-  background: var(--blue-gray-700);
-  color: #fff;
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-assistant-header-btn {
-  background: var(--blue-gray-700);
-  color: var(--blue-gray-400);
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-assistant-header-btn:hover {
-  background: var(--blue-gray-600);
-  color: #fff;
-}
 
 /* ── 단축키 메뉴얼 버튼 (헤더 탭 그룹 좌측) ── */
 #assistant-root .imsmassi-shortcut-manual-btn {
@@ -486,14 +521,6 @@
 #assistant-root.imsmassi-dark-mode .imsmassi-assistant-tab:hover {
   background: rgba(52, 57, 70, 0.98);
 }
-#assistant-root .imsmassi-assistant-tab-icon {
-  width: 20px;
-  height: 20px;
-  background-size: 20px 20px;
-  background-repeat: no-repeat;
-  background-position: center;
-  flex-shrink: 0;
-}
 #assistant-root .imsmassi-icon-memo {
   background-image: url(../asset/images/memo.svg);
 }
@@ -503,10 +530,10 @@
 #assistant-root .imsmassi-icon-settings {
   background-image: url(../asset/images/settings.svg);
 }
-#assistant-root .imsmassi-assistant-tab-label {
-  line-height: 1.2;
-  text-align: center;
-  word-break: keep-all;
+/* 다크모드: 탭 아이콘 화이트로 반전 */
+#assistant-root.imsmassi-dark-mode .imsmassi-tab-icon {
+  filter: brightness(0) invert(1);
+  opacity: 0.85;
 }
 /* 활성 탭 */
 #assistant-root .imsmassi-assistant-tab.imsmassi-active {
@@ -517,40 +544,6 @@
   background: rgba(55, 61, 75, 0.99);
 }
 
-/* ── 사이드 패널 접기/펼치기 버튼: 하단 고정, 색상 연하게 구분 ── */
-#assistant-root .imsmassi-assistant-tab-toggle-btn {
-  margin-top: auto;
-  width: 100%;
-  padding: 8px 2px 7px;
-  border-top: 1px dashed rgba(0, 0, 0, 0.13);
-  border-left: 1px solid rgba(0, 0, 0, 0.09);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.09);
-  border-right: none;
-  border-radius: 8px 0 0 8px;
-  background: rgba(235, 237, 241, 0.88);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  transition:
-    background 0.15s,
-    opacity 0.15s;
-  opacity: 0.72;
-}
-#assistant-root .imsmassi-assistant-tab-toggle-btn:hover {
-  opacity: 1;
-  background: rgba(248, 249, 251, 0.98);
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-assistant-tab-toggle-btn {
-  background: rgba(30, 33, 41, 0.88);
-  border-top-color: rgba(255, 255, 255, 0.1);
-  border-left-color: rgba(255, 255, 255, 0.07);
-  border-bottom-color: rgba(255, 255, 255, 0.07);
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-assistant-tab-toggle-btn:hover {
-  background: rgba(46, 51, 63, 0.96);
-}
 #assistant-root .imsmassi-assistant-footer {
   padding: 8px 12px;
   border-top: 1px solid;
@@ -584,6 +577,30 @@
   height: 30px;
   cursor: pointer;
   background: url(../asset/ico_setting.svg) 8px center no-repeat;
+  position: relative;
+}
+/* 다크모드: 푸터 설정 버튼 아이콘 화이트로 표시 */
+#assistant-root.imsmassi-dark-mode .imsmassi-assistant-footer-btn {
+  background: transparent;
+  border-color: #444;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-assistant-footer-btn::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  -webkit-mask-image: url(../asset/ico_setting.svg);
+  mask-image: url(../asset/ico_setting.svg);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  background-color: rgba(255, 255, 255, 0.75);
 }
 #assistant-root .imsmassi-assistant-footer-controls {
   display: flex;
@@ -741,10 +758,6 @@
   transform: translateX(100%);
   opacity: 0.7;
 }
-/* [Task 4] 구버전 사이드 토글 버튼 숨김 (기능은 .imsmassi-btn-collapse-expand 로 이관됨) */
-#assistant-root .imsmassi-memo-side-toggle-btn {
-  display: none !important;
-}
 
 #assistant-root .imsmassi-memo-options {
   position: absolute;
@@ -827,6 +840,34 @@
 #assistant-root .imsmassi-fi--all {
   -webkit-mask-image: url(../asset/images/ico_filter_all.svg);
   mask-image: url(../asset/images/ico_filter_all.svg);
+}
+/* 버튼 인라인 아이콘 (CSS mask – currentColor 자동 연동) */
+#assistant-root .imsmassi-btn-icon {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  background-color: currentColor;
+  vertical-align: middle;
+  margin-right: 5px;
+  flex-shrink: 0;
+}
+#assistant-root .imsmassi-btn-icon--export {
+  -webkit-mask-image: url(../asset/images/export.svg);
+  mask-image: url(../asset/images/export.svg);
+}
+#assistant-root .imsmassi-btn-icon--import {
+  -webkit-mask-image: url(../asset/images/import.svg);
+  mask-image: url(../asset/images/import.svg);
+}
+#assistant-root .imsmassi-btn-icon--clear {
+  -webkit-mask-image: url(../asset/images/trash.svg);
+  mask-image: url(../asset/images/trash.svg);
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-filter-btn:hover,
 #assistant-root.imsmassi-dark-mode
@@ -974,36 +1015,6 @@
   color: var(--blue-gray-400);
   border-color: var(--blue-gray-700);
 }
-/* 복사하기 버튼 */
-#assistant-root .imsmassi-copy-btn {
-  color: var(--blue-gray-600);
-  border-color: var(--blue-gray-400);
-  font-size: 11px;
-  opacity: 0.55;
-  transition: opacity 0.2s;
-}
-#assistant-root .imsmassi-copy-btn:hover {
-  opacity: 1;
-}
-/* 공유하기 버튼 */
-#assistant-root .imsmassi-share-btn {
-  color: var(--blue-gray-600);
-  border-color: var(--blue-gray-400);
-  font-size: 11px;
-  opacity: 0.55;
-  transition: opacity 0.2s;
-}
-#assistant-root .imsmassi-share-btn:hover {
-  opacity: 1;
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-copy-btn {
-  color: var(--blue-gray-600);
-  border-color: var(--blue-gray-400);
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-share-btn {
-  color: var(--blue-gray-400);
-  border-color: var(--blue-gray-600);
-}
 /* 날짜 행 — 날짜 + (컨텍스트 바 노출 시 오른쪽 여백 확보) */
 #assistant-root .imsmassi-memo-date-row {
   display: flex;
@@ -1012,26 +1023,6 @@
   padding: 2px 10px 4px;
   gap: 6px;
   margin-top: 4px;
-}
-/* 복사/공유 — 날짜 행 오른쪽에 인라인 배치 */
-#assistant-root .imsmassi-memo-context-bar {
-  display: flex;
-  gap: 6.5px;
-  align-items: center;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-#assistant-root .imsmassi-memo-action-btn.imsmassi-toggle-label {
-  min-width: 60px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-#assistant-root .imsmassi-action-label {
-  font-size: 11px;
-  font-weight: 500;
-  white-space: nowrap;
-  line-height: 1;
 }
 
 #assistant-root .imsmassi-memo-inline-text {
@@ -1078,7 +1069,7 @@
   position: relative;
   border: 1px solid var(--blue-gray-200);
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   background: var(--memo-bg);
   width: 100%;
   min-width: 0;
@@ -1089,6 +1080,7 @@
   background: var(--memo-bg);
   min-height: 140px;
   overflow: hidden;
+  border-radius: 12px;
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-quill-wrapper {
   border-color: var(--blue-gray-700);
@@ -1106,6 +1098,8 @@
 }
 #assistant-root .imsmassi-memo-editor {
   min-height: 140px;
+  max-height: 280px;
+  overflow-y: auto;
 }
 #assistant-root .imsmassi-memo-quill-wrapper .ql-editor.ql-blank::before {
   color: var(--blue-gray-500);
@@ -1305,11 +1299,13 @@
 #assistant-root .imsmassi-icon-settings {
   background-image: url(../asset/images/settings.svg);
 }
-#assistant-root .imsmassi-icon-performance {
-  background-image: url(../asset/images/icon_fix.svg);
-}
 #assistant-root .imsmassi-icon-cleanup {
   background-image: url(../asset/images/trash.svg);
+}
+/* 다크모드: 모달 아이콘 화이트로 반전 */
+#assistant-root.imsmassi-dark-mode .imsmassi-modal-icon {
+  filter: brightness(0) invert(1);
+  opacity: 0.85;
 }
 #assistant-root .imsmassi-modal-input {
   width: 100%;
@@ -1354,28 +1350,28 @@
   font-weight: 500;
 }
 #assistant-root .imsmassi-modal-btn-primary {
-  background: #4a90d9;
-  color: #fff;
-  border: none;
+  background: var(--imsmassi-action-primary-bg);
+  color: var(--imsmassi-action-primary-text);
+  border: 1px solid var(--imsmassi-action-primary-border);
 }
 #assistant-root .imsmassi-modal-btn-primary:hover {
-  background: #3a7bc8;
+  background: var(--imsmassi-action-primary-hover-bg);
 }
 #assistant-root .imsmassi-modal-btn-secondary {
-  background: #e8e8e8;
-  color: #333;
-  border: none;
+  background: var(--imsmassi-action-secondary-bg);
+  color: var(--imsmassi-action-secondary-text);
+  border: 1px solid var(--imsmassi-action-secondary-border);
 }
 #assistant-root .imsmassi-modal-btn-secondary:hover {
-  background: #d8d8d8;
+  background: var(--imsmassi-action-secondary-hover-bg);
 }
 #assistant-root .imsmassi-modal-btn-danger {
-  background: #e74c3c;
-  color: #fff;
-  border: none;
+  background: var(--imsmassi-action-danger-bg);
+  color: var(--imsmassi-action-danger-text);
+  border: 1px solid var(--imsmassi-action-danger-border);
 }
 #assistant-root .imsmassi-modal-btn-danger:hover {
-  background: #c0392b;
+  background: var(--imsmassi-action-danger-hover-bg);
 }
 /* 복사/공유 선택 모달 옵션 버튼 */
 #assistant-root .imsmassi-modal-options {
@@ -1684,20 +1680,11 @@
 #assistant-root .imsmassi-items-center {
   align-items: center;
 }
-#assistant-root .imsmassi-justify-between {
-  justify-content: space-between;
-}
 #assistant-root .imsmassi-justify-end {
   justify-content: flex-end;
 }
-#assistant-root .imsmassi-flex-1 {
-  flex: 1;
-}
 #assistant-root .imsmassi-text-center {
   text-align: center;
-}
-#assistant-root .imsmassi-cursor-pointer {
-  cursor: pointer;
 }
 #assistant-root .imsmassi-hidden {
   display: none;
@@ -1726,22 +1713,8 @@
   pointer-events: none;
   z-index: 10;
 }
-#assistant-root .imsmassi-memo-tag {
-  padding: 2px 6px;
-  border-radius: 3px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-#assistant-root .imsmassi-memo-tag-delete {
-  cursor: pointer;
-  font-size: 13px;
-  opacity: 0.7;
-}
-#assistant-root .imsmassi-memo-tag-delete:hover {
-  opacity: 1;
-}
-#assistant-root .imsmassi-memo-delete-btn {
+#assistant-root .imsmassi-clipboard-delete-btn,
+#assistant-root .imsmassi-template-delete-btn {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -1751,9 +1724,12 @@
   padding: 0;
   width: 16px;
   height: 16px;
-  background: url(../asset/images/close.svg) center / 12px no-repeat;
+  background-color: currentColor;
+  -webkit-mask: url(../asset/images/close.svg) center / 12px no-repeat;
+  mask: url(../asset/images/close.svg) center / 12px no-repeat;
 }
-#assistant-root .imsmassi-memo-delete-btn:hover {
+#assistant-root .imsmassi-clipboard-delete-btn:hover,
+#assistant-root .imsmassi-template-delete-btn:hover {
   opacity: 1;
 }
 #assistant-root .imsmassi-memo-header-delete-btn {
@@ -1763,10 +1739,16 @@
   height: 16px;
   border-radius: 12px;
   line-height: 1;
-  background: url(../asset/images/close.svg) center / 12px no-repeat;
+  color: var(--imsmassi-sub-text);
+  background-color: currentColor;
+  -webkit-mask: url(../asset/images/close.svg) center / 12px no-repeat;
+  mask: url(../asset/images/close.svg) center / 12px no-repeat;
 }
 #assistant-root .imsmassi-memo-header-delete-btn:hover {
   opacity: 1;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-memo-header-delete-btn {
+  color: var(--imsmassi-text);
 }
 #assistant-root .imsmassi-memo-header-pin-btn {
   border: none;
@@ -1784,22 +1766,6 @@
 }
 #assistant-root .imsmassi-memo-item-pinned .imsmassi-memo-header-pin-btn {
   background-color: var(--imsmassi-primary);
-}
-#assistant-root .imsmassi-memo-header-action-btn {
-  background: rgba(0, 0, 0, 0.08);
-  border: none;
-  cursor: pointer;
-  width: 18px;
-  height: 18px;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  opacity: 0.75;
-}
-#assistant-root .imsmassi-memo-header-action-btn:hover {
-  opacity: 1;
 }
 
 /* 포스트잇 메모 (scoped) */
@@ -1976,7 +1942,7 @@
      DOM 순서도 #assistant-root 앞으로 삽입(relocateStickyLayer)하여 이중 보장. */
   z-index: 1100 !important;
   pointer-events: none !important;
-  overflow: hidden !important;
+  overflow: clip !important; /* hidden → clip: BFC/scroll-container 생성 안 함 → OS 파일 DnD hit-test 통과 */
   background: transparent !important;
 }
 #sticky-layer .imsmassi-sticky-note-wrapper {
@@ -2006,8 +1972,8 @@
   min-width: 150px !important;
   min-height: 150px !important;
   background: var(--imsmassi-sticky-bg, #FFF9C4) !important;
-  border: 1px solid var(--imsmassi-primary-light, #e8f4f8) !important;
-  border-left: 4px solid var(--imsmassi-primary, #006DB3) !important;
+  border: 1px solid var(--imsmassi-primary-light) !important;
+  border-left: 4px solid var(--imsmassi-primary) !important;
   border-radius: 8px !important;
   padding: 0 !important;
   resize: none !important;
@@ -2021,6 +1987,49 @@
 #sticky-layer .imsmassi-sticky-note.imsmassi-is-collapsed {
   min-height: unset !important;
   height: 22px !important;
+}
+
+/* ── sticky-layer CSS 변수 — #assistant-root와 동일한 토큰 구조 ── */
+/* (data-theme / imsmassi-dark-mode 는 JS에서 #sticky-layer에 동기화됨) */
+#sticky-layer {
+  --imsmassi-primary:       #006DB3;
+  --imsmassi-primary-light: #e8f4f8;
+  --imsmassi-primary-dark:  #005A96;
+}
+#sticky-layer.imsmassi-dark-mode {
+  --imsmassi-primary:       #4a9fd4;
+  --imsmassi-primary-light: #2a3a4a;
+  --imsmassi-primary-dark:  #3a8fc4;
+}
+#sticky-layer[data-theme="earthbrown"] {
+  --imsmassi-primary:       #c9beaa;
+  --imsmassi-primary-light: #d6cec0;
+  --imsmassi-primary-dark:  #9a9387;
+}
+#sticky-layer.imsmassi-dark-mode[data-theme="earthbrown"] {
+  --imsmassi-primary:       #c9beaa;
+  --imsmassi-primary-light: #4a4540;
+  --imsmassi-primary-dark:  #9a9387;
+}
+#sticky-layer[data-theme="oceangreen"] {
+  --imsmassi-primary:       #7ce0d3;
+  --imsmassi-primary-light: #a9e9e1;
+  --imsmassi-primary-dark:  #44a79e;
+}
+#sticky-layer.imsmassi-dark-mode[data-theme="oceangreen"] {
+  --imsmassi-primary:       #7ce0d3;
+  --imsmassi-primary-light: #2a4a47;
+  --imsmassi-primary-dark:  #44a79e;
+}
+#sticky-layer[data-theme="lightbeige"] {
+  --imsmassi-primary:       #fbf1e6;
+  --imsmassi-primary-light: #faf3eb;
+  --imsmassi-primary-dark:  #d6cec5;
+}
+#sticky-layer.imsmassi-dark-mode[data-theme="lightbeige"] {
+  --imsmassi-primary:       #fbf1e6;
+  --imsmassi-primary-light: #4a4540;
+  --imsmassi-primary-dark:  #d6cec5;
 }
 #sticky-layer .imsmassi-sticky-resize-handle {
   position: absolute !important;
@@ -2071,7 +2080,7 @@
   align-items: center !important;
   justify-content: space-between !important;
   height: 18px !important;
-  color: var(--imsmassi-primary) !important;
+  color: #7d6b00 !important;
   font-weight: 600 !important;
   background: rgba(0, 0, 0, 0.06) !important;
   padding: 0 6px !important;
@@ -2127,9 +2136,28 @@
 #sticky-layer .imsmassi-sticky-note-body .ql-container {
   border: none !important;
 }
-#sticky-layer .imsmassi-sticky-note-body .ql-toolbar {
-  display: none !important;
+/* sticky-layer bubble tooltip 크기 */
+#sticky-layer .ql-bubble .ql-tooltip {
+  font-size: 12px;
+  padding-left: 8px;
+  width: 140px;
 }
+#sticky-layer .ql-bubble .ql-tooltip .ql-formats {
+  margin: 1px;
+}
+#sticky-layer .ql-bubble .ql-tooltip button {
+  width: 20px;
+  height: 20px;
+}
+#sticky-layer .ql-bubble .ql-tooltip button svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* 일단 보이게 */
+/* #sticky-layer .imsmassi-sticky-note-body .ql-toolbar {
+  display: none;
+} */  
 #sticky-layer .imsmassi-sticky-note-body .ql-editor {
   padding: 0 !important;
   font-size: 13px !important;
@@ -2152,7 +2180,7 @@
   background: rgba(0, 0, 0, 0.08) !important;
   border: none !important;
   cursor: pointer !important;
-  color: var(--imsmassi-primary) !important;
+  color: #7d6b00 !important;
   width: 16px !important;
   height: 16px !important;
   border-radius: 4px !important;
@@ -2207,6 +2235,7 @@
 #assistant-root .ql-bubble .ql-tooltip {
   font-size: 13px;
   padding: 3px 4px;
+  width: 140px;
 }
 #assistant-root .ql-bubble .ql-tooltip .ql-formats {
   margin: 2px;
@@ -2272,11 +2301,6 @@
 }
 
 /* 클립보드/템플릿/시간/대시보드 (scoped) */
-#assistant-root .imsmassi-clipboard-filter {
-  padding: 4px 8px;
-  border: 1px solid;
-  border-radius: 12px;
-}
 #assistant-root .imsmassi-clipboard-item-content {
   margin-bottom: 4px;
   white-space: nowrap;
@@ -2336,7 +2360,9 @@
   padding: 0;
   width: 16px;
   height: 16px;
-  background: url(../asset/images/edit.svg) center / 14px no-repeat;
+  background-color: currentColor;
+  -webkit-mask: url(../asset/images/edit.svg) center / 14px no-repeat;
+  mask: url(../asset/images/edit.svg) center / 14px no-repeat;
 }
 #assistant-root .imsmassi-template-edit-btn:hover {
   opacity: 1;
@@ -2392,27 +2418,8 @@
 #assistant-root .imsmassi-time-period-btn.imsmassi-active {
   font-weight: 600;
 }
-#assistant-root .imsmassi-time-chart-header {
-  font-size: 13px;
-  margin-bottom: 8px;
-}
 #assistant-root .imsmassi-time-chart-item {
   margin-bottom: 10px;
-}
-#assistant-root .imsmassi-time-chart-label {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  margin-bottom: 4px;
-}
-#assistant-root .imsmassi-time-chart-bar {
-  height: 8px;
-  border-radius: 12px;
-  overflow: hidden;
-}
-#assistant-root .imsmassi-time-chart-bar-fill {
-  height: 100%;
-  border-radius: 12px;
 }
 #assistant-root .imsmassi-dashboard-section-header {
   font-size: 13px;
@@ -2488,20 +2495,6 @@
 #assistant-root.imsmassi-dark-mode .imsmassi-dashboard-unread-item.imsmassi-notif-unread {
   background: rgba(255, 255, 255, 0.05);
   border-left-color: var(--imsmassi-primary);
-}
-#assistant-root .imsmassi-dashboard-unread-item.imsmassi-notif-read {
-  border-left: 3px solid transparent;
-  opacity: 0.45;
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-dashboard-unread-item.imsmassi-notif-read {
-  opacity: 0.35;
-}
-/* 상태 dot */
-#assistant-root .imsmassi-notif-status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
 }
 #assistant-root .imsmassi-dashboard-unread-title {
   flex: 1;
@@ -2588,18 +2581,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-#assistant-root .imsmassi-favorite-btns {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-#assistant-root .imsmassi-favorite-btn {
-  padding: 6px 12px;
-  border: 1px solid;
-  border-radius: 12px;
-  background: transparent;
-  cursor: pointer;
 }
 
 /* Dark mode for Quill Tooltip */
@@ -2707,7 +2688,7 @@
   gap: 6px;
 }
 #assistant-root .imsmassi-memo-reminder-badge {
-  color: #e67e22;
+  color: var(--imsmassi-reminder-btn-active-color);
   pointer-events: none;
   display: inline-flex;
   align-items: center;
@@ -2761,6 +2742,9 @@
 #assistant-root .imsmassi-screen-btn:hover {
   opacity: 1;
 }
+#assistant-root .imsmassi-reminder-btn {
+  color: var(--imsmassi-reminder-btn-color);
+}
 #assistant-root .imsmassi-screen-btn-active {
   background: transparent;
   color: var(--imsmassi-primary);
@@ -2768,10 +2752,10 @@
   opacity: 1;
 }
 #assistant-root .imsmassi-reminder-btn-active {
-  color: #e67e22;
+  color: var(--imsmassi-reminder-btn-active-color);
 }
 #assistant-root .imsmassi-screen-btn-offview {
-  color: #e67e22 !important;
+  color: var(--imsmassi-reminder-btn-offview-color) !important;
   font-weight: 600;
   opacity: 1;
 }
@@ -2827,12 +2811,6 @@
 #assistant-root.imsmassi-dark-mode .imsmassi-template-suggest-code {
   background: #1a1a1a;
   color: #e0e0e0;
-}
-#assistant-root .imsmassi-modal-select-mt {
-  margin-top: 8px;
-}
-#assistant-root .imsmassi-modal-field-mt {
-  margin-top: 8px;
 }
 #assistant-root .imsmassi-modal-pinned-row {
   display: flex;
@@ -2942,6 +2920,12 @@
   font-weight: 600;
   color: #333;
   margin-bottom: 12px;
+  line-height: 1;
+}
+#assistant-root .imsmassi-settings-section-title .imsmassi-modal-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-settings-section-title {
   color: #e0e0e0;
@@ -2963,106 +2947,6 @@
 #assistant-root .imsmassi-settings-row-mb {
   margin-bottom: 10px;
 }
-#assistant-root .imsmassi-settings-row-label {
-  font-size: 13px;
-  color: #333;
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-settings-row-label {
-  color: #e0e0e0;
-}
-#assistant-root .imsmassi-settings-row-desc {
-  color: #999;
-}
-#assistant-root .imsmassi-settings-cleanup-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 10px;
-  background: #f8f9fa;
-  border-radius: 12px;
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-settings-cleanup-rows {
-  background: #191f28;
-}
-#assistant-root .imsmassi-settings-cleanup-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-#assistant-root .imsmassi-settings-cleanup-label {
-  font-size: 13px;
-  color: #666;
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-settings-cleanup-label {
-  color: #aaa;
-}
-#assistant-root .imsmassi-settings-select {
-  width: 100px;
-  padding: 6px 8px;
-  font-size: 13px;
-}
-#assistant-root .imsmassi-settings-storage {
-  margin-bottom: 20px;
-  padding: 16px;
-  background: #f8f9fa;
-  border-radius: 12px;
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-settings-storage {
-  background: #191f28;
-}
-#assistant-root .imsmassi-settings-storage-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-#assistant-root .imsmassi-settings-storage-title {
-  font-weight: 600;
-  color: #333;
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-settings-storage-title {
-  color: #e0e0e0;
-}
-#assistant-root .imsmassi-settings-storage-value {
-  font-size: 13px;
-  font-weight: 600;
-}
-#assistant-root .imsmassi-settings-storage-bar-bg {
-  height: 8px;
-  background: #e0e0e0;
-  border-radius: 12px;
-  overflow: hidden;
-}
-#assistant-root .imsmassi-settings-storage-bar-fill {
-  height: 100%;
-  border-radius: 12px;
-  transition: width 0.3s;
-}
-#assistant-root .imsmassi-settings-storage-hint {
-  color: #999;
-  margin-top: 6px;
-}
-#assistant-root .imsmassi-settings-data-btns {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-#assistant-root .imsmassi-settings-data-btn {
-  flex: 1;
-  color: #fff;
-  border: none;
-  font-size: 13px;
-  padding: 10px;
-}
-#assistant-root .imsmassi-settings-btn-export {
-  background: #4a90d9;
-}
-#assistant-root .imsmassi-settings-btn-import {
-  background: #5ba55b;
-}
-#assistant-root .imsmassi-settings-btn-clear {
-  background: #e74c3c;
-}
 
 /* ================================================
    renderAreaColorSection 클래스
@@ -3082,37 +2966,12 @@
   padding: 5px 0;
   border-bottom: 1px solid var(--imsmassi-border);
 }
-#assistant-root .imsmassi-area-color-name-wrap {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 70px;
-  max-width: 100px;
-  flex-shrink: 0;
-}
-#assistant-root .imsmassi-area-color-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-  flex-shrink: 0;
-}
-#assistant-root .imsmassi-area-color-name {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--imsmassi-text);
-}
 #assistant-root .imsmassi-area-color-label {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1px;
   cursor: pointer;
-}
-#assistant-root .imsmassi-area-color-sublabel {
-  color: var(--imsmassi-sub-text);
 }
 #assistant-root .imsmassi-area-color-input {
   width: 30px;
@@ -3561,12 +3420,12 @@
 #assistant-root .imsmassi-btn-secondary,
 #assistant-root .imsmassi-btn-danger {
   flex: 1;
-  border: none;
+  border: 1px solid transparent;
   font-size: 13px;
   padding: 10px;
   border-radius: 8px;
   cursor: pointer;
-  color: #fff;
+  color: var(--imsmassi-action-primary-text);
   font-weight: 500;
   transition: opacity 0.15s;
 }
@@ -3576,13 +3435,18 @@
   opacity: 0.85;
 }
 #assistant-root .imsmassi-btn-primary {
-  background: #191f28;
+  background: var(--imsmassi-action-primary-bg);
+  border-color: var(--imsmassi-action-primary-border);
 }
 #assistant-root .imsmassi-btn-secondary {
-  background: #5ba55b;
+  background: var(--imsmassi-action-secondary-bg);
+  color: var(--imsmassi-action-secondary-text);
+  border-color: var(--imsmassi-action-secondary-border);
 }
 #assistant-root .imsmassi-btn-danger {
-  background: #e74c3c;
+  background: var(--imsmassi-action-danger-bg);
+  color: var(--imsmassi-action-danger-text);
+  border-color: var(--imsmassi-action-danger-border);
 }
 
 /* 가이드 재보기 버튼 */
@@ -3700,26 +3564,6 @@
   padding: 20px;
 }
 
-/* ========== 카드 / 클립보드 / 템플릿 span 유틸리티 ========== */
-/* 카드 헤더 타이틀 (클립보드, 템플릿 카드 공통) */
-#assistant-root .imsmassi-card-title {
-  font-weight: 600;
-  font-size: 13px;
-}
-/* 클립보드 아이템 메타 – 업무영역 레이블 */
-#assistant-root .imsmassi-clipboard-meta-area {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* 클립보드 아이템 메타 – 시간 레이블 */
-#assistant-root .imsmassi-clipboard-meta-time {
-  flex-shrink: 0;
-}
-/* 클립보드 헤더 "최근 복사 히스토리" 레이블 */
-#assistant-root .imsmassi-clipboard-header-label {
-  font-weight: 500;
-}
 
 /* ============================================================
    [JS 인라인 스타일 분리] CSS 완전 위임 규칙
@@ -3816,14 +3660,6 @@
   border-left-color: var(--imsmassi-primary);
   color: var(--imsmassi-primary);
 }
-#assistant-root
-  .imsmassi-assistant-tab.imsmassi-active
-  .imsmassi-assistant-tab-label {
-  font-weight: 600;
-}
-#assistant-root .imsmassi-assistant-tab-toggle-btn {
-  color: var(--imsmassi-sub-text);
-}
 
 /* ── Task 2: 플로팅 버튼 테마 색상 ── */
 #assistant-root #imsmassi-floating-btn {
@@ -3901,21 +3737,26 @@
 
 /* ── Task 2: 템플릿 추가 버튼 area-color 액센트 ── */
 #assistant-root .imsmassi-memo-option-btn.imsmassi-template-add-btn {
-  background: var(--blue-gray-800);
-  color: var(--gray-0);
-  line-height: 30px;
+  background: var(--imsmassi-template-add-bg);
+  color: var(--imsmassi-template-add-text);
+  border-color: var(--imsmassi-template-add-border);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-#assistant-root .imsmassi-memo-option-btn.imsmassi-template-add-btn svg {
-  position: relative;
-  top: 3px;
-}
-#assistant-root .imsmassi-memo-option-btn.imsmassi-template-add-btn svg path {
-  stroke: var(--blue-gray-200);
+#assistant-root .imsmassi-memo-option-btn.imsmassi-template-add-btn:hover {
+  background: var(--imsmassi-template-add-hover-bg);
 }
 
 /* ── Task 2: 클립보드 아이템 ── */
-#assistant-root .imsmassi-memo-delete-btn {
+#assistant-root .imsmassi-clipboard-delete-btn,
+#assistant-root .imsmassi-template-delete-btn {
   color: var(--imsmassi-sub-text);
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-clipboard-delete-btn,
+#assistant-root.imsmassi-dark-mode .imsmassi-template-delete-btn {
+  color: var(--imsmassi-text);
 }
 #assistant-root .imsmassi-clipboard-item-content {
   color: var(--imsmassi-text);
@@ -3933,6 +3774,9 @@
 /* ── Task 2: 템플릿 아이템 ── */
 #assistant-root .imsmassi-template-edit-btn {
   color: var(--imsmassi-sub-text);
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-template-edit-btn {
+  color: var(--imsmassi-text);
 }
 #assistant-root .imsmassi-template-item-title {
   color: var(--imsmassi-text);

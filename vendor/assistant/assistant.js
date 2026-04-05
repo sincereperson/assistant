@@ -1140,7 +1140,7 @@ const themes = {
 // 테마 선택 UI에서 비활성 테마의 닷(dot) 표식에 사용하는 정적 스와치
 // (활성 테마는 getTheme()로 CSS var에서 읽으므로 이곳에 포함하지 않아도 됨)
 const THEME_SWATCHES = {
-  classic: { primary: "#4A90A4", light: "#E8F4F8", border: "" },
+  classic: { primary: "#006DB3", light: "#E8F4F8", border: "" },
   earthbrown: { primary: "#C9BEAA", light: "#D6CEC0", border: "" },
   oceangreen: { primary: "#7CE0D3", light: "#A9E9E1", border: "" },
   lightbeige: {
@@ -2060,6 +2060,9 @@ function setTheme(themeKey) {
   // CSS 커스텀 프로퍼티 적용: #assistant-root[data-theme="..."]
   const root = getAssistantStyleRoot();
   if (root) root.dataset.theme = themeKey;
+  // sticky-layer에도 동기화
+  const stickyLayer = document.getElementById("sticky-layer");
+  if (stickyLayer) stickyLayer.dataset.theme = themeKey;
   notifyThemeChange();
 }
 
@@ -2069,6 +2072,9 @@ function setDarkMode(isDark) {
   state.isDarkMode = isDark;
   const root = getAssistantStyleRoot();
   root.classList.toggle("imsmassi-dark-mode", isDark);
+  // sticky-layer에도 동기화
+  const stickyLayer = document.getElementById("sticky-layer");
+  if (stickyLayer) stickyLayer.classList.toggle("imsmassi-dark-mode", isDark);
   const btnLight = document.getElementById("btn-light");
   const btnDark = document.getElementById("btn-dark");
   if (btnLight) btnLight.classList.toggle("imsmassi-active", !isDark);
@@ -2738,15 +2744,18 @@ function updateDashboardButton() {
 
 // ── [5-D] 스타일 초기화 & 부트스트랩 ──────────────────────────────────────────
 function initializeStyles() {
-  // 이식(embedded) 모드에서 호스트 페이지 바닥화면 보호:
-  // getAssistantRoot()가 mf_VFrames_Root 등 호스트 컨테이너를 반환할 수 있으므로
-  // #assistant-root 스코프 요소에만 배경/글자색을 적용하고, 호스트 컨테이너에는 미적용.
   const root = getAssistantRoot();
   if (!root) return;
 
-  // data-theme, dark-mode 클래스는 CSS 변수로 자동 처리
-  // (handleStateUpdate에서 dataset.theme, classList.toggle 처리 참조)
-  // 현재 업무영역 CSS 변수 초기 적용
+  // config에서 주입된 initialTheme/initialDarkMode를 첫 렌더 전에 DOM에 즉시 반영
+  // (renderAll() 이전 호출이므로 flash 없이 올바른 초기 상태로 시작됨)
+  root.dataset.theme = state.currentTheme || "classic";
+  root.classList.toggle("imsmassi-dark-mode", !!state.isDarkMode);
+  const stickyLayer = document.getElementById("sticky-layer");
+  if (stickyLayer) {
+    stickyLayer.dataset.theme = state.currentTheme || "classic";
+    stickyLayer.classList.toggle("imsmassi-dark-mode", !!state.isDarkMode);
+  }
   applyAreaColorVars(getArea());
 }
 
@@ -2767,6 +2776,14 @@ async function bootstrapAssistant(config = {}) {
   assiConsole.log("[Assistant] 초기화 시작 (Shared Worker 모드)...");
 
   // 1단계: 초기 스타일 적용 (깨짐 방지)
+  // config.initialTheme / config.initialDarkMode 가 있으면 첫 렌더 전에 state에 주입
+  // → then() 콜백 없이 flash 없이 올바른 테마/다크모드로 시작
+  if (config.initialTheme && typeof themes !== "undefined" && themes[config.initialTheme]) {
+    state.currentTheme = config.initialTheme;
+  }
+  if (config.initialDarkMode !== undefined) {
+    state.isDarkMode = !!config.initialDarkMode;
+  }
   initializeStyles();
 
   // 1-1단계: 언어 사전 로드 (renderAll 전에 완료)
@@ -4346,6 +4363,7 @@ function initMemoEditor() {
 
   const modules = {
     clipboard: { matchVisual: false },
+    toolbar: [["bold", "italic", "underline","strike"], [{ header: 1 }, { header: 2 }]],
   };
 
   if (hasBetterTable) {
@@ -4511,7 +4529,7 @@ function initInlineMemoEditors() {
     const memoId = node.dataset.memoId;
     const encoded = node.dataset.content || "";
     const html = sanitizeHtml(decodeURIComponent(encoded));
-    const modules = { toolbar: true };
+    const modules = { toolbar: [["bold", "italic", "underline","strike"], [{ header: 1 }, { header: 2 }]] };
     if (hasBetterTable) {
       modules.table = false;
       modules["table-better"] = {
@@ -5187,10 +5205,8 @@ function initStickyNoteRichText() {
     const memoId = node.dataset.memoId;
     const encoded = node.dataset.content || "";
     const html = sanitizeHtml(decodeURIComponent(encoded));
-    // toolbar: [] → 빈 툴바 컨테이너를 생성해 table-better의 initWhiteList가
-    // toolbar.imsmassi-container에 접근할 수 있도록 함 (toolbar: false 시 null 오류 발생)
-    // 빈 툴바 div는 CSS에서 display:none 처리
-    const modules = { toolbar: [] };
+    // bubble theme: header 개별 토글 버튼 (드롭다운 금지 - 포커스 이탈 시 저장 트리거 방지)
+    const modules = { toolbar: [["bold", "italic", "underline","strike"], [{ header: 1 }, { header: 2 }]] };
     if (hasBetterTable) {
       modules.table = false;
       modules["table-better"] = {
@@ -5488,11 +5504,38 @@ function _syncStickyLayerBounds() {
   const boundsEl = _stickyLayerTargetEl.parentElement || _stickyLayerTargetEl;
   const r = boundsEl.getBoundingClientRect();
   if (r.width <= 0 || r.height <= 0) return;
-  layer.style.setProperty("top", `${r.top}px`, "important");
-  layer.style.setProperty("left", `${r.left}px`, "important");
-  layer.style.setProperty("width", `${r.width}px`, "important");
+  layer.style.setProperty("top",    `${r.top}px`,    "important");
+  layer.style.setProperty("left",   `${r.left}px`,   "important");
+  layer.style.setProperty("width",  `${r.width}px`,  "important");
   layer.style.setProperty("height", `${r.height}px`, "important");
   layer.style.removeProperty("display");
+
+  // 컨테이너가 MDI 스크롤 영역 밖으로 밀려날 때 포스트잇 블리딩 방지.
+  // 뷰포트 대신 가장 가까운 스크롤 조상(MDI 컨테이너) 기준으로 클리핑.
+  // "컨테이너 bounds ∩ MDI 가시 영역" 교차 영역만 노출.
+  let cr = null;
+  let _clipAncestor = boundsEl.parentElement;
+  while (_clipAncestor && _clipAncestor !== document.documentElement) {
+    const _cs = getComputedStyle(_clipAncestor);
+    if (_cs.overflow === "hidden" || _cs.overflowY === "scroll" || _cs.overflowY === "auto" ||
+        _cs.overflowX === "scroll" || _cs.overflowX === "auto") {
+      cr = _clipAncestor.getBoundingClientRect();
+      break;
+    }
+    _clipAncestor = _clipAncestor.parentElement;
+  }
+  // MDI 스크롤 컨테이너를 못 찾으면 뷰포트 기준으로 폴백
+  if (!cr) cr = { top: 0, left: 0, bottom: window.innerHeight, right: window.innerWidth };
+
+  const clipTop    = Math.max(0, cr.top    - r.top);    // MDI 상단 경계 아래로 숨겨지는 양
+  const clipLeft   = Math.max(0, cr.left   - r.left);   // MDI 좌측 경계 밖으로 나간 양
+  const clipBottom = Math.max(0, r.bottom  - cr.bottom); // MDI 하단 경계 아래로 내려간 양
+  const clipRight  = Math.max(0, r.right   - cr.right);  // MDI 우측 경계 밖으로 나간 양
+  layer.style.setProperty(
+    "clip-path",
+    `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px)`,
+    "important"
+  );
 }
 
 /**
@@ -5881,13 +5924,23 @@ function relocateStickyLayer() {
     });
 
     // ④ Scroll 리스너: 스크롤 시 sticky-layer bounds 재동기화
-    // capture:true 로 window 하위 모든 스크롤 이벤트를 단일 리스너로 포착
+    // window capture 외에도 MDI 컨테이너 등 중간 스크롤 요소에 직접 리스너 추가.
+    // targetElement 조상 중 overflow scroll/auto 요소를 순회하여 모두 등록.
     _stickyLayerScrollAC = new AbortController();
-    window.addEventListener("scroll", _syncStickyLayerBounds, {
-      passive: true,
-      capture: true,
-      signal: _stickyLayerScrollAC.signal,
-    });
+    const _scrollSignal = { passive: true, capture: true, signal: _stickyLayerScrollAC.signal };
+    window.addEventListener("scroll", _syncStickyLayerBounds, _scrollSignal);
+
+    // 조상 스크롤 컨테이너 탐색 및 리스너 등록
+    let _scrollAncestor = (targetElement.parentElement || targetElement).parentElement;
+    while (_scrollAncestor && _scrollAncestor !== document.documentElement) {
+      const _overflowY = getComputedStyle(_scrollAncestor).overflowY;
+      const _overflowX = getComputedStyle(_scrollAncestor).overflowX;
+      if (_overflowY === "scroll" || _overflowY === "auto" ||
+          _overflowX === "scroll" || _overflowX === "auto") {
+        _scrollAncestor.addEventListener("scroll", _syncStickyLayerBounds, _scrollSignal);
+      }
+      _scrollAncestor = _scrollAncestor.parentElement;
+    }
 
     assiConsole.log(
       `[Assistant] sticky-layer fixed → 타겟: ${targetElement.tagName}#${targetElement.id || ""}`,
@@ -6276,8 +6329,8 @@ function renderMemoTab() {
   const addTemplateBtn = createElement("button", {
     className: "imsmassi-memo-option-btn imsmassi-template-add-btn",
   });
-  // 테두리 색상은 CSS .imsmassi-template-add-btn { border-color: var(--imsmassi-area-color) }
-  addTemplateBtn.innerHTML = `<img src="${_ASSI_ASSET_BASE}images/ico_template_add.svg" width="16" height="16" alt="" style="vertical-align:middle"> ${t("ui.btnTemplateNew")}`;
+  // 색상은 CSS 변수(--imsmassi-template-add-*)와 currentColor SVG로 관리합니다.
+  addTemplateBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M13 8L8 8L3 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8.00488 13.0059L8.00488 8.00586L8.00488 3.00586" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>${t("ui.btnTemplateNew")}`;
   addTemplateBtn.addEventListener("click", openAddTemplateModal);
   templateCardHeader.append(templateTitleSpan, addTemplateBtn);
   const templateBody = createElement("div", {
@@ -6499,9 +6552,9 @@ function renderClipboardItemDOM(item) {
   itemDiv.addEventListener("click", () => copyToClipboard(item.content));
 
   const deleteBtn = createElement("button", {
-    className: "imsmassi-memo-delete-btn",
+    className: "imsmassi-clipboard-delete-btn",
   });
-  // 기본 색상은 CSS .imsmassi-memo-delete-btn { color: var(--imsmassi-sub-text) }
+  // 기본 색상은 CSS .imsmassi-clipboard-delete-btn { color: var(--imsmassi-sub-text) }
   deleteBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     deleteClipboardItem(item.id);
@@ -6590,9 +6643,9 @@ function renderTemplateItemDOM(template) {
   });
 
   const deleteBtn = createElement("button", {
-    className: "imsmassi-memo-delete-btn",
+    className: "imsmassi-template-delete-btn",
   });
-  // 기본 색상은 CSS .imsmassi-memo-delete-btn { color: var(--imsmassi-sub-text) }
+  // 기본 색상은 CSS .imsmassi-template-delete-btn { color: var(--imsmassi-sub-text) }
   deleteBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     openModal("templateDeleteConfirm", { templateId: template.id });
@@ -8621,7 +8674,7 @@ function getSettingsHtml(closeHandler) {
 
         <!-- 기능 설정 -->
         <div class="imsmassi-settings-section">
-          <div class="imsmassi-settings-section-title" style="display: ${state.hiddenUI.featureSectionTitle !== false ? 'block' : 'none'};"><span class="imsmassi-modal-icon imsmassi-icon-settings"></span>${t("settings.sectionFeature")}</div>
+          <div class="imsmassi-settings-section-title" style="display: ${state.hiddenUI.featureSectionTitle !== false ? 'flex' : 'none'};"><span class="imsmassi-modal-icon imsmassi-icon-settings"></span>${t("settings.sectionFeature")}</div>
           <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.areaColor ? "flex" : "none"};">
             <div>
               <span class="imsmassi-settings-label">${t("settings.areaColorLabel")}</span>
@@ -8714,9 +8767,9 @@ function getSettingsHtml(closeHandler) {
           </div>
           <div class="imsmassi-storage-hint">${usagePercent >= 80 ? t("settings.storageLowGuide") : t("settings.storageNormalGuide")}</div>
           <div class="imsmassi-storage-actions">
-            <button class="imsmassi-modal-btn imsmassi-btn-primary" onclick="exportAllData()">${t("ui.btnExport")}</button>
-            <button class="imsmassi-modal-btn imsmassi-btn-secondary" onclick="importData()">${t("ui.btnImport")}</button>
-            <button class="imsmassi-modal-btn imsmassi-btn-danger" onclick="openModal('clearAllDataConfirm')">${t("ui.btnClear")}</button>
+            <button class="imsmassi-modal-btn imsmassi-btn-primary" onclick="exportAllData()"><span class="imsmassi-btn-icon imsmassi-btn-icon--export"></span>${t("ui.btnExport")}</button>
+            <button class="imsmassi-modal-btn imsmassi-btn-secondary" onclick="importData()"><span class="imsmassi-btn-icon imsmassi-btn-icon--import"></span>${t("ui.btnImport")}</button>
+            <button class="imsmassi-modal-btn imsmassi-btn-danger" onclick="openModal('clearAllDataConfirm')"><span class="imsmassi-btn-icon imsmassi-btn-icon--clear"></span>${t("ui.btnClear")}</button>
           </div>
         </div>
 
