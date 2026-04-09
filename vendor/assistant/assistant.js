@@ -2007,8 +2007,8 @@ function notifyThemeChange(changed = null) {
     ThemeManager.changeMode(detail.isDarkMode ? "dark" : "light");
   }
 
-  if (typeof ThemeManager === "object" && typeof ThemeManager.toggleAreaColorMode === "function") {
-    ThemeManager.toggleAreaColorMode(detail.areaColorMode);
+  if (typeof ThemeManager === "object" && typeof ThemeManager.changeTask === "function") {
+    ThemeManager.changeTask(detail.areaColorMode? true : false);
   }
 
   if (changed === 'theme')         _runHook('onThemeChange', detail);

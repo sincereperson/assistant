@@ -2212,7 +2212,7 @@
         // → 콜백 없이 첫 렌더 전에 적용되므로 flash 없음
         initialTheme:         localStorage.getItem('selectedTheme') || 'classic',
         initialDarkMode:      localStorage.getItem('selectedMode') === 'dark',
-        initialAreaColorMode: localStorage.getItem('selectedAreaColorMode') === 'true',
+        initialAreaColorMode: localStorage.getItem('selectedIsTask') === true,
 
         // ══════════════════════════════════════════════════════════════════════
         // 2. 리소스 경로
