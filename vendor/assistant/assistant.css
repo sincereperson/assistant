@@ -42,6 +42,8 @@
   --imsmassi-reminder-btn-color:       var(--imsmassi-sub-text);
   --imsmassi-reminder-btn-active-color: var(--imsmassi-primary-dark);
   --imsmassi-reminder-btn-offview-color: #e67e22;
+  /* 스크린 버튼 active 텍스트 — 라이트 primary 테마에서 개별 오버라이드 가능 */
+  --imsmassi-screen-btn-active-color:   var(--imsmassi-primary);
   /* 헤더 버튼 (흰색 계열 — 어두운 헤더 배경용) */
   --imsmassi-header-btn-color:        rgba(255, 255, 255, 0.65);
   --imsmassi-header-btn-color-active: #ffffff;
@@ -149,6 +151,19 @@
   --imsmassi-action-secondary-hover-bg: #ece2d6;
   --imsmassi-action-secondary-text:    #191f28;
   --imsmassi-action-secondary-border:  #e0d3c4;
+}
+
+/* ── 라이트 primary 테마: screen-btn-active 텍스트 가시성 보정 ──────────────
+   primary가 밝아 흰 배경(#fff)에서 대비가 부족하므로 어두운 전용 색을 지정.
+   다크모드는 어두운 배경에 밝은 primary가 잘 보이므로 오버라이드 제외.       */
+#assistant-root[data-theme="earthbrown"]:not(.imsmassi-dark-mode) {
+  --imsmassi-screen-btn-active-color: #6b5f53; /* 웜 브라운, ~6:1 대비 */
+}
+#assistant-root[data-theme="oceangreen"]:not(.imsmassi-dark-mode) {
+  --imsmassi-screen-btn-active-color: #267d75; /* 다크 틸, ~4.75:1 대비 */
+}
+#assistant-root[data-theme="lightbeige"]:not(.imsmassi-dark-mode) {
+  --imsmassi-screen-btn-active-color: #7d6a56; /* 웜 다크브라운, ~5.1:1 대비 */
 }
 
 /* 다크모드: 설정탭 셀렉트박스/토글버튼 스타일 */
@@ -316,13 +331,13 @@
   left: 6px;
   width: 8px;
   height: 8px;
-  border-top: 2px solid #fff;
-  border-left: 2px solid #fff;
+  border-top: 2px solid var(--imsmassi-header-btn-color, rgba(255,255,255,0.7));
+  border-left: 2px solid var(--imsmassi-header-btn-color, rgba(255,255,255,0.7));
   border-radius: 2px 0 0 0;
   transition: border-color 0.2s;
 }
 #assistant-root .imsmassi-panel-resize-handle-nw:hover::before {
-  border-color: rgba(128, 128, 128, 0.8);
+  border-color: var(--imsmassi-header-btn-color-active, rgba(255,255,255,0.95));
 }
 #assistant-root .imsmassi-floating-panel.imsmassi-expanded {
   width: 640px;
@@ -530,6 +545,14 @@
 #assistant-root .imsmassi-icon-settings {
   background-image: url(../asset/images/settings.svg);
 }
+/* classic 테마 라이트모드: 헤더 탭 아이콘 화이트로 반전 (어두운 헤더 배경용) */
+#assistant-root[data-theme="classic"]:not(.imsmassi-dark-mode) .imsmassi-tab-icon {
+  filter: brightness(0) invert(1);
+  opacity: 0.75;
+}
+#assistant-root[data-theme="classic"]:not(.imsmassi-dark-mode) .imsmassi-header-tab-btn.imsmassi-active .imsmassi-tab-icon {
+  opacity: 1;
+}
 /* 다크모드: 탭 아이콘 화이트로 반전 */
 #assistant-root.imsmassi-dark-mode .imsmassi-tab-icon {
   filter: brightness(0) invert(1);
@@ -576,7 +599,7 @@
   border-radius: 12px;
   height: 30px;
   cursor: pointer;
-  background: url(../asset/ico_setting.svg) 8px center no-repeat;
+  background: url(../asset/images/ico_setting.svg) 8px center no-repeat;
   position: relative;
 }
 /* 다크모드: 푸터 설정 버튼 아이콘 화이트로 표시 */
@@ -592,8 +615,8 @@
   transform: translateY(-50%);
   width: 15px;
   height: 15px;
-  -webkit-mask-image: url(../asset/ico_setting.svg);
-  mask-image: url(../asset/ico_setting.svg);
+  -webkit-mask-image: url(../asset/images/ico_setting.svg);
+  mask-image: url(../asset/images/ico_setting.svg);
   -webkit-mask-size: contain;
   mask-size: contain;
   -webkit-mask-repeat: no-repeat;
@@ -613,6 +636,52 @@
   gap: 6px;
   align-items: center;
 }
+/* ── 업무영역 컬러모드 토글 pill (다크모드 pill과 동일 구조) ── */
+#assistant-root .imsmassi-acm-pill {
+  display: inline-flex;
+  align-items: center;
+  background: #e2e5ea;
+  border-radius: 8px;
+  padding: 3px;
+  height: 30px;
+}
+#assistant-root .imsmassi-acm-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #9aa0ab;
+  transition: background 0.2s, color 0.2s, box-shadow 0.15s;
+  padding: 0;
+  flex-shrink: 0;
+}
+#assistant-root .imsmassi-acm-btn.imsmassi-active {
+  background: #fff;
+  color: #2d3440;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15), 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-acm-pill {
+  background: #3a3a3a;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-acm-btn {
+  color: #5e6370;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-acm-btn.imsmassi-active {
+  background: #606060;
+  color: #f0f0f0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+/* 팔레트 아이콘 (CSS mask → currentColor 연동) */
+#assistant-root .imsmassi-acm-icon--palette {
+  -webkit-mask-image: url(../asset/images/ico_palette.svg);
+  mask-image: url(../asset/images/ico_palette.svg);
+}
+
 /* ── 다크모드 아이콘 pill 토글 ── */
 #assistant-root .imsmassi-dark-toggle-pill {
   display: inline-flex;
@@ -669,12 +738,12 @@
   vertical-align: middle;
 }
 #assistant-root .imsmassi-dtp-icon--sun {
-  -webkit-mask-image: url(../asset/ico_sun.svg);
-  mask-image: url(../asset/ico_sun.svg);
+  -webkit-mask-image: url(../asset/images/ico_sun.svg);
+  mask-image: url(../asset/images/ico_sun.svg);
 }
 #assistant-root .imsmassi-dtp-icon--moon {
-  -webkit-mask-image: url(../asset/ico_moon.svg);
-  mask-image: url(../asset/ico_moon.svg);
+  -webkit-mask-image: url(../asset/images/ico_moon.svg);
+  mask-image: url(../asset/images/ico_moon.svg);
 }
 #assistant-root .imsmassi-assistant-footer-themes {
   display: flex;
@@ -1765,7 +1834,7 @@
   opacity: 1;
 }
 #assistant-root .imsmassi-memo-item-pinned .imsmassi-memo-header-pin-btn {
-  background-color: var(--imsmassi-primary);
+  background-color: var(--imsmassi-screen-btn-active-color, var(--imsmassi-primary));
 }
 
 /* 포스트잇 메모 (scoped) */
@@ -1944,6 +2013,11 @@
   pointer-events: none !important;
   overflow: clip !important; /* hidden → clip: BFC/scroll-container 생성 안 함 → OS 파일 DnD hit-test 통과 */
   background: transparent !important;
+}
+/* OS 파일 드래그 중: sticky note가 호스트 페이지 파일 드롭 존을 차단하지 않도록
+   pointer-events를 일시적으로 none으로 전환합니다. (JS에서 클래스 토글) */
+#sticky-layer.imsmassi-file-dragging .imsmassi-sticky-note-wrapper {
+  pointer-events: none !important;
 }
 #sticky-layer .imsmassi-sticky-note-wrapper {
   position: absolute !important;
@@ -2340,7 +2414,7 @@
   opacity: 1;
 }
 #assistant-root .imsmassi-template-item-pinned .imsmassi-template-pin-btn {
-  background-color: var(--imsmassi-primary);
+  background-color: var(--imsmassi-screen-btn-active-color, var(--imsmassi-primary));
   opacity: 1;
 }
 #assistant-root .imsmassi-template-item-pinned {
@@ -2747,7 +2821,7 @@
 }
 #assistant-root .imsmassi-screen-btn-active {
   background: transparent;
-  color: var(--imsmassi-primary);
+  color: var(--imsmassi-screen-btn-active-color, var(--imsmassi-primary));
   font-weight: 600;
   opacity: 1;
 }
@@ -2946,50 +3020,6 @@
 }
 #assistant-root .imsmassi-settings-row-mb {
   margin-bottom: 10px;
-}
-
-/* ================================================
-   renderAreaColorSection 클래스
-   ================================================ */
-#assistant-root .imsmassi-area-color-legend {
-  color: #999;
-  margin-bottom: 8px;
-  line-height: 1.6;
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-area-color-legend {
-  color: #777;
-}
-#assistant-root .imsmassi-area-color-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--imsmassi-border);
-}
-#assistant-root .imsmassi-area-color-label {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  cursor: pointer;
-}
-#assistant-root .imsmassi-area-color-input {
-  width: 30px;
-  height: 22px;
-  padding: 1px;
-  cursor: pointer;
-  border-radius: 3px;
-  background: none;
-  border: 1px solid var(--imsmassi-border);
-}
-#assistant-root .imsmassi-area-color-spacer {
-  flex: 1;
-}
-#assistant-root .imsmassi-area-color-reset-btn {
-  background: none;
-  border-radius: 3px;
-  padding: 2px 6px;
-  cursor: pointer;
 }
 
 /* ================================================
@@ -3868,42 +3898,6 @@
 #assistant-root.imsmassi-dark-mode .imsmassi-recent-memo-menu {
   color: var(--gray-0);
 }
-
-/* ── Task 2: 업무 컬러 설정 행 (imsmassi-area-color-row-* 하위 요소 신규 클래스) ── */
-#assistant-root .imsmassi-area-color-row-name-wrap {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 70px;
-  max-width: 100px;
-  flex-shrink: 0;
-}
-#assistant-root .imsmassi-area-color-row-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-  flex-shrink: 0;
-}
-#assistant-root .imsmassi-area-color-row-name {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--imsmassi-text);
-}
-#assistant-root .imsmassi-area-color-label-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  cursor: pointer;
-}
-#assistant-root .imsmassi-area-color-label-text {
-  font-size: 9px;
-  color: var(--imsmassi-sub-text);
-}
-/* imsmassi-area-color-input / spacer / reset-btn 은 기존 CSS에서 이미 var()로 정의됨 */
 
 /* ── Task 2: 콘텐츠 탭 전환 애니메이션 클래스 ── */
 #assistant-root .imsmassi-content-transitioning {

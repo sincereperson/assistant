@@ -1,4 +1,4 @@
-/**
+﻿/**
  * assistant-worker.js
  * 어시스턴트 Shared Worker - 중계 서버 (Broker) 역할
  *
@@ -452,6 +452,7 @@ const _suggestedContents = new Set();
 const state = {
   currentTheme: 'classic', // 
   isDarkMode: false,
+  areaColorMode: false,
   selectedArea: 'UW',
   selectedMenu: '',  // 클라이언트 CONTEXT_CHANGE 수신 전까지 빈 값 유지
   memoFilter: 'all', // 'menu', 'area', 'all'
@@ -464,7 +465,6 @@ const state = {
   clipboard: [],
   templates: [],
   stickyNotes: [],
-  areaColors: {},   // 업무영역별 커스텀 컬러 { UW: { primary, sub1, sub2 }, ... }
   userInfo: null,   // 암호화된 사용자 정보 (복호화는 클라이언트에서 처리)
   settings: {
     autoCleanup: { clipboard: 7, oldMemos: 0 },
@@ -478,7 +478,6 @@ const state = {
     browserNotificationEnabled: true,
     toastEnabled: true,
     showTimeTab: false,
-    showAreaColorSection: false,
   },
   nextMemoId: 10,
   nextTemplateId: 10,
@@ -609,7 +608,6 @@ function getSnapshot(port) {
     clipboard:           state.clipboard,
     templates:           state.templates,
     stickyNotes:         state.stickyNotes,
-    areaColors:          state.areaColors,
     settings:            state.settings,
     nextTemplateId:      state.nextTemplateId,
     userInfo:            state.userInfo,
@@ -909,6 +907,9 @@ async function loadStateFromDB() {
   const savedDarkMode = await db.getSetting('isDarkMode');
   if (typeof savedDarkMode === 'boolean') state.isDarkMode = savedDarkMode;
 
+  const savedAreaColorMode = await db.getSetting('areaColorMode');
+  if (typeof savedAreaColorMode === 'boolean') state.areaColorMode = savedAreaColorMode;
+
   const memoPanelExpanded = await db.getSetting('isMemoPanelExpanded');
   if (typeof memoPanelExpanded === 'boolean') state.isMemoPanelExpanded = memoPanelExpanded;
 
@@ -978,20 +979,15 @@ async function loadStateFromDB() {
       debugLogs:                   settings.debugLogs                   !== undefined ? settings.debugLogs                   : state.settings.debugLogs,
       toastEnabled:                settings.toastEnabled                !== undefined ? settings.toastEnabled                : state.settings.toastEnabled,
       showTimeTab:                 settings.showTimeTab                 !== undefined ? settings.showTimeTab                 : state.settings.showTimeTab,
-      showAreaColorSection:        settings.showAreaColorSection        !== undefined ? settings.showAreaColorSection        : state.settings.showAreaColorSection,
     };
-    // Issue 5 긴급패치: 업무컬러설정 / 시간인사이트 항상 false로 초기화 (DB 저장값 무시)
+    // Issue 5 긴급패치: 시간인사이트 항상 false로 초기화 (DB 저장값 무시)
     state.settings.showTimeTab = false;
-    state.settings.showAreaColorSection = false;
     // 클립보드 캡처는 항상 활성화 (DB에 false가 저장된 경우에도 무시)
     state.settings.enableClipboardCapture = true;
   }
 
   const stickyNotes = await db.getSetting('sticky_notes');
   if (Array.isArray(stickyNotes)) state.stickyNotes = stickyNotes;
-
-  const areaColors = await db.getSetting('area_colors');
-  if (areaColors && typeof areaColors === 'object') state.areaColors = areaColors;
 
   // 온보딩 가이드 확인 여부 로드
   const hasSeenGuide = await db.getSetting('hasSeenGuide');
@@ -1328,6 +1324,12 @@ async function handleSetDarkMode(port, payload) {
   broadcastState();
 }
 
+async function handleSetAreaColorMode(port, payload) {
+  state.areaColorMode = payload.areaColorMode;
+  await db.saveSetting('areaColorMode', payload.areaColorMode);
+  broadcastState();
+}
+
 async function handleSaveSettings(port, payload) {
   state.settings = {
     ...state.settings,
@@ -1338,18 +1340,6 @@ async function handleSaveSettings(port, payload) {
     },
   };
   await db.saveSetting('app_settings', state.settings);
-  broadcastState();
-}
-
-async function handleSaveAreaColors(port, payload) {
-  const { areaId, colors } = payload;
-  if (!state.areaColors) state.areaColors = {};
-  if (colors) {
-    state.areaColors[areaId] = { ...colors };
-  } else {
-    delete state.areaColors[areaId];
-  }
-  await db.saveSetting('area_colors', state.areaColors);
   broadcastState();
 }
 
@@ -1739,8 +1729,8 @@ const HANDLERS = {
   USE_TEMPLATE:      handleUseTemplate,
   SET_THEME:         handleSetTheme,
   SET_DARK_MODE:     handleSetDarkMode,
+  SET_AREA_COLOR_MODE: handleSetAreaColorMode,
   SAVE_SETTINGS:     handleSaveSettings,
-  SAVE_AREA_COLORS:  handleSaveAreaColors,
   TOGGLE_TODO:       handleToggleTodo,
   SAVE_STICKY_NOTES: handleSaveStickyNotes,
   ADD_STICKY_NOTE:   handleAddStickyNote,

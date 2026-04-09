@@ -60,6 +60,25 @@
     }
     // ────────────────────────────────────────────────────────────────
 
+    // ─── 특정 부서 어시스턴트 차단 목록 ───────────────────────────
+    // deptCd    : loadAssistant({ deptCd: userObj.userDeptCd, ... }) 로 전달
+    // uprDeptCd : loadAssistant({ uprDeptCd: userObj.userUprDeptCd, ... }) 로 전달
+    const BLOCKED_DEPT_CDS = [
+      // 예시) '240070',  // IT기획파트
+    ];
+    const BLOCKED_UPR_DEPT_CDS = [
+      // 예시) '240000',  // 정보기술팀
+    ];
+    if (config.deptCd && BLOCKED_DEPT_CDS.includes(String(config.deptCd))) {
+      console.info('[assistant-loader] 차단된 부서입니다. 어시스턴트를 로드하지 않습니다:', config.deptCd);
+      return;
+    }
+    if (config.uprDeptCd && BLOCKED_UPR_DEPT_CDS.includes(String(config.uprDeptCd))) {
+      console.info('[assistant-loader] 차단된 상위 부서입니다. 어시스턴트를 로드하지 않습니다:', config.uprDeptCd);
+      return;
+    }
+    // ────────────────────────────────────────────────────────────────
+
     const mountId = config.mountId || 'assistant-mount';
     const mountContainerId = config.mountContainerId || 'mf_VFrames_Root';
     const allowBodyFallback = config.allowBodyFallback === true;

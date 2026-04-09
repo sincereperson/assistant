@@ -19,7 +19,7 @@
 // 🛠️ [Section 1] CONFIGURATION & CUSTOMIZATION  커스텀 영역 (자유롭게 수정 가능)
 // ============================================================================
 // 이 영역만 수정하여 테마, 다국어, UI 크기 등 기본 동작을 안전하게 변경하세요.
-// Section 3 이하의 코어 로직은 직접 수정하지 마세요.
+// Section 2 이하의 코어 로직은 직접 수정하지 마세요.
 // ============================================================================
 
 /**
@@ -39,7 +39,7 @@ const AssistantConfig = {
   /** 다국어 */
   i18n: {
     defaultLocale:  "ko-kr",
-    fallbackLocale: "en",
+    fallbackLocale: "en-us",
   },
   /** 고급 설정 */
   advanced: {
@@ -168,8 +168,8 @@ const _WORKER_HOOK_MAP = {
   // ── 테마/설정 ─────────────────────────────────────────────────────────────
   SET_THEME:                "onThemeChange",
   SET_DARK_MODE:            "onDarkModeChange",
+  SET_AREA_COLOR_MODE:      "onAreaColorModeChange",
   SAVE_SETTINGS:            "onSettingsSave",
-  SAVE_AREA_COLORS:         "onAreaColorsSave",
   SAVE_UI_PREFS:            "onUiPrefsSave",
   SAVE_USER_INFO:           "onUserInfoSave",
   // ── 컨텍스트/내비게이션 ───────────────────────────────────────────────────
@@ -242,6 +242,7 @@ function handleStateUpdate(newState) {
     root.dataset.theme = state.currentTheme || "classic";
     root.classList.toggle("imsmassi-dark-mode", !!state.isDarkMode);
   }
+  notifyThemeChange();
   rebuildAssistantTabs();
   renderAssistant();
   // 드래그 중에는 sticky notes를 다시 그리지 않습니다 — 드래그 mouseup 후 saveStickyNotes() → 새 STATE_UPDATE에서 처리됩니다.
@@ -1265,7 +1266,6 @@ const assistantTabs = [];
  * │ onThemeChange(payload)   테마 변경 시                                   │
  * │ onDarkModeChange(payload)다크모드 토글 시                               │
  * │ onSettingsSave(payload)  설정 저장 시                                   │
- * │ onAreaColorsSave(payload)영역 색상 저장 시                              │
  * │ onUiPrefsSave(payload)   UI 환경설정 저장 시                            │
  * │ onUserInfoSave(payload)  사용자 정보 저장 시                            │
  * ├ 컨텍스트/내비게이션 ───────────────────────────────────────────────────┤
@@ -1509,6 +1509,7 @@ function rebuildAssistantTabs() {
 let state = {
   currentTheme: "classic",
   isDarkMode: false,
+  areaColorMode: false,  // 업무영역 컬러모드
   selectedArea: "UW",
   selectedMenu: "", // imsmassi-lnb 선택 메뉴 (화면ID, setupStickyLayerObserver 초기화 시 getMenuId()로 설정됨)
   assistantOpen: false,
@@ -1568,9 +1569,6 @@ let state = {
    * }
    */
   stickyNotes: [],
-
-  // 업무영역별 커스텀 컬러 { UW: { primary, sub1, sub2 }, ... }
-  areaColors: {},
 
   // 포스트잇 드래그/리사이즈 진행 중 플래그 — STATE_UPDATE 수신 시 local 변경사항 보호
   stickyDragActive: false,
@@ -1678,13 +1676,13 @@ let state = {
 
   // 개발자 도구로 개별 온오프할 수 있는 설정 UI 노출 여부 (기본값 false: 숨김)
   hiddenUI: {
-    areaColor: false,
     timeInsight: false,
     markdown: false,
     debugLog: false,
     autoNav: false,
     theme: false,    // 푸터 테마/모드 전환 UI 노줄 여부
     darkMode: false, // 푸터 다크모드 토글 버튼 노줄 여부
+    areaColorMode: false, // 푸터 업무영역 컬러모드 토글 버튼 노출 여부
     sideTabs: false, // 좌측 사이드 탭 버튼 그룹 (기본값 false: 표시)
     shortcutManual: false, // 헤더 단축키 메뉴얼 버튼 노출 여부
     featureSectionTitle: false, // 기능 설정 섹션 타이틀 노출 여부 (기본값 true: 표시)
@@ -1743,9 +1741,9 @@ function getTheme() {
     cs ? cs.getPropertyValue(name).trim() || fallback : fallback;
   return {
     name: meta.name,
-    primary: v("--imsmassi-primary", "#4A90A4"),
+    primary: v("--imsmassi-primary", "#006DB3"),
     primaryLight: v("--imsmassi-primary-light", "#E8F4F8"),
-    primaryDark: v("--imsmassi-primary-dark", "#2E5A6A"),
+    primaryDark: v("--imsmassi-primary-dark", "#005A96"),
   };
 }
 
@@ -1792,40 +1790,15 @@ function getAreaName(areaId, fallback) {
   return fallback !== undefined ? fallback : areaId;
 }
 
-function getDefaultAreaColors(areaId) {
-  const areas = getBusinessAreas();
-  const base = areas.find((a) => a.id === areaId) || areas[0];
-  if (!base)
-    return {
-      primary: "#191F28",
-      sub1: "#E8F1FB",
-      sub2: STICKY_DEFAULT_COLOR,
-    };
-  return {
-    primary: base.color || "#191F28",
-    sub1: base.bgColor || base.color + "22",
-    sub2: base.sub2 || STICKY_DEFAULT_COLOR,
-  };
-}
-
 /**
- * 특정 areaId의 businessArea 객체에 커스텀 커러를 합쳕하여 반환
- * state.areaColors[areaId]가 있으면 primary/sub1/sub2를 오버라이드
- * @param {string} [areaId] - 업무영역 ID (생락 시 selectedArea 사용)
- * @returns {Object} area 객체 (color, bgColor, sub2 포함)
+ * 특정 areaId의 businessArea 객체를 반환
+ * @param {string} [areaId] - 업무영역 ID (생략 시 selectedArea 사용)
+ * @returns {Object} area 객체 (color, bgColor 포함)
  */
 function getAreaWithColors(areaId) {
   const areas = getBusinessAreas();
-  const base = areas.find((a) => a.id === (areaId || state.selectedArea)) ||
+  return areas.find((a) => a.id === (areaId || state.selectedArea)) ||
     areas[0] || { id: "", name: "", color: "#191F28", bgColor: "#E8F1FB" };
-  const def = getDefaultAreaColors(base.id);
-  const custom = state.areaColors?.[base.id] || {};
-  return {
-    ...base,
-    color: custom.primary ?? def.primary,
-    bgColor: custom.sub1 ?? def.sub1,
-    sub2: custom.sub2 ?? def.sub2,
-  };
 }
 
 function getArea() {
@@ -2023,7 +1996,7 @@ function setQuillContent(quillInstance, content, isRichText) {
 //                           renderPalette, renderAssistant, renderAssistantTabs,
 //                           renderAssistantContent, updateFooterStorageInfo → L6098
 // [5-C] 대시보드/탭/패널: cycleAssistantTab, toggleDashboardView, updateDashboardButton,
-//                             renderTimeTab, renderAreaColorSection, renderDashboardTab → L7187
+//                             renderTimeTab, renderDashboardTab → L7187
 // [5-D] 스타일 초기화 & 부트스트랩: initializeStyles, bootstrapAssistant,
 //                               initPanelTopLeftResize → L7903
 // ✓ connectToWorker → Section 3으로 이동 완료 (L429)
@@ -2035,19 +2008,24 @@ function notifyThemeChange() {
   const detail = {
     themeKey: state.currentTheme,
     isDarkMode: state.isDarkMode,
+    areaColorMode: !!state.areaColorMode,
     theme,
   };
 
-  if (typeof window.applyBaseTheme === "function") {
+  if (typeof ThemeManager === "object") {
     window.applyBaseTheme(detail);
   }
 
-  if (typeof window.setBaseTheme === "function") {
+  if (typeof ThemeManager === "object") {
     window.setBaseTheme(detail);
   }
 
   if (typeof window.onAssistantThemeChange === "function") {
     window.onAssistantThemeChange(detail);
+  }
+
+  if (typeof ThemeManager === "object" && typeof ThemeManager.toggleAreaColorMode === "function") {
+    ThemeManager.toggleAreaColorMode(!!state.areaColorMode);
   }
 
   window.dispatchEvent(new CustomEvent("assistant:themechange", { detail }));
@@ -2066,6 +2044,19 @@ function setTheme(themeKey) {
   notifyThemeChange();
 }
 
+/**
+ * 업무영역 컬러모드 토글
+ * 외부 ThemeManager를 호출하여 대상 div에 클래스를 넣었다 빼는 기능 수행
+ */
+function toggleAreaColorMode() {
+  const next = !state.areaColorMode;
+  workerSend("SET_AREA_COLOR_MODE", { areaColorMode: next });
+  // UI 즉각 반영 (STATE_UPDATE 수신 전까지 로컬 처리)
+  state.areaColorMode = next;
+  notifyThemeChange();
+  renderAssistant();
+}
+  
 function setDarkMode(isDark) {
   workerSend("SET_DARK_MODE", { isDark });
   // UI 즉각 반영 (STATE_UPDATE 수신 전까지 로컬 처리)
@@ -2418,19 +2409,29 @@ function renderAssistant() {
     "imsmassi-assistant-footer-modes",
   );
   if (footerModes) {
-    if (state.hiddenUI.darkMode) {
-      footerModes.style.display = "";
-      // 두 아이콘 pill — 어느 쪽 클릭해도 토글 (CSS mask로 currentColor 연동)
-      footerModes.innerHTML = `
+    footerModes.style.display = "";
+    const darkPillHtml = state.hiddenUI.darkMode
+      ? `
         <div class="imsmassi-dark-toggle-pill">
           <button class="imsmassi-dtp-btn${!state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="라이트 모드"><span class="imsmassi-dtp-icon imsmassi-dtp-icon--sun"></span></button>
           <button class="imsmassi-dtp-btn${state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="${t("ui.darkModeLabel")}"><span class="imsmassi-dtp-icon imsmassi-dtp-icon--moon"></span></button>
-        </div>
-      `;
-    } else {
-      footerModes.style.display = "none";
-      footerModes.innerHTML = "";
-    }
+        </div>`
+      : "";
+    const acmPillHtml = state.hiddenUI.areaColorMode
+      ? `
+        <div class="imsmassi-acm-pill">
+          <button
+            class="imsmassi-acm-btn${state.areaColorMode ? " imsmassi-active" : ""}"
+            onclick="toggleAreaColorMode()"
+            title="업무영역별 색상적용">
+            <span class="imsmassi-dtp-icon imsmassi-acm-icon--palette"></span>
+          </button>
+        </div>`
+      : "";
+    footerModes.innerHTML = `
+      ${acmPillHtml}
+      ${darkPillHtml}
+    `;
   }
 
   const footerThemes = document.getElementById(
@@ -2893,7 +2894,7 @@ window.addEventListener("beforeunload", () => {
 });
 /**
  * [개발자 도구 전용] 특정 고급 설정 UI 항목 노출/숨김 개별 토글
- * @param {string} key - 'areaColor' | 'timeInsight' | 'markdown' | 'debugLog' | 'autoNav' | 'theme' | 'darkMode' | 'sideTabs' | 'shortcutManual' | 'featureSectionTitle'
+ * @param {string} key - 'timeInsight' | 'markdown' | 'debugLog' | 'autoNav' | 'theme' | 'darkMode' | 'areaColorMode' | 'sideTabs' | 'shortcutManual' | 'featureSectionTitle'
  * @param {boolean} visible - 노출 여부 (true: 표시, false: 숨김)
  *
  * 사용 예시 (브라우저 콘솔):
@@ -2901,7 +2902,7 @@ window.addEventListener("beforeunload", () => {
  *   toggleAssistantHiddenUI('sideTabs', true);               // 좌측 사이드 탭 버튼 그룹 표시
  *   toggleAssistantHiddenUI('theme', true);                  // 푸터 테마 UI 표시
  *   toggleAssistantHiddenUI('darkMode', true);               // 푸터 다크모드 버튼 표시
- *   toggleAssistantHiddenUI('areaColor', true);              // 업무 컬러 설정 표시
+ *   toggleAssistantHiddenUI('areaColorMode', true);          // 푸터 업무영역 컬러모드 버튼 표시
  *   toggleAssistantHiddenUI('markdown', false);              // 마크다운 단축키 숨김
  *   toggleAssistantHiddenUI('shortcutManual', true);         // 헤더 단축키 메뉴얼 버튼 표시
  *   toggleAssistantHiddenUI('featureSectionTitle', false);   // 기능 설정 섹션 타이틀 숨김
@@ -2910,13 +2911,13 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
   // 상태 안전성 검사
   if (!state.hiddenUI) {
     state.hiddenUI = {
-      areaColor: false,
       timeInsight: false,
       markdown: false,
       debugLog: false,
       autoNav: false,
       theme: false,
       darkMode: false,
+      areaColorMode: false,
       sideTabs: false,
       shortcutManual: false,
       featureSectionTitle: true,
@@ -4186,41 +4187,6 @@ function goToMemoTab() {
 // ========================================
 // 설정 기능
 // ========================================
-// ========================================
-// 업무 영역 컬러 커스터마이징 핸들러
-// ========================================
-
-/**
- * 업무 영역의 특정 컬러 키를 변경하고 Worker에 저장 요청
- * @param {string} areaId - 업무영역 ID (예: 'UW')
- * @param {string} key - 컬러 키 ('primary' | 'sub1' | 'sub2')
- * @param {string} value - 새 컬러 hex 값
- */
-function onAreaColorChange(areaId, key, value) {
-  if (!state.areaColors) state.areaColors = {};
-  if (!state.areaColors[areaId]) {
-    // 해당 영역의 기본값으로 초기화
-    state.areaColors[areaId] = { ...getDefaultAreaColors(areaId) };
-  }
-  state.areaColors[areaId][key] = value;
-  workerSend("SAVE_AREA_COLORS", { areaId, colors: state.areaColors[areaId] });
-  renderAssistant();
-  renderStickyNotes();
-}
-
-/**
- * 업무 영역 컬러를 기본값으로 초기화
- * @param {string} areaId - 업무영역 ID
- */
-function resetAreaColors(areaId) {
-  if (!state.areaColors) return;
-  delete state.areaColors[areaId];
-  workerSend("SAVE_AREA_COLORS", { areaId, colors: null });
-  renderAssistant();
-  renderStickyNotes();
-  if (state.activeTab === "dashboard") renderAssistantContent();
-}
-
 function openSettingsModal() {
   if (state.activeTab !== "settings") {
     state.lastNonSettingsTab = state.activeTab || "memo";
@@ -4267,9 +4233,6 @@ function _readSettingsFromDOM() {
     showTimeTab: g("setting-show-time-tab")
       ? g("setting-show-time-tab").checked
       : state.settings.showTimeTab !== false,
-    showAreaColorSection: g("setting-show-area-color")
-      ? g("setting-show-area-color").checked
-      : state.settings.showAreaColorSection !== false,
     // Task 2.3: lastBackup은 DOM에 없으므로 항상 현재 state 값을 유지
     // (downloadExportData()에서 갱신된 값이 Worker에 전달되도록 보장)
     lastBackup: state.settings.lastBackup,
@@ -5343,8 +5306,11 @@ function initStickyNoteDrop() {
   const root = getAssistantRoot();
 
   // ── 헬퍼 ──────────────────────────────────────────────────────────────────
-  /** drag 데이터에 memo-id 포함 여부 확인 */
+  /** drag 데이터에 memo-id 포함 여부 확인 (OS 파일 드래그는 제외) */
   function _isMemoIdDrag(event) {
+    // OS 파일 드래그("Files" 타입)는 메모 드래그로 처리하지 않습니다.
+    // text/plain 만으로는 OS 파일 드래그와 구분이 불가능하므로 Files 우선 확인합니다.
+    if (event.dataTransfer?.types?.includes("Files")) return false;
     return (
       event.dataTransfer?.types?.includes("text/memo-id") ||
       event.dataTransfer?.types?.includes("text/plain")
@@ -5452,6 +5418,40 @@ function initStickyNoteDrop() {
     },
     true /* capture */,
   );
+
+  // ── 3. OS 파일 드래그 중 sticky note pointer-events 비활성화 ───────────────
+  // OS 파일 드래그 시 sticky-note-wrapper(pointer-events: auto)가 호스트 페이지의
+  // 파일 드롭 존을 물리적으로 차단하는 문제를 해결합니다.
+  // 파일 드래그가 감지되면 sticky-layer에 클래스를 추가해 CSS로 pointer-events를
+  // none으로 전환하고, drag가 끝나면 원상복구합니다.
+  let _fileDragCounter = 0;
+
+  function _setFileDragging(active) {
+    const stickyLayer = document.getElementById("sticky-layer");
+    if (!stickyLayer) return;
+    if (active) {
+      stickyLayer.classList.add("imsmassi-file-dragging");
+    } else {
+      stickyLayer.classList.remove("imsmassi-file-dragging");
+    }
+  }
+
+  document.addEventListener("dragenter", (e) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    _fileDragCounter++;
+    _setFileDragging(true);
+  }, true);
+
+  document.addEventListener("dragleave", (e) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    _fileDragCounter = Math.max(0, _fileDragCounter - 1);
+    if (_fileDragCounter === 0) _setFileDragging(false);
+  }, true);
+
+  document.addEventListener("drop", () => {
+    _fileDragCounter = 0;
+    _setFileDragging(false);
+  }, true);
 }
 
 // ========================================
@@ -5750,7 +5750,9 @@ function _resolveTargetContainer() {
   // anchorEl 범위 내에서 pg-id 텍스트가 현재 menuId와 일치하는 요소를 찾는다
   const allPgEls = anchorEl.querySelectorAll(`.${pgIdClass}`);
   const pgEl = Array.from(allPgEls).find(
-    (el) => el.textContent.trim() === currentMenuId,
+    (el) =>  typeof(ThemeManager) === 'object' 
+                ? (el.getAttribute("menuId") || "") === currentMenuId 
+                : el.textContent.trim() === currentMenuId
   );
 
   if (!pgEl) {
@@ -6779,56 +6781,6 @@ function renderTimeTab() {
   `;
 }
 
-/**
- * 대시보드 업무 컬러 설정 섹션 HTML 반환
- * 각 businessArea 행에 메인(primary) + 서브1 + 서브2 input[type=color] 제공
- */
-function renderAreaColorSection() {
-  const c = getColors();
-  const areas = getBusinessAreas();
-
-  const rows = areas
-    .map((area) => {
-      const def = getDefaultAreaColors(area.id);
-      const custom = state.areaColors?.[area.id] || {};
-      const hasCustom = !!state.areaColors?.[area.id];
-      const primary = custom.primary ?? def.primary;
-      const sub1 = custom.sub1 ?? def.sub1;
-      const sub2 = custom.sub2 ?? def.sub2;
-
-      return `
-      <div class="imsmassi-area-color-row">
-        <div class="imsmassi-area-color-row-name-wrap">
-          <span class="imsmassi-area-color-row-dot" style="background:${primary};"></span>
-          <span class="imsmassi-area-color-row-name" title="${getAreaName(area.id, area.id)}">${getAreaName(area.id, area.id)}</span>
-        </div>
-        <label class="imsmassi-area-color-label-wrap">
-          <span class="imsmassi-area-color-label-text">${t("dashboard.colorMain")}</span>
-          <input type="color" value="${primary}" onchange="onAreaColorChange('${area.id}','primary',this.value)" class="imsmassi-area-color-input">
-        </label>
-        <label class="imsmassi-area-color-label-wrap">
-          <span class="imsmassi-area-color-label-text">${t("dashboard.colorSub1")}</span>
-          <input type="color" value="${sub1}" onchange="onAreaColorChange('${area.id}','sub1',this.value)" class="imsmassi-area-color-input">
-        </label>
-        <label class="imsmassi-area-color-label-wrap">
-          <span class="imsmassi-area-color-label-text">${t("dashboard.colorSub2")}</span>
-          <input type="color" value="${sub2}" onchange="onAreaColorChange('${area.id}','sub2',this.value)" class="imsmassi-area-color-input">
-        </label>
-        <div class="imsmassi-area-color-spacer"></div>
-        ${hasCustom ? `<button onclick="resetAreaColors('${area.id}')" title="${t('dashboard.colorResetTitle')}" class="imsmassi-area-color-reset-btn">↩</button>` : ""}
-      </div>
-    `;
-    })
-    .join("");
-
-  return `
-    <div class="imsmassi-area-color-legend">
-      ${t("dashboard.colorLegend")}
-    </div>
-    ${rows}
-  `;
-}
-
 function renderDashboardTab() {
   // showTimeTab 설정이 false이면 시간 인사이트 섹션 렌더링 생략
   const timeHtml = state.settings?.showTimeTab !== false ? renderTimeTab() : "";
@@ -7017,19 +6969,6 @@ function renderDashboardTab() {
         ${recentMemosHtml || `<div class="imsmassi-dashboard-empty">${t("dashboard.recentMemoEmpty")}</div>`}
       </div>
     </div>
-
-    ${
-      state.settings?.showAreaColorSection !== false
-        ? `
-    <div class="imsmassi-dashboard-section">
-      <div class="imsmassi-dashboard-section-header">
-        <span>${t("dashboard.sectionAreaColor")}</span>
-      </div>
-      ${renderAreaColorSection()}
-    </div>
-    `
-        : ""
-    }
 
     ${
       state.settings?.showTimeTab !== false
@@ -8675,17 +8614,6 @@ function getSettingsHtml(closeHandler) {
         <!-- 기능 설정 -->
         <div class="imsmassi-settings-section">
           <div class="imsmassi-settings-section-title" style="display: ${state.hiddenUI.featureSectionTitle !== false ? 'flex' : 'none'};"><span class="imsmassi-modal-icon imsmassi-icon-settings"></span>${t("settings.sectionFeature")}</div>
-          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.areaColor ? "flex" : "none"};">
-            <div>
-              <span class="imsmassi-settings-label">${t("settings.areaColorLabel")}</span>
-              <div class="imsmassi-settings-desc">${t("settings.areaColorDesc")}</div>
-            </div>
-            <label class="imsmassi-toggle-switch">
-              <input type="checkbox" id="setting-show-area-color" ${state.settings.showAreaColorSection !== false ? "checked" : ""}>
-              <span class="imsmassi-toggle-slider"></span>
-            </label>
-          </div>
-
           <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.timeInsight ? "flex" : "none"};">
             <div>
               <span class="imsmassi-settings-label">${t("settings.timeInsightLabel")}</span>
@@ -8799,7 +8727,6 @@ function initSettingsTab() {
     { id: "setting-browser-notification", label: "브라우저 알림" },
     { id: "setting-toast", label: "토스트 알림" },
     { id: "setting-show-time-tab", label: "시간 탭 표시" },
-    { id: "setting-show-area-color", label: "업무 컬러 설정 표시" },
   ];
 
   toggleMap.forEach(({ id, label }) => {
@@ -8906,5 +8833,3 @@ function confirmClearReminder() {
   closeModal();
   if (state.autoNavigateToDashboard) setActiveTab("dashboard");
 }
-
-ㅠ
