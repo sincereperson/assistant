@@ -1,4 +1,4 @@
-@import url("../asset/font/pretendard.css");
+/* @import url("../asset/font/pretendard.css"); */
 
 /* ============================================================
    테마 토큰 — CSS 커스텀 프로퍼티 (Single Source of Truth)
@@ -601,6 +601,7 @@
   background: #e2e5ea;
   border-radius: 8px;
   padding: 3px;
+  gap: 1px;
   height: 30px;
 }
 #assistant-root .imsmassi-acm-btn {
@@ -638,6 +639,11 @@
 #assistant-root .imsmassi-acm-icon--palette {
   -webkit-mask-image: url(../asset/images/ico_palette.svg);
   mask-image: url(../asset/images/ico_palette.svg);
+}
+/* 컬러OFF 아이콘: 원+사선 */
+#assistant-root .imsmassi-acm-icon--no-color {
+  -webkit-mask-image: url(../asset/images/ico_no_color.svg);
+  mask-image: url(../asset/images/ico_no_color.svg);
 }
 
 /* ── 다크모드 아이콘 pill 토글 ── */

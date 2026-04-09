@@ -2407,12 +2407,8 @@ function renderAssistant() {
     const acmPillHtml = state.hiddenUI.areaColorMode
       ? `
         <div class="imsmassi-acm-pill">
-          <button
-            class="imsmassi-acm-btn${state.areaColorMode ? " imsmassi-active" : ""}"
-            onclick="toggleAreaColorMode()"
-            title="업무영역별 색상적용">
-            <span class="imsmassi-dtp-icon imsmassi-acm-icon--palette"></span>
-          </button>
+          <button class="imsmassi-acm-btn${!state.areaColorMode ? " imsmassi-active" : ""}" onclick="toggleAreaColorMode()" title="업무영역 색상 해제"><span class="imsmassi-dtp-icon imsmassi-acm-icon--no-color"></span></button>
+          <button class="imsmassi-acm-btn${state.areaColorMode ? " imsmassi-active" : ""}" onclick="toggleAreaColorMode()" title="업무영역별 색상적용"><span class="imsmassi-dtp-icon imsmassi-acm-icon--palette"></span></button>
         </div>`
       : "";
     footerModes.innerHTML = `
@@ -2760,6 +2756,9 @@ async function bootstrapAssistant(config = {}) {
   }
   if (config.initialDarkMode !== undefined) {
     state.isDarkMode = !!config.initialDarkMode;
+  }
+  if (config.initialAreaColorMode !== undefined) {
+    state.areaColorMode = !!config.initialAreaColorMode;
   }
   initializeStyles();
 
