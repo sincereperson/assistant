@@ -466,12 +466,8 @@
   padding: 2px;
 }
 
-#assistant-root .imsmassi-assistant-tabs {
-  display: none !important;
-}
-
 /* ============================================================
-   패널 바디 래퍼 + 좌측 사이드바 탭
+   패널 바디 래퍼
    ============================================================ */
 
 #assistant-root .imsmassi-panel-body-wrapper {
@@ -507,35 +503,6 @@
   min-width: 0;
 }
 
-/* ── 개별 탭 버튼: 패널 왼쪽에 입체감으로 붙어있는 파일 탭 형태 ── */
-#assistant-root .imsmassi-assistant-tab {
-  flex: none;
-  width: 100%;
-  padding: 9px 2px 7px;
-  border-top: 1px solid rgba(0, 0, 0, 0.11);
-  border-left: 3px solid transparent; /* 활성 인디케이터 (바깥쪽) */
-  border-bottom: 1px solid rgba(0, 0, 0, 0.11);
-  border-right: none; /* 패널과 맞닿는 면은 테두리 없음 */
-  border-radius: 8px 0 0 8px;
-  background: rgba(248, 249, 251, 0.94);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  transition: background 0.15s;
-}
-#assistant-root .imsmassi-assistant-tab:hover {
-  background: #fff;
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-assistant-tab {
-  background: rgba(38, 42, 52, 0.94);
-  border-top-color: rgba(255, 255, 255, 0.09);
-  border-bottom-color: rgba(255, 255, 255, 0.09);
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-assistant-tab:hover {
-  background: rgba(52, 57, 70, 0.98);
-}
 #assistant-root .imsmassi-icon-memo {
   background-image: url(../asset/images/memo.svg);
 }
@@ -558,15 +525,6 @@
   filter: brightness(0) invert(1);
   opacity: 0.85;
 }
-/* 활성 탭 */
-#assistant-root .imsmassi-assistant-tab.imsmassi-active {
-  border-left-color: currentColor; /* area.color 로 JS에서 세팅 */
-  background: #fff;
-}
-#assistant-root.imsmassi-dark-mode .imsmassi-assistant-tab.imsmassi-active {
-  background: rgba(55, 61, 75, 0.99);
-}
-
 #assistant-root .imsmassi-assistant-footer {
   padding: 8px 12px;
   border-top: 1px solid;
@@ -3679,16 +3637,6 @@
 }
 #assistant-root .imsmassi-capacity-danger {
   color: #e74c3c !important;
-}
-
-/* ── Task 2: 탭 사이드바 활성 상태 (area-color 참조) ── */
-#assistant-root .imsmassi-assistant-tab {
-  color: var(--imsmassi-sub-text);
-  border-left-color: transparent;
-}
-#assistant-root .imsmassi-assistant-tab.imsmassi-active {
-  border-left-color: var(--imsmassi-primary);
-  color: var(--imsmassi-primary);
 }
 
 /* ── Task 2: 플로팅 버튼 테마 색상 ── */

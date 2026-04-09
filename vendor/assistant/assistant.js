@@ -166,9 +166,7 @@ const _WORKER_HOOK_MAP = {
   // ── 리마인더 ──────────────────────────────────────────────────────────────
   SET_REMINDER:             "onReminderSet",
   // ── 테마/설정 ─────────────────────────────────────────────────────────────
-  SET_THEME:                "onThemeChange",
-  SET_DARK_MODE:            "onDarkModeChange",
-  SET_AREA_COLOR_MODE:      "onAreaColorModeChange",
+  // SET_THEME / SET_DARK_MODE / SET_AREA_COLOR_MODE 훅은 notifyThemeChange()에서 개별 발화
   SAVE_SETTINGS:            "onSettingsSave",
   SAVE_UI_PREFS:            "onUiPrefsSave",
   SAVE_USER_INFO:           "onUserInfoSave",
@@ -243,7 +241,6 @@ function handleStateUpdate(newState) {
     root.classList.toggle("imsmassi-dark-mode", !!state.isDarkMode);
   }
   notifyThemeChange();
-  rebuildAssistantTabs();
   renderAssistant();
   // 드래그 중에는 sticky notes를 다시 그리지 않습니다 — 드래그 mouseup 후 saveStickyNotes() → 새 STATE_UPDATE에서 처리됩니다.
   if (!state.stickyDragActive) {
@@ -1209,8 +1206,6 @@ function getBusinessAreas() {
   });
 }
 
-const assistantTabs = [];
-
 // ============================================================================
 // [Section 4] CORE UTILITIES  🔧 공통 유틸리티
 // ============================================================================
@@ -1263,9 +1258,10 @@ const assistantTabs = [];
  * ├ 리마인더 ──────────────────────────────────────────────────────────────┤
  * │ onReminderSet(payload)   리마인더 설정 시                               │
  * ├ 테마/설정 ─────────────────────────────────────────────────────────────┤
- * │ onThemeChange(payload)   테마 변경 시                                   │
- * │ onDarkModeChange(payload)다크모드 토글 시                               │
- * │ onSettingsSave(payload)  설정 저장 시                                   │
+ * │ onThemeChange(payload)        테마 변경 시                              │
+ * │ onDarkModeChange(payload)     다크모드 토글 시                          │
+ * │ onAreaColorModeChange(payload)업무영역 컬러모드 토글 시                 │
+ * │ onSettingsSave(payload)       설정 저장 시                              │
  * │ onUiPrefsSave(payload)   UI 환경설정 저장 시                            │
  * │ onUserInfoSave(payload)  사용자 정보 저장 시                            │
  * ├ 컨텍스트/내비게이션 ───────────────────────────────────────────────────┤
@@ -1492,16 +1488,6 @@ const ASSISTANT_TABS = {
   },
 };
 
-/**
- * assistantTabs 배열을 현재 settings에 맞게 재구성
- */
-function rebuildAssistantTabs() {
-  assistantTabs.length = 0;
-  ["memo", "dashboard", "settings"].forEach((id) => {
-    if (ASSISTANT_TABS[id]) assistantTabs.push(ASSISTANT_TABS[id]);
-  });
-}
-
 // ── [Section 2] state 객체 ─────────────────────────────────────────────────
 // ⚠️ state는 Worker의 STATE_UPDATE를 통해서만 갱신해야 합니다.
 //    직접 대입(state.xxx = yyy)은 handleStateUpdate 내부에서만 허용됩니다.
@@ -1683,7 +1669,6 @@ let state = {
     theme: false,    // 푸터 테마/모드 전환 UI 노줄 여부
     darkMode: false, // 푸터 다크모드 토글 버튼 노줄 여부
     areaColorMode: false, // 푸터 업무영역 컬러모드 토글 버튼 노출 여부
-    sideTabs: false, // 좌측 사이드 탭 버튼 그룹 (기본값 false: 표시)
     shortcutManual: false, // 헤더 단축키 메뉴얼 버튼 노출 여부
     featureSectionTitle: false, // 기능 설정 섹션 타이틀 노출 여부 (기본값 true: 표시)
   },
@@ -1993,7 +1978,7 @@ function setQuillContent(quillInstance, content, isRichText) {
 // [5-A] 테마/모드/영역: notifyThemeChange, setTheme, setDarkMode,
 //                       setSelectedArea, selectMenu  → 이미 헤더 직후에 위치
 // [5-B] 렌더링 라이프사이클: renderAll, renderControlPanel, renderSystemPreview,
-//                           renderPalette, renderAssistant, renderAssistantTabs,
+//                           renderPalette, renderAssistant,
 //                           renderAssistantContent, updateFooterStorageInfo → L6098
 // [5-C] 대시보드/탭/패널: cycleAssistantTab, toggleDashboardView, updateDashboardButton,
 //                             renderTimeTab, renderDashboardTab → L7187
@@ -2003,32 +1988,35 @@ function setQuillContent(quillInstance, content, isRichText) {
 // ============================================================================
 
 // ── [5-A] 테마 / 모드 / 영역 설정 ───────────────────────────────────────
-function notifyThemeChange() {
+function notifyThemeChange(changed = null) {
   const theme = getTheme();
   const detail = {
+    changed,   // 'theme' | 'darkMode' | 'areaColorMode' | null(STATE_UPDATE 수신)
     themeKey: state.currentTheme,
     isDarkMode: state.isDarkMode,
     areaColorMode: !!state.areaColorMode,
     theme,
   };
 
-  if (typeof ThemeManager === "object") {
-    window.applyBaseTheme(detail);
+  if (typeof ThemeManager === "object" && typeof ThemeManager.changeTheme === "function") {
+    ThemeManager.changeTheme(detail.themeKey === "classic" ? "default" : detail.themeKey);
   }
 
-  if (typeof ThemeManager === "object") {
-    window.setBaseTheme(detail);
-  }
-
-  if (typeof window.onAssistantThemeChange === "function") {
-    window.onAssistantThemeChange(detail);
+  if (typeof ThemeManager === "object" && typeof ThemeManager.changeMode === "function") {
+    ThemeManager.changeMode(detail.isDarkMode ? "dark" : "light");
   }
 
   if (typeof ThemeManager === "object" && typeof ThemeManager.toggleAreaColorMode === "function") {
-    ThemeManager.toggleAreaColorMode(!!state.areaColorMode);
+    ThemeManager.toggleAreaColorMode(detail.areaColorMode);
   }
 
+  if (changed === 'theme')         _runHook('onThemeChange', detail);
+  if (changed === 'darkMode')      _runHook('onDarkModeChange', detail);
+  if (changed === 'areaColorMode') _runHook('onAreaColorModeChange', detail);
+
+  //커스텀 이벤트 외부 확장용
   window.dispatchEvent(new CustomEvent("assistant:themechange", { detail }));
+
 }
 
 function setTheme(themeKey) {
@@ -2041,7 +2029,7 @@ function setTheme(themeKey) {
   // sticky-layer에도 동기화
   const stickyLayer = document.getElementById("sticky-layer");
   if (stickyLayer) stickyLayer.dataset.theme = themeKey;
-  notifyThemeChange();
+  notifyThemeChange('theme');
 }
 
 /**
@@ -2053,7 +2041,7 @@ function toggleAreaColorMode() {
   workerSend("SET_AREA_COLOR_MODE", { areaColorMode: next });
   // UI 즉각 반영 (STATE_UPDATE 수신 전까지 로컬 처리)
   state.areaColorMode = next;
-  notifyThemeChange();
+  notifyThemeChange('areaColorMode');
   renderAssistant();
 }
   
@@ -2073,7 +2061,7 @@ function setDarkMode(isDark) {
     btnDark.classList.toggle("imsmassi-active", isDark);
     btnDark.classList.toggle("dark-active", isDark);
   }
-  notifyThemeChange();
+  notifyThemeChange('darkMode');
   renderAll();
 }
 
@@ -2102,7 +2090,6 @@ function selectMenu(menu) {
 // ── [5-B] 렌더링 라이프사이클 ─────────────────────────────────────────────────
 function renderAll() {
   initializeStyles();
-  rebuildAssistantTabs();
   renderAssistant();
 }
 
@@ -2467,7 +2454,6 @@ function renderAssistant() {
   updateFooterStorageInfo(c);
   updateStorageEstimate();
 
-  renderAssistantTabs();
   renderAssistantContent();
 }
 
@@ -2544,16 +2530,6 @@ async function updateStorageEstimate() {
   const c = getColors();
   updateFooterStorageInfo(c);
 }
-
-function renderAssistantTabs() {
-  const tabsContainer = document.getElementById("imsmassi-assistant-tabs");
-  if (!tabsContainer) return;
-  // 헤더 버튼 기반 탭 전환으로 이관됨: 사이드 탭 DOM 렌더링 비활성화
-  tabsContainer.innerHTML = "";
-  tabsContainer.style.display = "none";
-}
-// [Task 1] 탭 사이드바 하단 사이드 패널 토글 버튼 제거
-// 펼치기/접기 기능은 패널 좌측 .imsmassi-btn-collapse-expand 버튼으로 이관됨
 
 function renderAssistantContent(previousTab) {
   const content = document.getElementById("imsmassi-assistant-content");
@@ -2894,12 +2870,10 @@ window.addEventListener("beforeunload", () => {
 });
 /**
  * [개발자 도구 전용] 특정 고급 설정 UI 항목 노출/숨김 개별 토글
- * @param {string} key - 'timeInsight' | 'markdown' | 'debugLog' | 'autoNav' | 'theme' | 'darkMode' | 'areaColorMode' | 'sideTabs' | 'shortcutManual' | 'featureSectionTitle'
+ * @param {string} key - 'timeInsight' | 'markdown' | 'debugLog' | 'autoNav' | 'theme' | 'darkMode' | 'areaColorMode' | 'shortcutManual' | 'featureSectionTitle'
  * @param {boolean} visible - 노출 여부 (true: 표시, false: 숨김)
  *
  * 사용 예시 (브라우저 콘솔):
- *   toggleAssistantHiddenUI('sideTabs', false);              // 좌측 사이드 탭 버튼 그룹 숨김
- *   toggleAssistantHiddenUI('sideTabs', true);               // 좌측 사이드 탭 버튼 그룹 표시
  *   toggleAssistantHiddenUI('theme', true);                  // 푸터 테마 UI 표시
  *   toggleAssistantHiddenUI('darkMode', true);               // 푸터 다크모드 버튼 표시
  *   toggleAssistantHiddenUI('areaColorMode', true);          // 푸터 업무영역 컬러모드 버튼 표시
@@ -2918,7 +2892,6 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
       theme: false,
       darkMode: false,
       areaColorMode: false,
-      sideTabs: false,
       shortcutManual: false,
       featureSectionTitle: true,
     };
@@ -2929,12 +2902,6 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
     assiConsole.log(
       `[Assistant] 설정 UI '${key}' 상태가 ${visible ? "표시" : "숨김"}로 변경되었습니다.`,
     );
-
-    // sideTabs 변경 시 탭 사이드바 즉각 반영
-    if (key === "sideTabs") {
-      renderAssistantTabs();
-      return;
-    }
 
     // shortcutManual 버튼 변경 시 헤더 즉각 반영
     if (key === "shortcutManual") {
@@ -2977,8 +2944,6 @@ window.showAllAssistantHiddenUI = function (visible = true) {
   assiConsole.log(
     `[Assistant] 모든 설정 UI 항목이 ${visible ? "표시" : "숨김"}로 변경되었습니다.`,
   );
-  // sideTabs 포함 시 사이드바 즉각 반영
-  renderAssistantTabs();
   if (state.currentModal === "settings") {
     openModal("settings");
   } else if (state.activeTab === "settings") {
@@ -7844,7 +7809,6 @@ function setActiveTab(tabId) {
   }
   const previousTab = state.activeTab;
   state.activeTab = nextTab;
-  renderAssistantTabs();
   if (nextTab === "clipboard") {
     refreshClipboardStateFromDB().then(() => {
       renderAssistantContent(previousTab);
