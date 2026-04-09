@@ -1262,6 +1262,16 @@ async function handleDeleteClipboard(port, payload) {
   sendTo(port, 'TOAST', { messageKey: 'system.clipboardItemDeleted' });
 }
 
+async function handleToggleClipboardPin(port, payload) {
+  const { itemId } = payload;
+  const item = (state.clipboard || []).find(c => c.id === itemId);
+  if (!item) return;
+  item.pinned = !item.pinned;
+  await db.updateClipboardItem(item);
+  broadcastState();
+  sendTo(port, 'TOAST', { messageKey: item.pinned ? 'system.clipboardPinned' : 'system.clipboardUnpinned' });
+}
+
 async function handleAddTemplate(port, payload) {
   const { template } = payload;
   const id = await db.addTemplate(template);
@@ -1722,6 +1732,7 @@ const HANDLERS = {
   SET_REMINDER:      handleSetReminder,
   ADD_CLIPBOARD:     handleAddClipboard,
   DELETE_CLIPBOARD:  handleDeleteClipboard,
+  TOGGLE_CLIPBOARD_PIN: handleToggleClipboardPin,
   ADD_TEMPLATE:          handleAddTemplate,
   EDIT_TEMPLATE:         handleEditTemplate,
   DELETE_TEMPLATE:       handleDeleteTemplate,

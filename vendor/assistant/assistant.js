@@ -156,6 +156,7 @@ const _WORKER_HOOK_MAP = {
   // ── 클립보드 ──────────────────────────────────────────────────────────────
   ADD_CLIPBOARD:            "onClipboardAdd",
   DELETE_CLIPBOARD:         "onClipboardDelete",
+  TOGGLE_CLIPBOARD_PIN:     "onClipboardPin",
   REFRESH_CLIPBOARD:        "onClipboardRefresh",
   // ── 템플릿 ────────────────────────────────────────────────────────────────
   ADD_TEMPLATE:             "onTemplateAdd",
@@ -1508,7 +1509,7 @@ let state = {
   lastCopySource: null, // 마지막 복사 소스 (template 등)
   memoDraftHtml: "", // 메모 입력 임시 HTML (Quill)
   memoDraftText: "", // 메모 입력 임시 텍스트 (Quill)
-  autoNavigateToDashboard: true, // 알림 설정 후 대시보드 자동 이동 설정
+  autoNavigateToDashboard: false, // 알림/설정 시 대시보드 이동 차단 여부 (true=차단)
   isMemoPanelExpanded: false, // 메모 사이드 패널 펼침 상태
   memoFilter: "menu", // 메모 필터: 'menu' | 'area' | 'all'
 
@@ -2100,7 +2101,7 @@ function renderControlPanel() {
 
   // 테마 버튼
   let themeBtnsHtml = "";
-  Object.entries(themes).forEach(([key, t]) => {
+  Object.entries(themes).forEach(([key, thm]) => {
     const isActive = state.currentTheme === key;
     const sw = THEME_SWATCHES[key] || THEME_SWATCHES.classic;
     const dotColor = isActive ? theme.primary : sw.primary;
@@ -2111,7 +2112,7 @@ function renderControlPanel() {
               style="border-color: ${isActive ? theme.primary : "#E0E0E0"}; background: ${bgColor};"
               onclick="setTheme('${key}')">
         <span class="imsmassi-theme-dot" style="background: ${dotColor}; ${borderStyle}"></span>
-        ${t.name}
+        ${t("theme." + key) || thm.name}
       </button>
     `;
   });
@@ -2400,15 +2401,15 @@ function renderAssistant() {
     const darkPillHtml = state.hiddenUI.darkMode
       ? `
         <div class="imsmassi-dark-toggle-pill">
-          <button class="imsmassi-dtp-btn${!state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="라이트 모드"><span class="imsmassi-dtp-icon imsmassi-dtp-icon--sun"></span></button>
+          <button class="imsmassi-dtp-btn${!state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="${t("ui.lightModeLabel")}"><span class="imsmassi-dtp-icon imsmassi-dtp-icon--sun"></span></button>
           <button class="imsmassi-dtp-btn${state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="${t("ui.darkModeLabel")}"><span class="imsmassi-dtp-icon imsmassi-dtp-icon--moon"></span></button>
         </div>`
       : "";
     const acmPillHtml = state.hiddenUI.areaColorMode
       ? `
         <div class="imsmassi-acm-pill">
-          <button class="imsmassi-acm-btn${!state.areaColorMode ? " imsmassi-active" : ""}" onclick="toggleAreaColorMode()" title="업무영역 색상 해제"><span class="imsmassi-dtp-icon imsmassi-acm-icon--no-color"></span></button>
-          <button class="imsmassi-acm-btn${state.areaColorMode ? " imsmassi-active" : ""}" onclick="toggleAreaColorMode()" title="업무영역별 색상적용"><span class="imsmassi-dtp-icon imsmassi-acm-icon--palette"></span></button>
+          <button class="imsmassi-acm-btn${!state.areaColorMode ? " imsmassi-active" : ""}" onclick="toggleAreaColorMode()" title="${t("ui.areaColorOffLabel")}"><span class="imsmassi-dtp-icon imsmassi-acm-icon--no-color"></span></button>
+          <button class="imsmassi-acm-btn${state.areaColorMode ? " imsmassi-active" : ""}" onclick="toggleAreaColorMode()" title="${t("ui.areaColorOnLabel")}"><span class="imsmassi-dtp-icon imsmassi-acm-icon--palette"></span></button>
         </div>`
       : "";
     footerModes.innerHTML = `
@@ -2425,7 +2426,7 @@ function renderAssistant() {
       // 테마 컬러 버튼 표시
       footerThemes.style.display = "";
       let themeIconsHtml = "";
-      Object.entries(themes).forEach(([key, t]) => {
+      Object.entries(themes).forEach(([key, thm]) => {
         const isActive = state.currentTheme === key;
         const activeRing = isActive
           ? `box-shadow: 0 0 0 2px ${state.isDarkMode ? "#FFF" : "#191F28"};`
@@ -2434,7 +2435,7 @@ function renderAssistant() {
         const dotColor = isActive ? theme.primary : sw.primary;
         themeIconsHtml += `
           <button class="imsmassi-assistant-footer-theme-btn ${isActive ? "imsmassi-active" : ""}"
-                  title="${t.name}"
+                  title="${t("theme." + key) || thm.name}"
                   onclick="setTheme('${key}')"
                   style="background: ${dotColor}; border-color: ${c.border}; ${activeRing}"></button>
         `;
@@ -3778,6 +3779,10 @@ function togglePin(memoId) {
 
 function toggleTemplatePin(templateId) {
   workerSend("TOGGLE_TEMPLATE_PIN", { templateId });
+}
+
+function toggleClipboardPin(itemId) {
+  workerSend("TOGGLE_CLIPBOARD_PIN", { itemId });
 }
 
 // 고정 기능 디버깅 헬퍼
@@ -6513,9 +6518,18 @@ function renderClipboardItemDOM(item) {
     : item.time || t("clipboardTab.justNow");
 
   const itemDiv = createElement("div", {
-    className: "imsmassi-clipboard-item",
+    className: "imsmassi-clipboard-item" + (item.pinned ? " imsmassi-clipboard-item-pinned" : ""),
   });
   itemDiv.addEventListener("click", () => copyToClipboard(item.content));
+
+  const pinBtn = createElement("button", {
+    className: "imsmassi-clipboard-pin-btn" + (item.pinned ? " imsmassi-active" : ""),
+    title: item.pinned ? t("memoTab.unpinTitle") : t("memoTab.pinTitle"),
+  });
+  pinBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleClipboardPin(item.id);
+  });
 
   const deleteBtn = createElement("button", {
     className: "imsmassi-clipboard-delete-btn",
@@ -6541,7 +6555,7 @@ function renderClipboardItemDOM(item) {
   const timeSpan = createElement("span");
   timeSpan.textContent = relativeTime;
   metaDiv.append(menuSpan, timeSpan);
-  itemDiv.append(deleteBtn, contentDiv, metaDiv);
+  itemDiv.append(pinBtn, deleteBtn, contentDiv, metaDiv);
   return itemDiv;
 }
 
@@ -6569,7 +6583,9 @@ function renderClipboardTabDOM() {
     empty.textContent = t("clipboardTab.listEmpty");
     container.appendChild(empty);
   } else {
-    items.forEach((item) =>
+    const pinned = items.filter(i => i.pinned);
+    const unpinned = items.filter(i => !i.pinned);
+    [...pinned, ...unpinned].forEach((item) =>
       container.appendChild(renderClipboardItemDOM(item)),
     );
   }
@@ -7514,8 +7530,8 @@ function sendBrowserNotification(title, options = {}) {
 function showNotificationToast(title, content, areaId = "", duration = 6000) {
   if (state.assistantOpen) {
     // 어시스턴트 열려있으면
-    if (state.autoNavigateToDashboard) {
-      // 대시보드 탭으로 이동 (설정 활성화 시)
+    if (!state.autoNavigateToDashboard) {
+      // 대시보드 탭으로 이동 (차단 설정 OFF 시)
       setActiveTab("dashboard");
     }
     // 우측 상단 토스트로 표시
@@ -8684,7 +8700,7 @@ function initSettingsTab() {
   const toggleMap = [
     { id: "setting-markdown", label: "마크다운 단축키" },
     { id: "setting-debug-logs", label: "디버그 로그" },
-    { id: "setting-auto-dashboard", label: "대시보드 자동 이동" },
+    { id: "setting-auto-dashboard", label: "대시보드 이동 차단" },
     { id: "setting-backup", label: "백업 알림" },
     { id: "setting-reminder-notification", label: "리마인더 알림" },
     { id: "setting-browser-notification", label: "브라우저 알림" },
@@ -8779,7 +8795,7 @@ async function confirmSetReminder() {
     reminderRepeat: isRepeat,
   });
   closeModal();
-  if (state.autoNavigateToDashboard) setActiveTab("dashboard");
+  if (!state.autoNavigateToDashboard) setActiveTab("dashboard");
 }
 
 function confirmClearReminder() {
@@ -8794,5 +8810,4 @@ function confirmClearReminder() {
     reminderRepeat: false,
   });
   closeModal();
-  if (state.autoNavigateToDashboard) setActiveTab("dashboard");
 }

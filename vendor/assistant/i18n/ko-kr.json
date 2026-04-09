@@ -19,6 +19,8 @@
     "clipboardSaved": "어시스턴트 클립보드에 저장됨",
     "clipboardMoved": "클립보드 최상단으로 이동됨 (사용 {count}회)",
     "clipboardItemDeleted": "항목이 삭제되었습니다",
+    "clipboardPinned": "📌 클립보드 항목 고정됨",
+    "clipboardUnpinned": "클립보드 항목 고정 해제됨",
     "clipboardCopyFail": "클립보드 복사에 실패했습니다",
     "templateAdded": "템플릿이 추가되었습니다",
     "templateUpdated": "템플릿이 수정되었습니다",
@@ -33,6 +35,7 @@
     "memoCompleted": "완료 처리되었습니다",
     "memoUncompleted": "미완료 처리되었습니다",
     "stickyCreated": "✓ 포스트잇이 생성되었습니다",
+    "stickyNoScreen": "⚠️ 현재 화면을 인식할 수 없습니다. 업무 화면을 먼저 열어주세요.",
     "externalDataReceived": "외부 데이터가 수신되었습니다",
     "memoSizeExceeded": "⚠️ 메모 용량 초과 (최대 2MB)",
     "memo2mbExceeded": "⚠️ 메모 용량이 2MB를 초과했습니다",
@@ -94,6 +97,9 @@
     "shortcutTitle": "단축키 사용법",
     "shortcutBtnLabel": "단축키 메뉴얼",
     "darkModeLabel": "다크",
+    "lightModeLabel": "라이트",
+    "areaColorOnLabel": "업무영역별 색상 적용",
+    "areaColorOffLabel": "업무영역 색상 해제",
     "storageFormat": "{used}MB / {limit}MB",
     "panelTitle": "어시스턴트",
     "closeBtnTitle": "닫기",
@@ -171,8 +177,8 @@
     "markdownDesc": "**굵게**, *기울임*, ~~취소선~~ 등",
     "debugLogLabel": "디버그 로그",
     "debugLogDesc": "콘솔 로그 출력 on/off",
-    "autoDashboardLabel": "대시보드 자동 이동",
-    "autoDashboardDesc": "알림 설정 후 대시보드로 이동",
+    "autoDashboardLabel": "대시보드 이동 차단",
+    "autoDashboardDesc": "알림이 울리거나 설정할 때 대시보드로 자동 이동하지 않음",
 
     "sectionAutoCleanup": "자동 정리 설정",
     "clipboardCleanupLabel": "클립보드 기록",
@@ -301,9 +307,9 @@
 
   "theme": {
     "classic": "클래식",
-    "earthBrown": "어스 브라운",
-    "oceanGreen": "오션 그린",
-    "lightBeige": "라이트 베이지"
+    "earthbrown": "어스 브라운",
+    "oceangreen": "오션 그린",
+    "lightbeige": "라이트 베이지"
   },
 
   "area": {

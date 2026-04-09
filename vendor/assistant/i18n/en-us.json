@@ -19,6 +19,8 @@
     "clipboardSaved": "Saved to assistant clipboard",
     "clipboardMoved": "Moved to top of clipboard (used {count} times)",
     "clipboardItemDeleted": "Item deleted",
+    "clipboardPinned": "📌 Clipboard item pinned",
+    "clipboardUnpinned": "Clipboard item unpinned",
     "clipboardCopyFail": "Failed to copy to clipboard",
     "templateAdded": "Template added",
     "templateUpdated": "Template updated",
@@ -95,6 +97,9 @@
     "shortcutTitle": "Keyboard Shortcuts",
     "shortcutBtnLabel": "Shortcut Guide",
     "darkModeLabel": "Dark",
+    "lightModeLabel": "Light",
+    "areaColorOnLabel": "Apply area colors",
+    "areaColorOffLabel": "Remove area colors",
     "storageFormat": "{used}MB / {limit}MB",
     "panelTitle": "Assistant",
     "closeBtnTitle": "Close",
@@ -172,8 +177,8 @@
     "markdownDesc": "**bold**, *italic*, ~~strikethrough~~, etc.",
     "debugLogLabel": "Debug Log",
     "debugLogDesc": "Toggle console log output on/off",
-    "autoDashboardLabel": "Auto-navigate to Dashboard",
-    "autoDashboardDesc": "Navigate to dashboard after setting a reminder",
+    "autoDashboardLabel": "Block Dashboard Navigation",
+    "autoDashboardDesc": "Prevent auto-navigation to dashboard when reminders fire or are set",
 
     "sectionAutoCleanup": "Auto-cleanup Settings",
     "clipboardCleanupLabel": "Clipboard History",
@@ -302,9 +307,9 @@
 
   "theme": {
     "classic": "Classic",
-    "earthBrown": "Earth Brown",
-    "oceanGreen": "Ocean Green",
-    "lightBeige": "Light Beige"
+    "earthbrown": "Earth Brown",
+    "oceangreen": "Ocean Green",
+    "lightbeige": "Light Beige"
   },
 
   "area": {
