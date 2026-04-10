@@ -594,6 +594,10 @@
   gap: 6px;
   align-items: center;
 }
+/* 클래식 테마에서 업무영역 컬러모드 pill 숨김 */
+#assistant-root[data-theme="classic"] .imsmassi-acm-pill {
+  display: none !important;
+}
 /* ── 업무영역 컬러모드 토글 pill (다크모드 pill과 동일 구조) ── */
 #assistant-root .imsmassi-acm-pill {
   display: inline-flex;
@@ -739,6 +743,7 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
+  align-content: start; /* 메모 없을 때 필터그룹이 중앙으로 밀리지 않도록 row를 상단 고정 */
   position: relative;
   height: 100%;
   min-width: 0;
@@ -2097,7 +2102,7 @@
 #sticky-layer .imsmassi-sticky-resize-handle::after {
   content: "" !important;
   position: absolute !important;
-  background: var(--imsmassi-primary, #006DB3) !important;
+  background: #a09060 !important;
   border-radius: 2px !important;
   display: block !important;
 }
