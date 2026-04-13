@@ -4602,6 +4602,49 @@ function saveStickyNotes() {
   workerSend("SAVE_STICKY_NOTES", { stickyNotes: state.stickyNotes || [] });
 }
 
+// /**
+//  * 화면 배율/크기 변경 시 콘텐츠 영역 밖으로 벗어난 포스트잇 좌표를 안쪽으로 보정합니다.
+//  * contentW/contentH 기준으로 각 노트의 x/y를 clamp 후 변경이 있으면 저장합니다.
+//  */
+// function clampStickyNotesToContent() {
+//   const layer = document.getElementById("sticky-layer");
+//   if (!layer || !state.stickyNotes?.length) return;
+
+//   const scrollEl = _stickyScrollEl && _stickyScrollEl.isConnected ? _stickyScrollEl : null;
+//   const boundsEl = _stickyLayerTargetEl?.parentElement || _stickyLayerTargetEl;
+//   if (!boundsEl) return;
+
+//   const scrollLeft = scrollEl?.scrollLeft || 0;
+//   const scrollTop  = scrollEl?.scrollTop  || 0;
+//   const contentW = Math.max(boundsEl.clientWidth,  scrollEl?.scrollWidth  || boundsEl.clientWidth);
+//   const contentH = Math.max(boundsEl.clientHeight, scrollEl?.scrollHeight || boundsEl.clientHeight);
+//   const margin   = AssistantConfig.ui.stickyNoteMargin || 8;
+
+//   let changed = false;
+//   state.stickyNotes.forEach((note) => {
+//     const w = Number(note.width)  || AssistantConfig.ui.stickyNoteDefaultWidth;
+//     const h = Number(note.height) || AssistantConfig.ui.stickyNoteDefaultHeight;
+
+//     // 콘텐츠 전체 영역 안으로 clamp (스크롤 포함 전체 크기 기준)
+//     const maxX = Math.max(0, contentW - w - margin);
+//     const maxY = Math.max(0, contentH - h - margin);
+//     const clampedX = Math.min(Math.max(margin, Number(note.x) || 0), maxX);
+//     const clampedY = Math.min(Math.max(margin, Number(note.y) || 0), maxY);
+
+//     if (clampedX !== note.x || clampedY !== note.y) {
+//       note.x = clampedX;
+//       note.y = clampedY;
+//       changed = true;
+//     }
+//   });
+
+//   if (changed) {
+//     saveStickyNotes();
+//     renderStickyNotes();
+//     assiConsole.log("[Assistant] clampStickyNotesToContent: 화면 밖 포스트잇 보정 완료");
+//   }
+// }
+
 // 1. 상태 업데이트 헬퍼 (배열 전체를 매번 복사하지 않고 해당 객체만 수정)
 function upsertStickyNote(memoId, patch) {
   if (!memoId) return null;
@@ -4693,6 +4736,45 @@ function getDefaultStickyPlacement(memoId) {
 
   // 화면 밖으로 나가면 baseY 로 되돌림 (겹치더라도 화면 안에 표시)
   if (maxY > 0 && y > maxY) y = baseY;
+
+  // ── 가시영역 체크: 기본 위치가 현재 보이는 영역 밖이면 우측하단부터 쌓기 ──
+  // 현재 보이는 콘텐츠 영역 (스크롤 오프셋 기준 content 좌표)
+  const scrollEl = _stickyScrollEl && _stickyScrollEl.isConnected ? _stickyScrollEl : null;
+  const scrollLeft = scrollEl?.scrollLeft || 0;
+  const scrollTop  = scrollEl?.scrollTop  || 0;
+  const visW = scrollEl?.clientWidth  || baseRect.width;
+  const visH = scrollEl?.clientHeight || baseRect.height;
+
+  // 가시영역 (content 좌표계)
+  const visRight  = scrollLeft + visW;
+  const visBottom = scrollTop  + visH;
+
+  // 기본 위치가 가시영역 안에 있는지 확인
+  const inVisX = x + defaultWidth  > scrollLeft && x < visRight;
+  const inVisY = y + defaultHeight > scrollTop  && y < visBottom;
+
+  if (!inVisX || !inVisY) {
+    // 가시영역 우측하단 기준으로 재배치, 기존 노트들과 겹치지 않게 위로 쌓기
+    const brX = visRight  - defaultWidth  - margin;
+    const brY = visBottom - defaultHeight - margin;
+
+    let fallbackY = brY;
+    const sortedDesc = [...sorted].sort((a, b) => b.y - a.y);
+    sortedDesc.forEach((n) => {
+      if (isOverlapping(brX, fallbackY, defaultWidth, defaultHeight, n.x, n.y, n.width, n.height)) {
+        fallbackY = n.y - defaultHeight - margin;
+      }
+    });
+    // 가시영역 위로 넘어가면 brY로 되돌림 (겹치더라도 보이는 곳에)
+    if (fallbackY < scrollTop + margin) fallbackY = brY;
+
+    return {
+      x: Math.max(scrollLeft + margin, brX),
+      y: Math.max(scrollTop  + margin, fallbackY),
+      width: defaultWidth,
+      height: defaultHeight,
+    };
+  }
 
   return { x, y, width: defaultWidth, height: defaultHeight };
 }
@@ -5457,10 +5539,43 @@ let _resolveRetryObserver = null;
 /** @type {string|null} 재시도 옵저버가 대기 중인 menuId */
 let _resolveRetryMenuId = null;
 
+/** @type {Element|null} 업무화면 내부 스크롤 컨테이너 — 콘텐츠 절대좌표 기준점 */
+let _stickyScrollEl = null;
+
 /**
- * #sticky-layer(position:fixed)의 top/left/width/height를
- * 타겟의 parentElement 기준 getBoundingClientRect()으로 갱신합니다.
- * parentElement가 없을 경우 타겟 자신의 rect를 사용합니다.
+ * el 자손 중 실제 스크롤 콘텐츠를 가진 첫 번째 overflow:scroll/auto 요소를 반환합니다.
+ * getScrollContainer 미주입 시 자동탐색 폴백으로 사용합니다 (최대 깊이 4).
+ * @param {Element} el
+ * @returns {Element|null}
+ */
+function _findFirstScrollableDescendant(el) {
+  if (!el) return null;
+  const walk = (node, depth) => {
+    if (depth > 4) return null;
+    for (const child of node.children) {
+      const cs = getComputedStyle(child);
+      const scrollY = cs.overflowY === "scroll" || cs.overflowY === "auto";
+      const scrollX = cs.overflowX === "scroll" || cs.overflowX === "auto";
+      if (
+        (scrollY && child.scrollHeight > child.clientHeight + 10) ||
+        (scrollX && child.scrollWidth  > child.clientWidth  + 10)
+      ) return child;
+      const found = walk(child, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(el, 0);
+}
+
+/**
+ * #sticky-layer(position:fixed)를 내부 스크롤 컨테이너의 전체 콘텐츠 크기에 맞게 설정하고
+ * clip-path 로 현재 가시 영역만 노출합니다.
+ *
+ * ▸ 레이어 위치: 콘텐츠 원점(0,0)의 현재 뷰포트 좌표 = rect.left - scrollLeft
+ * ▸ 레이어 크기: scrollWidth × scrollHeight (콘텐츠 전체)
+ * ▸ clip-path:  boundsEl 가시영역 ∩ MDI 컨테이너 교차 영역만 노출
+ * ▸ 노트 위치:  절대 콘텐츠 좌표 그대로 (스크롤마다 재계산 불필요)
  * 호스트 DOM 스타일 수정 없음.
  */
 function _syncStickyLayerBounds() {
@@ -5470,39 +5585,48 @@ function _syncStickyLayerBounds() {
     layer.style.display = "none";
     return;
   }
-  const boundsEl = _stickyLayerTargetEl.parentElement || _stickyLayerTargetEl;
+  const boundsEl = _stickyLayerTargetEl.parentElement.parentElement || _stickyLayerTargetEl;
   const r = boundsEl.getBoundingClientRect();
   if (r.width <= 0 || r.height <= 0) return;
-  layer.style.setProperty("top",    `${r.top}px`,    "important");
-  layer.style.setProperty("left",   `${r.left}px`,   "important");
-  layer.style.setProperty("width",  `${r.width}px`,  "important");
-  layer.style.setProperty("height", `${r.height}px`, "important");
+
+  // 내부 스크롤 컨테이너 (없으면 boundsEl 자체)
+  const scrollEl   = _stickyScrollEl && _stickyScrollEl.isConnected ? _stickyScrollEl : boundsEl;
+  const scrollLeft = scrollEl.scrollLeft || 0;
+  const scrollTop  = scrollEl.scrollTop  || 0;
+  const contentW   = Math.max(r.width,  scrollEl.scrollWidth  || r.width);
+  const contentH   = Math.max(r.height, scrollEl.scrollHeight || r.height);
+
+  // 레이어 위치: 콘텐츠 원점(0,0)의 현재 뷰포트 좌표
+  // 스크롤하면 레이어가 같이 이동 → 노트는 절대 콘텐츠 좌표에 고정된 것처럼 보임
+  const layerLeft = r.left - scrollLeft;
+  const layerTop  = r.top  - scrollTop;
+
+  layer.style.setProperty("top",    `${layerTop}px`,   "important");
+  layer.style.setProperty("left",   `${layerLeft}px`,  "important");
+  layer.style.setProperty("width",  `${contentW}px`,   "important");
+  layer.style.setProperty("height", `${contentH}px`,   "important");
   layer.style.removeProperty("display");
 
-  // 컨테이너가 MDI 스크롤 영역 밖으로 밀려날 때 포스트잇 블리딩 방지.
-  // 뷰포트 대신 가장 가까운 스크롤 조상(MDI 컨테이너) 기준으로 클리핑.
-  // "컨테이너 bounds ∩ MDI 가시 영역" 교차 영역만 노출.
-  let cr = null;
-  let _clipAncestor = boundsEl.parentElement;
-  while (_clipAncestor && _clipAncestor !== document.documentElement) {
-    const _cs = getComputedStyle(_clipAncestor);
-    if (_cs.overflow === "hidden" || _cs.overflowY === "scroll" || _cs.overflowY === "auto" ||
-        _cs.overflowX === "scroll" || _cs.overflowX === "auto") {
-      cr = _clipAncestor.getBoundingClientRect();
-      break;
-    }
-    _clipAncestor = _clipAncestor.parentElement;
-  }
-  // MDI 스크롤 컨테이너를 못 찾으면 뷰포트 기준으로 폴백
-  if (!cr) cr = { top: 0, left: 0, bottom: window.innerHeight, right: window.innerWidth };
+  // clip-path: boundsEl(콘텐츠 패널) 기준 — 상하좌우 모두 r로 계산
+  //
+  // layerLeft = r.left - scrollLeft  →  r.left - layerLeft = scrollLeft
+  // layerTop  = r.top  - scrollTop   →  r.top  - layerTop  = scrollTop
+  //
+  // insetLeft   = r.left   - layerLeft = scrollLeft             (스크롤된 왼쪽 가려진 만큼)
+  // insetTop    = r.top    - layerTop  = scrollTop              (스크롤된 위쪽 가려진 만큼)
+  // insetRight  = layerRight  - r.right  = contentW - scrollLeft - r.width  (콘텐츠 우측 초과분)
+  // insetBottom = layerBottom - r.bottom = contentH - scrollTop  - r.height (콘텐츠 하단 초과분)
+  const layerRight  = layerLeft + contentW;
+  const layerBottom = layerTop  + contentH;
 
-  const clipTop    = Math.max(0, cr.top    - r.top);    // MDI 상단 경계 아래로 숨겨지는 양
-  const clipLeft   = Math.max(0, cr.left   - r.left);   // MDI 좌측 경계 밖으로 나간 양
-  const clipBottom = Math.max(0, r.bottom  - cr.bottom); // MDI 하단 경계 아래로 내려간 양
-  const clipRight  = Math.max(0, r.right   - cr.right);  // MDI 우측 경계 밖으로 나간 양
+  const insetLeft   = Math.max(0, r.left   - layerLeft);
+  const insetTop    = Math.max(0, r.top    - layerTop);
+  const insetRight  = Math.max(0, layerRight  - r.right);
+  const insetBottom = Math.max(0, layerBottom - r.bottom);
+
   layer.style.setProperty(
     "clip-path",
-    `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px)`,
+    `inset(${insetTop}px ${insetRight}px ${insetBottom}px ${insetLeft}px)`,
     "important"
   );
 }
@@ -5543,6 +5667,10 @@ function setupStickyLayerObserver(cfg = {}) {
     // [IoC] MutationObserver 기준 요소를 직접 반환하는 함수 (주입 시 windowContainerClass 탐색 대체)
     // 예: getObserverAnchor: () => document.getElementById('main-app-container')
     getObserverAnchor: cfg.getObserverAnchor || null,
+    // [IoC] 업무화면 내부 스크롤 컨테이너를 반환하는 함수 (콘텐츠 절대좌표 기준점)
+    // 미주입 시 _findFirstScrollableDescendant() 자동탐색 폴백 사용
+    // 예: getScrollContainer: (targetEl) => targetEl.querySelector('.grid-body')
+    getScrollContainer: cfg.getScrollContainer || null,
     _prevLocale: null,
   };
 
@@ -5866,6 +5994,7 @@ function relocateStickyLayer() {
     _stickyLayerScrollAC.abort();
     _stickyLayerScrollAC = null;
   }
+  _stickyScrollEl = null; // 내부 스크롤 컨테이너 참조 초기화
 
   // ② 전환 중 포스트잇 즉시 숨김 (순간이동 방지)
   _setStickyLayerVisibility(layer, 'pending');
@@ -5874,10 +6003,14 @@ function relocateStickyLayer() {
   _stickyLayerTargetEl = targetElement;
 
   if (targetElement && targetElement.isConnected) {
-    // ③ ResizeObserver: 타겟 및 부모 컨테이너 크기 변화 → bounds 재계산
-    _stickyLayerResizeObserver = new ResizeObserver(() =>
-      _syncStickyLayerBounds(),
-    );
+    // ③ ResizeObserver: 타겟 및 부모 컨테이너 크기 변화 → bounds 재계산 + 노트 위치 보정
+    let _clampTimer = null;
+    _stickyLayerResizeObserver = new ResizeObserver(() => {
+      _syncStickyLayerBounds();
+      // 디바운스: 배율/리사이즈 연속 이벤트 끝난 뒤 한 번만 clamp
+      clearTimeout(_clampTimer);
+      _clampTimer = setTimeout(() => clampStickyNotesToContent(), 150);
+    });
     _stickyLayerResizeObserver.observe(targetElement);
     if (targetElement.parentElement) {
       _stickyLayerResizeObserver.observe(targetElement.parentElement);
@@ -5911,6 +6044,20 @@ function relocateStickyLayer() {
         _scrollAncestor.addEventListener("scroll", _syncStickyLayerBounds, _scrollSignal);
       }
       _scrollAncestor = _scrollAncestor.parentElement;
+    }
+
+    // ⑤ 내부 스크롤 컨테이너 탐색: 콘텐츠 절대좌표 기준점 설정
+    // getScrollContainer 주입 시 우선 사용, 없으면 자동탐색
+    if (typeof _stickyLayerConfig.getScrollContainer === "function") {
+      _stickyScrollEl = _stickyLayerConfig.getScrollContainer(targetElement) || null;
+    } else {
+      _stickyScrollEl = _findFirstScrollableDescendant(targetElement);
+    }
+    if (_stickyScrollEl) {
+      // 내부 스크롤 이벤트 → _syncStickyLayerBounds (레이어 위치 + clip-path 갱신)
+      _stickyScrollEl.addEventListener("scroll", _syncStickyLayerBounds, _scrollSignal);
+      assiConsole.log("[Assistant] sticky 내부 스크롤 컨테이너 등록:",
+        _stickyScrollEl.id || _stickyScrollEl.className || _stickyScrollEl.tagName);
     }
 
     assiConsole.log(
