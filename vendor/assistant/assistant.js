@@ -5053,7 +5053,9 @@ function renderStickyNotes() {
     wrapperEl.dataset.memoId = note.memoId;
 
     // [핵심] 상태에 저장된 크기를 CSS 변수로 주입 (단위 px 확인)
-    const renderWidth = note.width ? Math.max(AssistantConfig.ui.stickyNoteMinSize, note.width) : AssistantConfig.ui.stickyNoteDefaultWidth;
+    const renderWidth = isCollapsed
+      ? AssistantConfig.ui.stickyNoteMinSize
+      : note.width ? Math.max(AssistantConfig.ui.stickyNoteMinSize, note.width) : AssistantConfig.ui.stickyNoteDefaultWidth;
     const renderHeight = isCollapsed
       ? 22
       : note.height
@@ -8386,7 +8388,7 @@ function buildDeleteConfirmModal(data) {
     className: "imsmassi-modal-body-text",
   });
   bodyText.textContent =
-    "이 메모를 삭제하시겠습니까? (포스트잇도 함께 삭제됩니다.)";
+    "이 메모를 삭제하시겠습니까? (스티커도 함께 삭제됩니다.)";
   const reminderDisplay = createElement("div", {
     id: "modal-delete-reminder-display",
   });
