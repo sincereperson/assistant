@@ -2217,6 +2217,23 @@
   border: none !important;
   background: transparent !important;
 }
+/* 호스트 다크모드 CSS 침범 방어: 테이블 셀 텍스트 색상 고정
+   .ql-editor에 color !important를 줘도 td/th는 호스트의 더 구체적인 규칙에 질 수 있으므로
+   td/th에도 명시적으로 !important 적용 */
+#sticky-layer .imsmassi-sticky-note-body .ql-editor td,
+#sticky-layer .imsmassi-sticky-note-body .ql-editor th {
+  color: #3d3d3d !important;
+  background: transparent !important;
+  border-color: #ccc !important;
+}
+#sticky-layer .imsmassi-sticky-note-body .ql-editor th {
+  font-weight: 600 !important;
+}
+/* td 안의 p, span 등 인라인 요소도 방어 */
+#sticky-layer .imsmassi-sticky-note-body .ql-editor td *,
+#sticky-layer .imsmassi-sticky-note-body .ql-editor th * {
+  color: inherit !important;
+}
 #sticky-layer .imsmassi-sticky-note-actions {
   display: inline-flex !important;
   gap: 4px !important;
