@@ -218,7 +218,7 @@
         '#assi-hang-dot{',
         '  position:absolute;top:2px;right:2px;',
         '  width:18px;height:18px;border-radius:9px;',
-        '  background:#e74c3c;color:#fff;',
+        '  background:#f5f84b;color:#333;',
         '  font:700 10px/18px sans-serif;text-align:center;',
         '  pointer-events:none;',
         '}',
@@ -229,7 +229,7 @@
         '}',
         '#assi-hang-modal{',
         '  background:#fff;border-radius:14px;',
-        '  padding:28px 28px 22px;max-width:340px;width:90%;',
+        '  padding:28px 28px 22px;max-width:400px;width:90%;',
         '  font-family:sans-serif;box-shadow:0 8px 32px rgba(0,0,0,.18);',
         '  text-align:center;',
         '}',
@@ -249,7 +249,7 @@
     var diagLines = [];
     if (watchUrl)   diagLines.push('• 미응답 URL: ' + watchUrl);
     diagLines.push('• 네트워크: ' + (online ? '정상' : '❌ 오프라인'));
-    diagLines.push('• 권장 조치: 페이지 새로고침 또는 IT 헬프데스크 문의');
+    diagLines.push('• 권장 조치: 새로고침 또는 정보기술팀 문의');
     var diagText = diagLines.join('\n');
 
     // ── DOM 구성 ─────────────────────────────────────────────────────
@@ -260,7 +260,7 @@
     var balloon = document.createElement('button');
     balloon.id = 'assi-hang-balloon';
     balloon.innerHTML =
-      '⚠\uFE0F 시스템이 응답하지 않습니다' +
+      '시스템이 응답하지 않습니다' +
       '<br><span style="font-size:11px;font-weight:400;opacity:.9">클릭하여 자세히 보기</span>';
     balloon.addEventListener('click', showModal);
 

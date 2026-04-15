@@ -1667,10 +1667,10 @@ let state = {
     markdown: false,
     debugLog: false,
     autoNav: false,
-    theme: false,    // 푸터 테마/모드 전환 UI 노줄 여부
-    darkMode: false, // 푸터 다크모드 토글 버튼 노줄 여부
-    areaColorMode: false, // 푸터 업무영역 컬러모드 토글 버튼 노출 여부
-    shortcutManual: false, // 헤더 단축키 메뉴얼 버튼 노출 여부
+    theme: true,    // 푸터 테마/모드 전환 UI 노줄 여부
+    darkMode: true, // 푸터 다크모드 토글 버튼 노줄 여부
+    areaColorMode: true, // 푸터 업무영역 컬러모드 토글 버튼 노출 여부
+    shortcutManual: true, // 헤더 단축키 메뉴얼 버튼 노출 여부
     featureSectionTitle: false, // 기능 설정 섹션 타이틀 노출 여부 (기본값 true: 표시)
   },
 };
@@ -2979,6 +2979,16 @@ function initPanelTopLeftResize(panel) {
     const root = document.getElementById("assistant-root");
     if (root) root.classList.add("imsmassi-resizing");
 
+    // [성능] memoMain 요소를 mousedown 시 한 번만 캐싱 (매 mousemove DOM 쿼리 방지)
+    const memoMain = document.querySelector("#assistant-root .imsmassi-memo-main");
+    // [성능] compact 임계값 — 이 값을 넘나들 때만 updateDashboardButton 호출
+    const COMPACT_THRESHOLD = AssistantConfig.ui.panelMinWidthExpanded;
+    let _prevCompact = startW < COMPACT_THRESHOLD;
+    // [성능] rAF throttle 플래그 — 한 프레임에 DOM 쓰기 1회로 제한
+    let _rafPending = false;
+    let _pendingW = startW;
+    let _pendingH = startH;
+
     function onMove(ev) {
       // 너비 계산 (왼쪽으로 당기면 너비 증가)
       const MIN_W = panel.classList.contains("imsmassi-expanded")
@@ -2997,7 +3007,7 @@ function initPanelTopLeftResize(panel) {
         window.innerHeight - MAX_H_OFFSET,
       );
 
-      // 상태 저장 및 DOM 업데이트
+      // 상태 저장 (순수 JS — 항상 최신값 유지)
       state.panelWidth = newW;
       state.panelHeight = newH;
       // 접힌/펼친 상태별 독립 필드에도 저장
@@ -3006,13 +3016,28 @@ function initPanelTopLeftResize(panel) {
       } else {
         state.panelWidthCollapsed = newW;
       }
-      panel.style.width = `${newW}px`;
-      panel.style.height = `${newH}px`;
-      // [Issue 3] memo-main max-width 실시간 동기화 (fixed 포지셔닝 보정)
-      const memoMain = document.querySelector("#assistant-root .imsmassi-memo-main");
-      if (memoMain) memoMain.style.maxWidth = `${newW - 25}px`;
-      // 단축키 메뉴얼 버튼 compact 여부 실시간 갱신
-      updateDashboardButton();
+
+      // [성능] rAF throttle: DOM 쓰기를 다음 애니메이션 프레임으로 병합
+      // mousemove는 초당 100회 이상 발화할 수 있지만 화면 갱신은 60fps(~16ms)가 상한.
+      // 중간에 쌓인 이벤트를 버리고 마지막 값만 한 번 렌더링한다.
+      _pendingW = newW;
+      _pendingH = newH;
+      if (!_rafPending) {
+        _rafPending = true;
+        requestAnimationFrame(() => {
+          _rafPending = false;
+          panel.style.width = `${_pendingW}px`;
+          panel.style.height = `${_pendingH}px`;
+          // [Issue 3] memo-main max-width 실시간 동기화 (fixed 포지셔닝 보정)
+          if (memoMain) memoMain.style.maxWidth = `${_pendingW - 25}px`;
+          // [성능] compact 임계값을 넘나들 때만 updateDashboardButton 호출
+          const nowCompact = _pendingW < COMPACT_THRESHOLD;
+          if (nowCompact !== _prevCompact) {
+            _prevCompact = nowCompact;
+            updateDashboardButton();
+          }
+        });
+      }
     }
 
     function onUp() {
@@ -4482,10 +4507,21 @@ function initInlineMemoEditors() {
     });
     // table-better matchers가 등록된 상태에서 convert가 동작하도록
     // dangerouslyPasteHTML 대신 root.innerHTML 직접 주입 후 history 초기화
+
+    // [버그 수정] quill-table-better 초기화 중 getSelection() null crash 방어
+    if (hasBetterTable) {
+      const _origGetSel = quill.getSelection.bind(quill);
+      quill.getSelection = (focus) => _origGetSel(focus) ?? { index: 0, length: 0 };
+    }
+
     quill.root.innerHTML = html;
     quill.history.clear();
+
+    // [버그 수정] 초기화 완료 전까지 비동기 text-change로 인한 dirty 오염 억제
+    let _initDone = false;
+
     quill.on("text-change", () => {
-      if (memoId) inlineMemoDirtyMap[memoId] = true;
+      if (_initDone && memoId) inlineMemoDirtyMap[memoId] = true;
     });
     quill.on("selection-change", (range, oldRange, source) => {
       if (!range && source === "user" && memoId && inlineMemoDirtyMap[memoId]) {
@@ -4494,6 +4530,13 @@ function initInlineMemoEditors() {
     });
     node.dataset.quillInit = "true";
     if (memoId) inlineMemoQuillMap[memoId] = quill;
+
+    // 현재 콜스택 이후(MutationObserver 마이크로태스크 완료 후) 초기화 완료 처리
+    setTimeout(() => {
+      if (hasBetterTable) delete quill.getSelection;  // 임시 패치 제거
+      _initDone = true;
+      if (memoId) inlineMemoDirtyMap[memoId] = false; // 초기화 중 발생한 dirty 초기화
+    }, 0);
   });
 }
 
@@ -5198,6 +5241,7 @@ function enableStickyNoteResize(wrapperEl, note) {
 let stickyNoteQuillMap = {};
 let stickyNoteDirtyMap = {};
 let stickyNotePlainDirtyMap = {}; // plain contenteditable dirty 플래그
+let stickyNoteSavingMap = {};    // 저장 중 재진입 방지 guard (루프 차단)
 
 function initStickyNoteRichText() {
   if (!isQuillAvailable()) return;
@@ -5241,14 +5285,26 @@ function initStickyNoteRichText() {
       theme: "bubble",
       modules,
     });
+
+    // [버그 수정] quill-table-better가 초기화 중 getSelection()을 null 체크 없이 호출해
+    // "null (reading 'index')" 오류 발생 → 인스턴스에 임시 패치로 안전한 fallback 반환
+    if (hasBetterTable) {
+      const _origGetSel = quill.getSelection.bind(quill);
+      quill.getSelection = (focus) => _origGetSel(focus) ?? { index: 0, length: 0 };
+    }
+
     quill.root.innerHTML = html;
     quill.history.clear();
     node.dataset.quillInit = "true";
     if (memoId) stickyNoteQuillMap[memoId] = quill;
     if (memoId) stickyNoteDirtyMap[memoId] = false;
 
+    // [버그 수정] quill-table-better가 MutationObserver를 통해 비동기로 text-change를
+    // 발화해 dirty 플래그가 오염되는 문제 → 초기화 완료 전까지 dirty 설정 억제
+    let _initDone = false;
+
     quill.on("text-change", () => {
-      if (memoId) stickyNoteDirtyMap[memoId] = true;
+      if (_initDone && memoId) stickyNoteDirtyMap[memoId] = true;
     });
 
     quill.on("selection-change", (range) => {
@@ -5264,10 +5320,21 @@ function initStickyNoteRichText() {
         }
       }
     });
+
+    // 현재 콜스택 이후(MutationObserver 마이크로태스크 완료 후) 초기화 완료 처리
+    setTimeout(() => {
+      if (hasBetterTable) delete quill.getSelection;  // 임시 패치 제거
+      _initDone = true;
+      if (memoId) stickyNoteDirtyMap[memoId] = false; // 초기화 중 발생한 dirty 초기화
+    }, 0);
   });
 }
 
 async function saveStickyNoteRichText(memoId, quillInst) {
+  // [버그 수정] 재진입 방지: renderStickyNotes() 이후 새 Quill의 비동기 이벤트가
+  // 재귀 저장을 유발하는 SAVE_INLINE_EDIT 루프 차단
+  if (stickyNoteSavingMap[memoId]) return;
+
   const memo = state.memos?.[memoId];
   // quillInst: selection-change 클로저에서 직접 전달된 것 우선, 없으면 map fallback
   const quill =
@@ -5278,6 +5345,7 @@ async function saveStickyNoteRichText(memoId, quillInst) {
   // 좌비 인스턴스 방어 (DOM에서 제거된 quill root)
   if (!document.body.contains(quill.root)) return;
 
+  stickyNoteSavingMap[memoId] = true;
   const content = sanitizeHtml(quill.root.innerHTML || "");
   state.suppressInlineFocus = true;
   workerSend("SAVE_INLINE_EDIT", { memoId, content, isRichText: true });
@@ -5286,6 +5354,8 @@ async function saveStickyNoteRichText(memoId, quillInst) {
   state.suppressInlineFocus = false;
   renderAssistantContent();
   renderStickyNotes();
+  // 리렌더 후 새 Quill의 비동기 MutationObserver 이벤트가 모두 소진된 뒤 guard 해제
+  setTimeout(() => { stickyNoteSavingMap[memoId] = false; }, 0);
 }
 
 function saveStickyNoteEdit(memoId, element) {
@@ -6604,13 +6674,13 @@ function toggleMemoSidePanel() {
 
   state.isMemoPanelExpanded = !state.isMemoPanelExpanded;
 
-  // 패널 너비/클래스는 탭과 무관하게 즉시 반영
+  // [성능] CSS 클래스·인라인 스타일 변경만으로 패널 토글 처리 (DOM 전체 재빌드 불필요)
+  // - updateMemoSidePanelState(): floatingPanel.classList, layout.classList, memoMain.maxWidth 조작
+  // - updateDashboardButton(): compact 임계값 전환 시 헤더 레이아웃 갱신
+  // 이전에 renderAssistantContent()를 호출하던 코드는 전체 memo DOM을 파괴·재생성하여
+  // 메모 수가 많을수록 선형으로 버벅임이 발생함 → 순수 CSS 연산으로 대체.
   updateMemoSidePanelState();
-
-  // 메모 탭일 때만 콘텐츠 리렌더링 (imsmassi-memo-layout 존재 시)
-  if (state.activeTab === "memo") {
-    renderAssistantContent();
-  }
+  updateDashboardButton();
 
   // Worker 상태 동기화 (너비값도 함께 저장)
   workerSend("SAVE_UI_PREFS", {
