@@ -2031,6 +2031,9 @@ function setTheme(themeKey) {
   const stickyLayer = document.getElementById("sticky-layer");
   if (stickyLayer) stickyLayer.dataset.theme = themeKey;
   notifyThemeChange('theme');
+  renderAssistant();
+  // [성능] SET_THEME → STATE_UPDATE 수신 시 2차 renderAssistantContent 억제
+  _skipNextContentRender = true;
 }
 
 /**
@@ -2044,6 +2047,8 @@ function toggleAreaColorMode() {
   state.areaColorMode = next;
   notifyThemeChange('areaColorMode');
   renderAssistant();
+  // [성능] SET_AREA_COLOR_MODE → STATE_UPDATE 수신 시 2차 renderAssistantContent 억제
+  _skipNextContentRender = true;
 }
   
 function setDarkMode(isDark) {
@@ -2064,6 +2069,8 @@ function setDarkMode(isDark) {
   }
   notifyThemeChange('darkMode');
   renderAll();
+  // [성능] SET_DARK_MODE → STATE_UPDATE 수신 시 2차 renderAssistantContent 억제
+  _skipNextContentRender = true;
 }
 
 function setSelectedArea(areaId) {
@@ -2529,6 +2536,13 @@ async function updateStorageEstimate() {
 }
 
 function renderAssistantContent(previousTab) {
+  // [성능] 패널 토글(SAVE_UI_PREFS) 후 STATE_UPDATE로 인한 불필요한 전체 재빌드 억제
+  // switchMemoListLayout()이 이미 DOM 노드를 이동 처리했으므로 재빌드 불필요
+  if (_skipNextContentRender) {
+    _skipNextContentRender = false;
+    if (state.activeTab === "memo") updateMemoSidePanelState();
+    return;
+  }
   const content = document.getElementById("imsmassi-assistant-content");
   if (!content) return;
   const previousScrollTop = content ? content.scrollTop : 0;
@@ -3843,7 +3857,7 @@ async function confirmAddTag() {
     isRichText: memo.isRichText,
     meta: { tags: memo.tags },
   });
-  renderAssistantContent();
+  // [성능] STATE_UPDATE 수신 시 renderAssistantContent 1회로 처리
   showToast(t("system.tagAdded", { tag }));
   closeModal();
 }
@@ -4253,6 +4267,8 @@ async function saveSettings(options = {}) {
 
   if (!silent) showToast(t("system.settingsSaved"));
   renderAssistant();
+  // [성능] SAVE_SETTINGS → STATE_UPDATE 수신 시 2차 renderAssistantContent 억제
+  _skipNextContentRender = true;
 }
 
 function exportAllData() {
@@ -4466,6 +4482,8 @@ function initMemoEditor() {
 let inlineMemoQuillMap = {};
 let inlineMemoDirtyMap = {};
 let inlineMemoSavingMap = {};
+// 패널 토글·UI 설정 저장 후 STATE_UPDATE 수신 시 content 재빌드 억제 플래그
+let _skipNextContentRender = false;
 
 function initInlineMemoEditors() {
   const nodes = document.querySelectorAll(".imsmassi-memo-inline-editor");
@@ -4567,8 +4585,8 @@ async function saveInlineMemoEdit(memoId) {
   inlineMemoDirtyMap[memoId] = false;
   inlineMemoSavingMap[memoId] = false;
   state.editingMemoId = null;
-  renderAssistantContent();
-  renderStickyNotes();
+  // [성능] 선제 렌더 제거: Quill 인스턴스가 이미 최신 내용 표시 중
+  // STATE_UPDATE 수신 → handleStateUpdate() → renderAssistantContent() 1회로 처리
 }
 
 function saveMemoTitle(memoId, newTitle) {
@@ -4855,7 +4873,9 @@ function addStickyNote(memoId, x, y) {
   }
   workerSend("ADD_STICKY_NOTE", { memoId, placement, menuId: currentMenu });
   renderStickyNotes();
-  renderAssistantContent();
+  // [성능] 전체 메모 목록 재빌드 대신 해당 메모의 스크린 버튼만 갱신
+  updateMemoScreenBtn(memoId);
+  _skipNextContentRender = true;
 }
 
 function removeStickyNote(memoId) {
@@ -4868,7 +4888,9 @@ function removeStickyNote(memoId) {
     (n) => !(n.memoId === memoId && n.menuId === currentMenu),
   );
   renderStickyNotes();
-  renderAssistantContent();
+  // [성능] 전체 메모 목록 재빌드 대신 해당 메모의 스크린 버튼만 갱신
+  updateMemoScreenBtn(memoId);
+  _skipNextContentRender = true;
 }
 
 function toggleStickyNoteCollapse(memoId) {
@@ -5352,9 +5374,8 @@ async function saveStickyNoteRichText(memoId, quillInst) {
   if (memoId) stickyNoteDirtyMap[memoId] = false;
   state.isStickyNoteEditing = false;
   state.suppressInlineFocus = false;
-  renderAssistantContent();
-  renderStickyNotes();
-  // 리렌더 후 새 Quill의 비동기 MutationObserver 이벤트가 모두 소진된 뒤 guard 해제
+  // [성능] 선제 렌더 제거: Worker가 SAVE_INLINE_EDIT 처리 후 STATE_UPDATE를 브로드캐스트하면
+  // handleStateUpdate() → renderStickyNotes()가 1회 실행됨. 여기서 추가로 렌더하면 2회 깜빡임.
   setTimeout(() => { stickyNoteSavingMap[memoId] = false; }, 0);
 }
 
@@ -5369,8 +5390,7 @@ function saveStickyNoteEdit(memoId, element) {
   workerSend("SAVE_INLINE_EDIT", { memoId, content, isRichText: false });
   state.isStickyNoteEditing = false;
   state.suppressInlineFocus = false;
-  renderAssistantContent();
-  renderStickyNotes();
+  // [성능] 선제 렌더 제거: STATE_UPDATE 수신 시 handleStateUpdate() → renderStickyNotes() 1회로 처리
 }
 
 /**
@@ -6080,8 +6100,8 @@ function relocateStickyLayer() {
     _stickyLayerResizeObserver = new ResizeObserver(() => {
       _syncStickyLayerBounds();
       // 디바운스: 배율/리사이즈 연속 이벤트 끝난 뒤 한 번만 clamp
-      clearTimeout(_clampTimer);
-      _clampTimer = setTimeout(() => clampStickyNotesToContent(), 150);
+      // clearTimeout(_clampTimer);
+      // _clampTimer = setTimeout(() => clampStickyNotesToContent(), 150);
     });
     _stickyLayerResizeObserver.observe(targetElement);
     if (targetElement.parentElement) {
@@ -6649,8 +6669,10 @@ function setMemoFilter(filter) {
   if (!["menu", "area", "all"].includes(filter)) return;
   if (state.memoFilter === filter) return;
   state.memoFilter = filter;
-  // 내부 시스템 환경에서 Worker 응답 지연 시에도 즉시 UI 반영 (낙관적 업데이트)
+  // 낙관적 업데이트: 즉시 UI 반영 (Worker 응답 지연 시에도 반응)
   renderAssistantContent();
+  // [성능] SAVE_UI_PREFS → STATE_UPDATE 수신 시 2차 renderAssistantContent 억제
+  _skipNextContentRender = true;
   if (workerPort) {
     // Worker 상태에도 반영 → 이후 CONTEXT_CHANGE 등 STATE_UPDATE가 와도 필터가 초기화되지 않음
     workerSend("SAVE_UI_PREFS", { memoFilter: filter });
@@ -6676,11 +6698,15 @@ function toggleMemoSidePanel() {
 
   // [성능] CSS 클래스·인라인 스타일 변경만으로 패널 토글 처리 (DOM 전체 재빌드 불필요)
   // - updateMemoSidePanelState(): floatingPanel.classList, layout.classList, memoMain.maxWidth 조작
+  // - switchMemoListLayout(): 기존 DOM 노드를 이동하여 Quill 인스턴스 보존 (재초기화 비용 없음)
   // - updateDashboardButton(): compact 임계값 전환 시 헤더 레이아웃 갱신
-  // 이전에 renderAssistantContent()를 호출하던 코드는 전체 memo DOM을 파괴·재생성하여
-  // 메모 수가 많을수록 선형으로 버벅임이 발생함 → 순수 CSS 연산으로 대체.
   updateMemoSidePanelState();
+  switchMemoListLayout();
   updateDashboardButton();
+
+  // [성능] SAVE_UI_PREFS STATE_UPDATE 수신 시 renderAssistantContent() 전체 재빌드 억제
+  // switchMemoListLayout()이 이미 레이아웃 전환을 처리했으므로 STATE_UPDATE 렌더 불필요
+  _skipNextContentRender = true;
 
   // Worker 상태 동기화 (너비값도 함께 저장)
   workerSend("SAVE_UI_PREFS", {
@@ -6716,6 +6742,103 @@ function updateMemoSidePanelState() {
   if (memoMain) {
     const effectiveWidth = isHidden ? state.panelWidthCollapsed : state.panelWidthExpanded;
     memoMain.style.maxWidth = effectiveWidth ? `${effectiveWidth - 25}px` : "";
+  }
+}
+
+/**
+ * 특정 메모 아이템의 스크린(포스트잇) 버튼 상태만 갱신합니다.
+ * addStickyNote/removeStickyNote 시 전체 목록 재빌드 없이 해당 버튼만 동기화합니다.
+ */
+function updateMemoScreenBtn(memoId) {
+  const item = document.querySelector(`.imsmassi-memo-item[data-id="${memoId}"]`);
+  if (!item) return;
+  const btn = item.querySelector(".imsmassi-screen-btn");
+  if (!btn) return;
+  const currentMenu = state.selectedMenu;
+  const note = (state.stickyNotes || []).find(
+    n => n.memoId === memoId && (!currentMenu || n.menuId === currentMenu)
+  );
+  const hasStickyNote = !!note;
+  const isStickyOutOfView = hasStickyNote && isStickyNoteOutOfViewport(note);
+  btn.classList.toggle("imsmassi-screen-btn-active", hasStickyNote);
+  btn.classList.toggle("imsmassi-screen-btn-offview", isStickyOutOfView);
+  btn.title = isStickyOutOfView
+    ? t("memoTab.offScreenBadgeTitle")
+    : hasStickyNote ? t("memoTab.btnRemoveSticky") : t("memoTab.btnAddSticky");
+  btn.innerHTML = isStickyOutOfView
+    ? t("memoTab.offScreenBadge")
+    : hasStickyNote ? t("memoTab.btnRemoveSticky") : t("memoTab.btnAddSticky");
+}
+
+/**
+ * 패널 토글 시 메모 목록 DOM 레이아웃만 전환합니다 (단일 리스트 ↔ 2단 분할).
+ * 기존 DOM 노드를 appendChild로 이동하여 Quill 인스턴스를 보존 — 재초기화 비용 없음.
+ */
+function switchMemoListLayout() {
+  const listArea = document.querySelector("#imsmassi-memo-layout .imsmassi-memo-list-area");
+  if (!listArea) return;
+
+  const isExpanded = !!state.isMemoPanelExpanded;
+  const splitDiv = listArea.querySelector(".imsmassi-memo-list-split");
+
+  // 기존 빈 메시지 제거 (전환 후 재생성)
+  listArea.querySelectorAll(":scope > .imsmassi-memo-empty-msg").forEach(el => el.remove());
+
+  if (!isExpanded) {
+    // ── 펼침 → 접기: splitDiv 안의 items를 listArea 루트로 이동 ──
+    if (splitDiv) {
+      const allItems = [...splitDiv.querySelectorAll(".imsmassi-memo-item")];
+      const pinned = allItems.filter(el => el.classList.contains("imsmassi-memo-item-pinned"));
+      const unpinned = allItems.filter(el => !el.classList.contains("imsmassi-memo-item-pinned"));
+      splitDiv.remove();
+      [...pinned, ...unpinned].forEach(item => listArea.appendChild(item));
+      if (pinned.length + unpinned.length === 0) {
+        const msg = createElement("div", { className: "imsmassi-memo-empty-msg" });
+        msg.textContent = t("memoTab.listEmpty");
+        listArea.appendChild(msg);
+      }
+    }
+  } else {
+    // ── 접기 → 펼침: items를 splitDiv 2단으로 이동 ──
+    if (!splitDiv) {
+      const existingItems = [...listArea.querySelectorAll(".imsmassi-memo-item")];
+
+      const newSplitDiv    = createElement("div", { className: "imsmassi-memo-list-split" });
+      const unpinnedCol    = createElement("div", { className: "imsmassi-memo-list-column" });
+      const pinnedCol      = createElement("div", { className: "imsmassi-memo-list-column" });
+      const unpinnedSubhdr = createElement("div", { className: "imsmassi-memo-list-subheader" });
+      const pinnedSubhdr   = createElement("div", { className: "imsmassi-memo-list-subheader" });
+      unpinnedCol.appendChild(unpinnedSubhdr);
+      pinnedCol.appendChild(pinnedSubhdr);
+
+      existingItems.forEach(item => {
+        if (item.classList.contains("imsmassi-memo-item-pinned")) {
+          pinnedCol.appendChild(item);
+        } else {
+          unpinnedCol.appendChild(item);
+        }
+      });
+
+      const unpinnedCount = unpinnedCol.querySelectorAll(".imsmassi-memo-item").length;
+      const pinnedCount   = pinnedCol.querySelectorAll(".imsmassi-memo-item").length;
+
+      if (unpinnedCount === 0) {
+        const msg = createElement("div", { className: "imsmassi-memo-empty-msg" });
+        msg.textContent = t("memoTab.generalEmpty");
+        unpinnedCol.appendChild(msg);
+      }
+      if (pinnedCount === 0) {
+        const msg = createElement("div", { className: "imsmassi-memo-empty-msg" });
+        msg.textContent = t("memoTab.pinnedEmpty");
+        pinnedCol.appendChild(msg);
+      }
+
+      unpinnedSubhdr.textContent = t("memoTab.generalSubheader", { count: unpinnedCount });
+      pinnedSubhdr.textContent   = t("memoTab.pinnedSubheader",  { count: pinnedCount });
+
+      newSplitDiv.append(unpinnedCol, pinnedCol);
+      listArea.appendChild(newSplitDiv);
+    }
   }
 }
 
