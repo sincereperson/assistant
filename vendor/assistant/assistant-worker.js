@@ -1479,9 +1479,32 @@ async function handleTabActive(port, payload) {
 }
 
 async function handleImportData(port, payload) {
+  // 기기별 레이아웃 설정은 가져오기 데이터로 덮어쓰이면 안 됩니다.
+  // (패널 너비·높이, 사이드패널 펼침 여부는 현재 기기 상태를 유지해야 함)
+  const savedLayoutPrefs = {
+    isMemoPanelExpanded: state.isMemoPanelExpanded,
+    panelWidth:          state.panelWidth,
+    panelWidthCollapsed: state.panelWidthCollapsed,
+    panelWidthExpanded:  state.panelWidthExpanded,
+    panelHeight:         state.panelHeight,
+  };
+
   await db.clearAll();
   await db.importData(payload.importedData);
   await loadStateFromDB();
+
+  // 레이아웃 설정 복원 (DB + 런타임 state 동시 반영)
+  state.isMemoPanelExpanded = savedLayoutPrefs.isMemoPanelExpanded;
+  state.panelWidth          = savedLayoutPrefs.panelWidth;
+  state.panelWidthCollapsed = savedLayoutPrefs.panelWidthCollapsed;
+  state.panelWidthExpanded  = savedLayoutPrefs.panelWidthExpanded;
+  state.panelHeight         = savedLayoutPrefs.panelHeight;
+  await db.saveSetting('isMemoPanelExpanded', savedLayoutPrefs.isMemoPanelExpanded);
+  if (typeof savedLayoutPrefs.panelWidth          === 'number') await db.saveSetting('panelWidth',          savedLayoutPrefs.panelWidth);
+  if (typeof savedLayoutPrefs.panelWidthCollapsed === 'number') await db.saveSetting('panelWidthCollapsed', savedLayoutPrefs.panelWidthCollapsed);
+  if (typeof savedLayoutPrefs.panelWidthExpanded  === 'number') await db.saveSetting('panelWidthExpanded',  savedLayoutPrefs.panelWidthExpanded);
+  if (typeof savedLayoutPrefs.panelHeight         === 'number') await db.saveSetting('panelHeight',         savedLayoutPrefs.panelHeight);
+
   await refreshStorageUsed();
   broadcastState();
   sendTo(port, 'TOAST', { messageKey: 'system.importSuccess' });

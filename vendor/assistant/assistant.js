@@ -3110,15 +3110,9 @@ const AssistantGuide = {
       get description() { return t("onboarding.step1Desc"); },
       setup: async function () {
         AssistantGuide._removeDemoPostit();
-        // 패널이 열려 있으면 닫아야 플로팅 버튼이 보임
-        if (state.assistantOpen) {
-          closeAssistant();
-          await AssistantGuide._wait(400);
-        }
-        if (state.isMemoPanelExpanded) {
-          toggleMemoSidePanel();
-          await AssistantGuide._wait(200);
-        }
+        if (state.assistantOpen) closeAssistant();
+        if (state.isMemoPanelExpanded) toggleMemoSidePanel();
+        await AssistantGuide._waitForVisible("#imsmassi-floating-btn");
       },
     },
     /* ─── STEP 2 : 메모 입력창 ──────────────────────────────────────────── */
@@ -3130,13 +3124,11 @@ const AssistantGuide = {
       setup: async function () {
         AssistantGuide._removeDemoPostit();
         await AssistantGuide._ensurePanel();
-        if (state.activeTab !== "memo") {
-          setActiveTab("memo");
-          await AssistantGuide._wait(350);
-        }
+        if (state.activeTab !== "memo") setActiveTab("memo");
+        await AssistantGuide._waitForVisible("#imsmassi-memo-layout");
         if (state.isMemoPanelExpanded) {
           toggleMemoSidePanel();
-          await AssistantGuide._wait(200);
+          await AssistantGuide._waitForHidden("#memo-side-panel");
         }
       },
     },
@@ -3147,18 +3139,15 @@ const AssistantGuide = {
       get description() { return t("onboarding.step3Desc"); },
       setup: async function () {
         await AssistantGuide._ensurePanel();
-        if (state.activeTab !== "memo") {
-          setActiveTab("memo");
-          await AssistantGuide._wait(350);
-        }
+        if (state.activeTab !== "memo") setActiveTab("memo");
+        await AssistantGuide._waitForVisible("#imsmassi-memo-layout");
         if (state.isMemoPanelExpanded) {
           toggleMemoSidePanel();
-          await AssistantGuide._wait(200);
+          await AssistantGuide._waitForHidden("#memo-side-panel");
         }
-        // 기존 데모 포스트잇 제거 후 새로 생성
         AssistantGuide._removeDemoPostit();
         AssistantGuide._createDemoPostit();
-        await AssistantGuide._wait(250);
+        await AssistantGuide._waitForVisible('[data-guide-demo="postit"]');
       },
     },
     /* ─── STEP 4 : 클립보드 & 템플릿 ────────────────────────────────────── */
@@ -3169,15 +3158,19 @@ const AssistantGuide = {
       setup: async function () {
         AssistantGuide._removeDemoPostit();
         await AssistantGuide._ensurePanel();
-        if (state.activeTab !== "memo") {
-          setActiveTab("memo");
-          await AssistantGuide._wait(350);
-        }
-        // step 4는 사이드 패널을 열어서 보여줌
-        if (!state.isMemoPanelExpanded) {
+        if (state.isMemoPanelExpanded) {
           toggleMemoSidePanel();
-          await AssistantGuide._wait(300);
+          await AssistantGuide._waitForHidden("#memo-side-panel");
         }
+        if (state.activeTab !== "memo") setActiveTab("memo");
+        await AssistantGuide._waitForVisible("#imsmassi-memo-layout");
+        toggleMemoSidePanel();
+        await AssistantGuide._waitForVisible("#memo-side-panel");
+        // 사이드패널의 transform/opacity transition 완료 대기
+        await AssistantGuide._waitForTransitionEnd(".imsmassi-memo-side-content");
+        // 패널이 스크롤 컨테이너 밖에 있을 수 있으므로 뷰포트 안으로 끌어옴
+        const sp = document.getElementById("memo-side-panel");
+        if (sp) sp.scrollIntoView({ behavior: "instant", block: "nearest" });
       },
     },
     /* ─── STEP 5 : 리마인더 (대시보드) ──────────────────────────────────── */
@@ -3190,15 +3183,37 @@ const AssistantGuide = {
         await AssistantGuide._ensurePanel();
         if (state.isMemoPanelExpanded) {
           toggleMemoSidePanel();
-          await AssistantGuide._wait(200);
+          await AssistantGuide._waitForHidden("#memo-side-panel");
         }
         setActiveTab("dashboard");
-        await AssistantGuide._wait(450);
+        await AssistantGuide._waitForVisible("#imsmassi-dashboard-today");
         const todayEl = document.getElementById("imsmassi-dashboard-today");
-        if (todayEl) {
-          todayEl.scrollIntoView({ behavior: "smooth", block: "start" });
-          await AssistantGuide._wait(200);
+        if (todayEl) todayEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      },
+    },
+    /* ─── STEP 6 : 단축키 메뉴얼 ────────────────────────────────────────── */
+    {
+      // 모달을 열고 모달 내 단축키 목록 영역을 하이라이트
+      targetSelector: ".imsmassi-shortcut-manual-body",
+      get title() { return t("onboarding.step6Title"); },
+      get description() { return t("onboarding.step6Desc"); },
+      setup: async function () {
+        AssistantGuide._removeDemoPostit();
+        await AssistantGuide._ensurePanel();
+        if (state.isMemoPanelExpanded) {
+          toggleMemoSidePanel();
+          await AssistantGuide._waitForHidden("#memo-side-panel");
         }
+        // hiddenUI.shortcutManual 이 꺼져 있으면 활성화
+        if (!state.hiddenUI) state.hiddenUI = {};
+        if (!state.hiddenUI.shortcutManual) {
+          state.hiddenUI.shortcutManual = true;
+          renderUI();
+          await AssistantGuide._waitForVisible(".imsmassi-shortcut-manual-btn");
+        }
+        // 단축키 모달 열기 → body 영역이 렌더될 때까지 폴링
+        openShortcutManual();
+        await AssistantGuide._waitForVisible(".imsmassi-shortcut-manual-body");
       },
     },
   ],
@@ -3262,23 +3277,103 @@ const AssistantGuide = {
     return new Promise((r) => setTimeout(r, ms));
   },
 
-  /** 패널이 닫혀 있으면 열기 */
+  /**
+   * selector 요소가 실제 레이아웃되어 non-zero 디멘션을 가질 때까지 폴링
+   * CSS 트랜지션 완료를 보장하는 가장 신뢰할 수 있는 방식
+   * @param {string} selector
+   * @param {number} [timeout=3000]
+   * @param {number} [interval=20]
+   */
+  _waitForVisible(selector, timeout = 3000, interval = 20) {
+    return new Promise((resolve) => {
+      const deadline = Date.now() + timeout;
+      const check = () => {
+        const el = document.querySelector(selector);
+        if (el) {
+          const r = el.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) return resolve(el);
+        }
+        if (Date.now() >= deadline) return resolve(null);
+        setTimeout(check, interval);
+      };
+      check();
+    });
+  },
+
+  /**
+   * selector 요소가 화면에서 사라질 때까지 폴링
+   * (DOM 제거 또는 width/height === 0 또는 imsmassi-hidden 클래스)
+   * @param {string} selector
+   * @param {number} [timeout=2000]
+   * @param {number} [interval=20]
+   */
+  _waitForHidden(selector, timeout = 2000, interval = 20) {
+    return new Promise((resolve) => {
+      const deadline = Date.now() + timeout;
+      const check = () => {
+        const el = document.querySelector(selector);
+        if (!el) return resolve();
+        if (el.classList.contains("imsmassi-hidden")) return resolve();
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) return resolve();
+        if (Date.now() >= deadline) return resolve();
+        setTimeout(check, interval);
+      };
+      check();
+    });
+  },
+
+  /** 패널이 닫혀 있으면 열고 실제 visible 될 때까지 대기 */
   async _ensurePanel() {
     if (!state.assistantOpen) {
       openAssistant();
-      await this._wait(450);
+      await this._waitForVisible("#imsmassi-floating-panel");
     }
   },
 
-  /** 단계 이동 핵심 함수 — setup 실행 후 렌더링 */
+  /**
+   * selector 요소에서 현재 진행 중인 CSS transition이 모두 끝날 때까지 대기.
+   * getAnimations()로 실제 실행 중인 transition만 골라 .finished를 기다림.
+   * → 이미 완료됐으면 즉시 resolve, 진행 중이면 딱 끝날 때 resolve.
+   * @param {string} selector
+   * @param {string|null} [property]  null 이면 모든 property, 지정하면 해당 property만
+   * @param {number} [fallback=350]   getAnimations 미지원 시 폴백 ms
+   */
+  _waitForTransitionEnd(selector, property = null, fallback = 350) {
+    return new Promise((resolve) => {
+      const el = document.querySelector(selector);
+      if (!el) return resolve();
+
+      const anims = (el.getAnimations?.() ?? []).filter((a) => {
+        // CSSTransition 여부: transitionProperty 속성 존재로 판단 (전역 CSSTransition 불필요)
+        if (!("transitionProperty" in a)) return false;
+        if (property && a.transitionProperty !== property) return false;
+        return true;
+      });
+
+      if (anims.length === 0) {
+        // 진행 중인 transition 없음 → 즉시 통과
+        return resolve();
+      }
+
+      const tid = setTimeout(resolve, fallback);
+      Promise.all(anims.map((a) => a.finished.catch(() => {}))).then(() => {
+        clearTimeout(tid);
+        resolve();
+      });
+    });
+  },
+
+  /** 단계 이동 핵심 함수 — setup 실행 후 transition 완료 뒤 렌더링 */
   async _gotoStep(idx) {
     this.currentStep = idx;
     const step = this.steps[idx];
     if (typeof step.setup === "function") {
       await step.setup();
     }
-    // 가이드가 skip/finish 됐으면 렌더 중단
     if (!this._active) return;
+    // 패널에 진행 중인 CSS transition 이 있으면 완료 후 spotlight 계산
+    await this._waitForTransitionEnd("#imsmassi-floating-panel");
     this._renderStep();
   },
 
@@ -3343,10 +3438,6 @@ const AssistantGuide = {
     const isLast = this.currentStep === total - 1;
     const isFirst = this.currentStep === 0;
 
-    // transition 없이 즉시 스냅 위치 → 좌표 불일치 방지
-    const target = this._getTarget(step.targetSelector);
-    this._positionSpotlight(target, false);
-
     const dots = Array.from(
       { length: total },
       (_, i) =>
@@ -3368,11 +3459,14 @@ const AssistantGuide = {
       </div>
     `;
 
-    // tooltip 위치 + spotlight 재확인(레이아웃 완료 후)
+    // tooltip 크기가 확정된 후 spotlight + tooltip 위치 계산 (rAF 2중으로 paint 완료 보장)
     requestAnimationFrame(() => {
-      const t = this._getTarget(step.targetSelector);
-      this._positionSpotlight(t, false);
-      this._positionTooltip(t);
+      requestAnimationFrame(() => {
+        if (!this._active) return;
+        const tgt = this._getTarget(step.targetSelector);
+        this._positionSpotlight(tgt, false);
+        this._positionTooltip(tgt);
+      });
     });
   },
 
@@ -3505,6 +3599,8 @@ const AssistantGuide = {
     this._active = false;
     this._removeDemoPostit();
     this._cleanup();
+    // step6에서 단축키 모달이 열린 채로 종료될 수 있으므로 닫기
+    if (state.currentModal === "shortcutManual") closeModal();
     workerSend("MARK_GUIDE_SEEN", {});
     state.hasSeenGuide = true;
     assiConsole.log("[Assistant] 온보딩 가이드 완료");
@@ -6737,6 +6833,13 @@ function updateMemoSidePanelState() {
     layout.classList.toggle("imsmassi-panel-hidden", isHidden);
   }
 
+  // #memo-side-panel 자체에 붙은 imsmassi-hidden 도 함께 동기화
+  // (최초 렌더 시 collapsed 상태면 imsmassi-hidden이 클래스로 추가되어 있음)
+  const sidePanel = document.getElementById("memo-side-panel");
+  if (sidePanel) {
+    sidePanel.classList.toggle("imsmassi-hidden", isHidden);
+  }
+
   // memo-main max-width 동기화
   const memoMain = document.querySelector("#assistant-root .imsmassi-memo-main");
   if (memoMain) {
@@ -8759,6 +8862,7 @@ function buildShortcutManualModal() {
       group: t("modal.shortcutGroupScreen"),
       items: [
         { keys: ["Ctrl", "/"], desc: t("shortcut.screenHelp") },
+        { keys: ["Ctrl", "L"], desc: t("shortcut.screenIdSearch") },
         { keys: ["Ctrl", "Shift", "X"], desc: t("shortcut.gridZoom") },
       ],
     },
