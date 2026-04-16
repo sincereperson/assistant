@@ -3366,6 +3366,8 @@ const AssistantGuide = {
 
   /** 단계 이동 핵심 함수 — setup 실행 후 transition 완료 뒤 렌더링 */
   async _gotoStep(idx) {
+    // 단계 전환 전: 이전 단계에서 열린 모달(예: step6 단축키 메뉴얼)을 닫아 BG·모달창이 잔류하지 않도록 처리
+    if (state.currentModal) closeModal();
     this.currentStep = idx;
     const step = this.steps[idx];
     if (typeof step.setup === "function") {

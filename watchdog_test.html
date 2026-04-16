@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Watchdog 테스트</title>
+  <style>
+    body { font-family: sans-serif; padding: 32px; background: #f5f5f5; color: #222; }
+    h2   { margin-bottom: 8px; }
+    p    { color: #555; font-size: 13px; margin: 4px 0 20px; }
+    .card {
+      background: #fff; border-radius: 10px; padding: 24px 28px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.09); max-width: 540px; margin-bottom: 20px;
+    }
+    button {
+      padding: 8px 20px; border: none; border-radius: 6px;
+      cursor: pointer; font-size: 13px; margin-right: 8px; margin-top: 8px;
+    }
+    .btn-red   { background:#e74c3c; color:#fff; }
+    .btn-green { background:#27ae60; color:#fff; }
+    .btn-gray  { background:#95a5a6; color:#fff; }
+    #log {
+      background:#1e1e1e; color:#a8ff78; font-family:monospace;
+      font-size:12px; padding:14px; border-radius:8px;
+      min-height:80px; max-height:200px; overflow-y:auto;
+      white-space: pre-wrap; max-width: 540px;
+    }
+    #status {
+      display:inline-block; padding:3px 10px; border-radius:20px;
+      font-size:12px; font-weight:600; margin-left:8px;
+      background:#fdebd0; color:#d35400;
+    }
+    #status.ok { background:#d5f5e3; color:#1e8449; }
+  </style>
+</head>
+<body>
+
+<h2>⏱ Watchdog 테스트 페이지</h2>
+<p>WebSquare boot hang 시뮬레이션 — <code>loadAssistant()</code> 가 호출되지 않는 상황을 재현합니다.</p>
+
+<div class="card">
+  <strong>시나리오 A · 타이머 감시 (기본)</strong>
+  <p>watchdog만 걸고 <code>loadAssistant()</code>를 호출하지 않습니다.<br>
+     지정한 timeout 후 우측 하단에 ⚠ 배지가 나타납니다.</p>
+
+  <label for="timeout-a">timeout(ms): </label>
+  <input id="timeout-a" type="number" value="4000" step="1000"
+         style="width:80px;padding:4px;border:1px solid #ddd;border-radius:4px;">
+  <span id="status">대기</span>
+  <br>
+  <button class="btn-red"   onclick="startHangSim()">▶ Hang 시뮬레이션 시작</button>
+  <button class="btn-green" onclick="cancelSim()">✔ 정상 기동 (watchdog 취소)</button>
+  <button class="btn-gray"  onclick="resetSim()">↺ 초기화</button>
+</div>
+
+<div class="card">
+  <strong>시나리오 B · fetch 프로브 (watchUrl)</strong>
+  <p>존재하지 않는 URL을 <code>watchUrl</code>로 지정 → fetch abort → 즉시 배지 표시.</p>
+
+  <label for="probe-url">watchUrl: </label>
+  <input id="probe-url" type="text"
+         placeholder="요청url를 입력하세요"
+         value="/websquare/javascript.wq?q=/bootloader"
+         style="width:280px;padding:4px;border:1px solid #ddd;border-radius:4px;">
+  <label for="timeout-b" style="margin-left:8px;">timeout(ms): </label>
+  <input id="timeout-b" type="number" value="3000" step="1000"
+         style="width:70px;padding:4px;border:1px solid #ddd;border-radius:4px;">
+  <br>
+  <button class="btn-red" style="margin-top:8px" onclick="startProbeSim()">▶ fetch 프로브 시뮬레이션</button>
+  <button class="btn-gray" onclick="resetSim()">↺ 초기화</button>
+</div>
+
+<div id="log">[로그 대기 중...]</div>
+
+<!-- ① loader 먼저 -->
+<script src="vendor/assistant-loader.js"></script>
+
+<script>
+  var _countdownInterval = null;
+
+  function log(msg) {
+    var el = document.getElementById('log');
+    var ts = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+    el.textContent += '\n[' + ts + '] ' + msg;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function setStatus(text, ok) {
+    var el = document.getElementById('status');
+    el.textContent = text;
+    el.className = ok ? 'ok' : '';
+  }
+
+  function resetSim() {
+    // 기존 watchdog / 플래그 초기화
+    if (window.__assiWatchdog) { clearTimeout(window.__assiWatchdog); window.__assiWatchdog = null; }
+    window.__assiWatchdogDone = false;
+
+    // 배지/말풍선/모달 제거
+    ['assi-hang-wrap','assi-hang-modal-bg','assi-hang-style'].forEach(function(id){
+      var el = document.getElementById(id); if (el) el.remove();
+    });
+
+    // 어시스턴트 마운트 제거 (재테스트 가능하도록)
+    var m = document.getElementById('assistant-mount');
+    if (m) m.remove();
+    window.assistantInitialized = false;
+
+    clearInterval(_countdownInterval);
+    setStatus('대기', false);
+    log('↺ 초기화 완료. 다시 시작할 수 있습니다.');
+  }
+
+  // ── 시나리오 A ────────────────────────────────────────────────
+  function startHangSim() {
+    resetSim();
+    var timeout = parseInt(document.getElementById('timeout-a').value, 10) || 4000;
+    log('▶ Hang 시뮬레이션 시작 (timeout=' + timeout + 'ms) — loadAssistant() 호출 없음');
+    setStatus('hang 중...', false);
+
+    // watchdog만 걸고 loadAssistant()는 호출 안 함
+    window.loadAssistant.watchdog({
+      timeout:  timeout,
+      htmlPath: 'vendor/assistant/assistant-fragment.html',
+      cssPath:  'vendor/assistant/assistant.css',
+      jsPath:   'vendor/assistant/assistant.js',
+      workerPath: 'vendor/assistant/assistant-worker.js',
+      cssPaths: ['vendor/quill/quill.bubble.css'],
+      scriptPaths: [
+        'vendor/quill/quill.min.js',
+        'vendor/purify/purify.min.js',
+      ],
+    });
+
+    // 카운트다운 표시
+    var remain = timeout;
+    _countdownInterval = setInterval(function () {
+      remain -= 500;
+      if (remain <= 0) {
+        clearInterval(_countdownInterval);
+        setStatus('배지 표시됨!', false);
+        log('⚠ Watchdog 발화! 우측 하단 배지를 확인하세요.');
+      } else {
+        setStatus((remain / 1000).toFixed(1) + 's 남음', false);
+      }
+    }, 500);
+  }
+
+  function cancelSim() {
+    clearInterval(_countdownInterval);
+    // loadAssistant() 를 정상 호출 → watchdog 자동 취소
+    log('✔ loadAssistant() 정상 호출 → watchdog 취소');
+    window.loadAssistant({
+      htmlPath: 'vendor/assistant/assistant-fragment.html',
+      cssPath:  'vendor/assistant/assistant.css',
+      jsPath:   'vendor/assistant/assistant.js',
+      workerPath: 'vendor/assistant/assistant-worker.js',
+      cssPaths: ['vendor/quill/quill.bubble.css'],
+      scriptPaths: [
+        'vendor/quill/quill.min.js',
+        'vendor/purify/purify.min.js',
+      ],
+      allowBodyFallback: true,
+    });
+    setStatus('정상 기동', true);
+    log('✔ 어시스턴트 기동 완료 — 배지 없음');
+  }
+
+  // ── 시나리오 B ────────────────────────────────────────────────
+  function startProbeSim() {
+    resetSim();
+    var url     = document.getElementById('probe-url').value;
+    var timeout = parseInt(document.getElementById('timeout-b').value, 10) || 3000;
+    log('▶ fetch 프로브 시뮬레이션 (watchUrl=' + url + ', timeout=' + timeout + 'ms)');
+    setStatus('프로브 중...', false);
+
+    window.loadAssistant.watchdog({
+      timeout:  timeout,
+      watchUrl: url,
+      htmlPath: 'vendor/assistant/assistant-fragment.html',
+      cssPath:  'vendor/assistant/assistant.css',
+      jsPath:   'vendor/assistant/assistant.js',
+      workerPath: 'vendor/assistant/assistant-worker.js',
+      cssPaths: ['vendor/quill/quill.bubble.css'],
+      scriptPaths: [
+        'vendor/quill/quill.min.js',
+        'vendor/purify/purify.min.js',
+      ],
+    });
+
+    log('  → fetch HEAD ' + url + ' (응답 없으면 ' + timeout + 'ms 후 abort → 배지)');
+    setTimeout(function () { setStatus('배지 표시됨!', false); }, timeout + 200);
+  }
+
+  // 페이지 로드 시 초기 로그
+  log('page loaded. assistant-loader.js 로드 완료.');
+  log('시나리오 A 또는 B 버튼을 클릭하세요.');
+</script>
+
+</body>
+</html>

@@ -1622,6 +1622,7 @@ async function handleClearMemoAndClipboard(port) {
     state.memosByArea = {};
     state.clipboard = [];
     state.stickyNotes = [];
+    await refreshStorageUsed();
     broadcastState();
     sendTo(port, 'TOAST', { messageKey: 'system.dataResetDone' });
   } catch (error) {
