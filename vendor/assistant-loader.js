@@ -18,6 +18,27 @@
     }
   }
 
+  /**
+   * URL 파라미터로 어시스턴트 자체를 온/오프 제어합니다.
+   * ?assistant=off  (또는 assi=off, 0, false) → loadAssistant 자체를 건너뜀
+   * ?assistant=on   (또는 assi=on, 1, true)  → 기본 동작 (항상 로드)
+   * 파라미터 없음 → 기본 동작
+   *
+   * @returns {'on'|'off'|null}  null = 파라미터 없음(기본 동작)
+   */
+  function getAssistantLoadMode() {
+    try {
+      const q = new URL(window.location.href).searchParams;
+      const raw = (q.get('assistant') || q.get('assi') || '').toString().trim().toLowerCase();
+      if (!raw) return null;
+      if (raw === 'on'  || raw === '1' || raw === 'true')  return 'on';
+      if (raw === 'off' || raw === '0' || raw === 'false') return 'off';
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   function ensureStylesheet(href) {
     if (!href) return;
     const resolvedHref = resolvePath(href);
@@ -46,6 +67,20 @@
   }
 
   async function loadAssistant(options) {
+    // ─── URL 파라미터로 어시스턴트 자체 온/오프 제어 ──────────────
+    // ?assistant=off (또는 assi=off, 0, false) → 어시스턴트를 아예 로드하지 않음
+    // ?assistant=on  (또는 assi=on,  1, true)  → 기본 동작과 동일 (로드)
+    if (getAssistantLoadMode() === 'off') {
+      // 이미 마운트된 어시스턴트가 있으면 완전 제거
+      var _mountId = (options && options.mountId) || 'assistant-mount';
+      var _existing = document.getElementById(_mountId);
+      if (_existing) _existing.remove();
+      window.assistantInitialized = false;
+      console.info('[assistant-loader] URL 파라미터(assistant=off)로 어시스턴트 비활성화됨.');
+      return;
+    }
+    // ────────────────────────────────────────────────────────────────
+
     // ─── watchdog 해제 (정상 경로 진입 시 타이머 취소) ─────────────
     if (window.__assiWatchdog) { clearTimeout(window.__assiWatchdog); window.__assiWatchdog = null; }
     window.__assiWatchdogDone = true;

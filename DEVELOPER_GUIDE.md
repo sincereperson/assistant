@@ -1,7 +1,7 @@
 # 어시스턴트 개발자 가이드 (Developer Guide)
 
 > **대상:** assistant.js / assistant-worker.js 를 수정하거나 호스트 시스템에 연동하는 개발자  
-> **최종 업데이트:** 2026-04-09 | assistant.js 8,838 lines
+> **최종 업데이트:** 2026-04-16 | assistant.js 9,156 lines
 
 ---
 
@@ -17,6 +17,11 @@
 8. [Worker 통신 구조](#8-worker-통신-구조)
 9. [minify / 배포 주의사항](#9-minify--배포-주의사항)
 10. [자주 묻는 질문](#10-자주-묻는-질문)
+11. [훅 전체 참조 (Quick Reference)](#11-훅-전체-참조-quick-reference)
+12. [훅 사용 예시](#12-훅-사용-예시)
+13. [URL 파라미터 온/오프 제어](#13-url-파라미터-온오프-제어)
+14. [차단 목록 (사번 / 부서)](#14-차단-목록-사번--부서)
+15. [Boot Hang Watchdog](#15-boot-hang-watchdog)
 
 ---
 
@@ -70,9 +75,23 @@
 loadAssistant({
 
   // ── 1. 기본 설정 ───────────────────────────────────────────────────────
-  mountId:  "assistant-mount",   // 어시스턴트를 마운트할 DOM 요소 ID
-  loginId:  "user_id",           // IndexedDB DB명 식별자 (미입력 시 공용 모드)
-  locale:   "ko-kr",             // "ko-kr" | "en-us"
+  mountId:          "assistant-mount",      // 어시스턴트를 마운트할 DOM 요소 ID
+  mountContainerId: "mf_VFrames_Root",      // 마운트 부모 컨테이너 ID (기본: "mf_VFrames_Root")
+  allowBodyFallback: false,                  // mountContainerId 못 찾을 때 body에 폴백 허용
+  loginId:  "user_id",                      // IndexedDB DB명 식별자 (미입력 시 공용 모드)
+  locale:   "ko-kr",                        // "ko-kr" | "en-us"
+
+  // ── 1-1. 차단 목록 (로드 자체 스킵) ───────────────────────────────────
+  // 아래 값이 차단 목록에 포함되면 loadAssistant 자체가 실행되지 않음
+  deptCd:    "240070",  // 사용자 부서 코드 (BLOCKED_DEPT_CDS 배열과 비교)
+  uprDeptCd: "240000",  // 상위 부서 코드 (BLOCKED_UPR_DEPT_CDS 배열과 비교)
+  // ※ 사번 차단은 loginId와 loader 내부 BLOCKED_LOGIN_IDS 배열로 처리
+
+  // ── 1-2. 초기 테마 / 모드 (flash 없이 첫 렌더부터 즉시 반영) ───────────
+  initialTheme:         "earthBrown",  // 초기 테마 키 (설정 없으면 "classic")
+  initialDarkMode:      false,         // 초기 다크모드 (true/false)
+  initialAreaColorMode: false,         // 초기 업무영역 컬러모드
+  // ※ DB에 저장된 값이 있으면 STATE_UPDATE 후 덮어써짐 — 첫 렌더 flash 방지 목적
 
   // ── 2. 리소스 경로 ─────────────────────────────────────────────────────
   htmlPath:    "vendor/assistant/assistant-fragment.html",
@@ -145,6 +164,8 @@ uglify 후에도 `window` 프로퍼티이므로 이름이 보존됩니다.
 | `pushText(payload)` | 텍스트 → 클립보드 추가 | `{ text: "..." }` |
 | `pushGridData(payload)` | 그리드 데이터 → 클립보드 추가 | `{ title, columns, rows }` |
 | `setLocale(locale)` | UI 언어 변경 | `"ko-kr"` \| `"en-us"` |
+| `setTheme(themeKey)` | 테마 즉시 변경 | `"classic"` \| `"earthBrown"` \| `"oceanGreen"` \| `"lightBeige"` |
+| `setDarkMode(isDark)` | 다크모드 즉시 전환 | `true` \| `false` |
 | `setupStickyLayerObserver(cfg)` | 옵저버 재설정 | config 객체 |
 | `relocateStickyLayer()` | 포스트잇 레이어 위치 재동기화 | — |
 
@@ -199,8 +220,7 @@ window.postMessage({ type: "assistant:setLocale", payload: "en-us" }, "*");
 | 훅 | 발화 시점 | payload |
 |----|-----------|---------|
 | `onClipboardAdd` | 항목 추가 시 | `{ content, options }` |
-| `onClipboardDelete` | 항목 삭제 시 | `{ itemId }` |
-| `onClipboardRefresh` | 목록 갱신 시 | — |
+| `onClipboardDelete` | 항목 삭제 시 | `{ itemId }` || `onClipboardPin` | 항목 고정 토글 시 | `{ itemId }` || `onClipboardRefresh` | 목록 갱신 시 | — |
 
 #### 템플릿
 | 훅 | 발화 시점 | payload |
@@ -547,6 +567,7 @@ loadAssistant({
     // ── 클립보드 ──────────────────────────────────────────────────────
     onClipboardAdd:     ({ content, options }) => { console.log("call onClipboardAdd", content, options) },
     onClipboardDelete:  ({ itemId }) => { console.log("call onClipboardDelete", itemId) },
+    onClipboardPin:     ({ itemId }) => { console.log("call onClipboardPin", itemId) },
     onClipboardRefresh: () => {},                                      // 인자 없음
 
     // ── 템플릿 ────────────────────────────────────────────────────────
@@ -669,3 +690,129 @@ onSettingsSave: (payload) => {
   });
 },
 ```
+
+---
+
+## 13. URL 파라미터 온/오프 제어
+
+현업 사용자가 개발자도구 없이 **주소창 URL만으로** 어시스턴트 자체를 켜고 끌 수 있는 기능입니다.  
+`assistant-loader.js`의 `loadAssistant()` 진입 시점에 URL을 파싱하여 처리합니다.
+
+### 지원 파라미터
+
+| 파라미터 | 값 | 동작 |
+|----------|----|------|
+| `?assistant=off` | `off` \| `0` \| `false` | 어시스턴트 로드 완전 중단. 이미 마운트된 경우 DOM 제거 |
+| `?assistant=on` | `on` \| `1` \| `true` | 기본 동작과 동일 (정상 로드) |
+| `?assi=off` | 동일 | `assistant` 파라미터의 단축 별칭 |
+| 파라미터 없음 | — | 기본 동작 (정상 로드) |
+
+### 사용 예시
+
+```
+// 어시스턴트 끄기
+http://erp.company.com/main.html?assistant=off
+
+// 어시스턴트 켜기 (기본과 동일)
+http://erp.company.com/main.html?assistant=on
+
+// 단축 별칭
+http://erp.company.com/main.html?assi=off
+```
+
+> ⚠ **주의:** `off` 상태로 접속하면 `window.assistantInitialized = false`로 초기화됩니다.  
+> 새로고침 또는 `?assistant=on` URL로 재접속해야 다시 활성화됩니다.
+
+---
+
+## 14. 차단 목록 (사번 / 부서)
+
+특정 사번·부서의 사용자에게 어시스턴트가 로드되지 않도록 `assistant-loader.js` 내부 배열로 관리합니다.
+
+### 차단 방식
+
+| 옵션 | 차단 배열 | 설명 |
+|------|-----------|------|
+| `loginId` | `BLOCKED_LOGIN_IDS` | 사번 단위 차단 (대소문자 무시) |
+| `deptCd` | `BLOCKED_DEPT_CDS` | 부서 코드 단위 차단 |
+| `uprDeptCd` | `BLOCKED_UPR_DEPT_CDS` | 상위 부서 코드 단위 차단 |
+
+### 배열 위치 및 수정 방법
+
+`assistant-loader.js` 의 `loadAssistant()` 함수 내부 최상단에서 관리합니다.
+
+```javascript
+// 사번 차단 (loadAssistant 내부)
+const BLOCKED_LOGIN_IDS = [
+  'O402321', 'O402322',  // 추가/삭제
+];
+
+// 부서 차단
+const BLOCKED_DEPT_CDS = [
+  // '240070',  // 예: IT기획파트
+];
+
+// 상위 부서 차단
+const BLOCKED_UPR_DEPT_CDS = [
+  // '240000',  // 예: 정보기술팀 전체
+];
+```
+
+### 호스트에서 전달하는 방법
+
+```javascript
+loadAssistant({
+  loginId:   gcm.gv_USER_ID,          // 사번 차단 대상
+  deptCd:    gcm.gv_DEPT_CD,          // 부서 차단 대상
+  uprDeptCd: gcm.gv_UPR_DEPT_CD,      // 상위 부서 차단 대상
+  // ...
+});
+```
+
+> 차단된 사용자는 콘솔에 `[assistant-loader] 차단된 사번입니다.` 로그만 남기고 로드가 중단됩니다.
+
+---
+
+## 15. Boot Hang Watchdog
+
+WebSquare 등 내부 시스템의 초기화(`init()`)가 API 응답 지연으로 hang 걸려 `loadAssistant()`가 끝내 호출되지 않는 상황을 감지하는 안전망입니다.
+
+### 동작 흐름
+
+```
+<script> 로드 즉시 watchdog 타이머 시작
+    │
+    ├─ [정상] timeout 내에 loadAssistant() 호출 → 타이머 취소
+    │
+    └─ [hang] timeout 경과 → 화면 우하단에 경고 배지 표시
+                              배지 클릭 → 모달 표시 → 새로고침 버튼
+```
+
+### 설정 방법
+
+`assistant-loader.js` 로드 직후, WebSquare `<script>` **이전에** 호출합니다.
+
+```html
+<script src="vendor/assistant-loader.js"></script>
+<script>
+  // WebSquare bootloader.js 보다 먼저 watchdog 등록
+  loadAssistant.watchdog({
+    timeout:  20000,                          // hang 판단 기준 시간 (ms, 기본 60000)
+    watchUrl: "/websquare5/bootloader.js",   // HEAD 프로브 URL (선택)
+    htmlPath: "vendor/assistant/assistant-fragment.html",  // 배지 아이콘 경로 추론용
+  });
+</script>
+<script src="/websquare5/websquare.js"></script>  <!-- 내부 시스템 -->
+```
+
+### watchdog 옵션
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `timeout` | `60000` | hang 판단 기준 시간 (ms) |
+| `watchUrl` | — | HEAD 요청으로 응답 여부를 별도 프로브. 네트워크 장애도 즉시 감지 |
+| `htmlPath` | — | 배지 아이콘 SVG 경로 추론용 (`assistant-fragment.html` 경로 전달) |
+
+> **두 가지 감지 방식이 병행 동작합니다:**  
+> - **[A] 타이머 감시** — `timeout` 내 `loadAssistant()` 미호출 시 배지 표시  
+> - **[B] fetch 프로브** — `watchUrl` 응답 실패(네트워크 장애) 시 즉시 배지 표시
