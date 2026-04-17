@@ -483,6 +483,7 @@ const state = {
   nextTemplateId: 10,
   nextClipboardId: 10,
   hasSeenGuide: null,
+  seenFeatureSteps: [],     // 확인 완료된 추가기능 step ID 목록
   hasUnreadReminder: false, // 미확인 리마인더 알림 전역 상태
   notifications: [],        // 알림 발송 이력 { id, memoId, title, firedAt, isRead }
   panelHeight: null,          // px, null = CSS 기본값
@@ -612,6 +613,7 @@ function getSnapshot(port) {
     nextTemplateId:      state.nextTemplateId,
     userInfo:            state.userInfo,
     hasSeenGuide:        state.hasSeenGuide,
+    seenFeatureSteps:    state.seenFeatureSteps,
     hasUnreadReminder:   state.hasUnreadReminder,
     notifications:       state.notifications,
     panelHeight:            state.panelHeight,
@@ -992,6 +994,10 @@ async function loadStateFromDB() {
   // 온보딩 가이드 확인 여부 로드
   const hasSeenGuide = await db.getSetting('hasSeenGuide');
   state.hasSeenGuide = hasSeenGuide === true ? true : false;
+
+  // 확인 완료된 추가기능 step 목록 로드
+  const seenFeatureSteps = await db.getSetting('seenFeatureSteps');
+  if (Array.isArray(seenFeatureSteps)) state.seenFeatureSteps = seenFeatureSteps;
 
   // 패널 높이 로드
   const savedPanelHeight = await db.getSetting('panelHeight');
@@ -1613,6 +1619,21 @@ async function handleMarkGuideSeen(port) {
   sendTo(port, 'STATE_UPDATE', getSnapshot(port));
 }
 
+/**
+ * 추가기능 가이드 step 확인 완료 처리
+ * 기존 사용자(hasSeenGuide=true)에게 새로 추가된 추가기능 step만 표시 후 호출됩니다.
+ */
+async function handleMarkFeatureSeen(port, payload) {
+  const { featureIds } = payload || {};
+  if (!Array.isArray(featureIds) || featureIds.length === 0) return;
+  if (!Array.isArray(state.seenFeatureSteps)) state.seenFeatureSteps = [];
+  featureIds.forEach(id => {
+    if (!state.seenFeatureSteps.includes(id)) state.seenFeatureSteps.push(id);
+  });
+  await db.saveSetting('seenFeatureSteps', state.seenFeatureSteps);
+  sendTo(port, 'STATE_UPDATE', getSnapshot(port));
+}
+
 async function handleClearMemoAndClipboard(port) {
   try {
     await db.transaction('memos', 'readwrite', store => store.clear());
@@ -1782,6 +1803,7 @@ const HANDLERS = {
   SAVE_UI_PREFS:     handleSaveUIPrefs,
   SAVE_USER_INFO:    handleSaveUserInfo,
   MARK_GUIDE_SEEN:   handleMarkGuideSeen,
+  MARK_FEATURE_SEEN: handleMarkFeatureSeen,
   MARK_REMINDER_READ: handleMarkReminderRead,
   RECORD_NOTIFICATION:         handleRecordNotification,
   MARK_NOTIFICATION_READ:      handleMarkNotificationRead,

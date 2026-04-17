@@ -335,7 +335,9 @@
     "rowDelete": "Delete selected row",
     "gridCopyAll": "Copy all grid data to clipboard (incl. header)",
     "gridSearch": "Search grid text",
-    "cellDoubleClick": "Double-click cell"
+    "excelCopy": "Excel copy",
+    "excelPaste": "Excel paste",
+    "cellDoubleClick": "Double-click grid cell"
   },
 
   "onboarding": {
@@ -349,8 +351,12 @@
     "step4Desc": "Check your copy history in the side panel, or save frequently used formats as templates to use with one click.",
     "step5Title": "⏰ Reminders, Never Forget",
     "step5Desc": "Set a reminder on a memo, and you'll be notified at the specified time — it also appears automatically in your dashboard task list!",
-    "step6Title": "⌨️ Keyboard Shortcuts",
-    "step6Desc": "Click the shortcut button in the header to view all useful keyboard shortcuts at a glance.",
+    "step6Title": "⌨️ Keyboard Shortcut Button",
+    "step6Desc": "You can easily expand the functionality by clicking the User View button in the header.",
+    "step7Title": "⌨️ Keyboard Shortcuts",
+    "step7Desc": "Screen shortcuts, grid controls, Excel copy/paste, and more — all your frequently used shortcuts in one place.",
+    "featureBadge": "New Feature Guide",
+    "featureNoticeMsg": "New features have been added!\nClick to check them out.",
     "btnSkip": "Skip",
     "btnPrev": "Back",
     "btnNext": "Next →",

@@ -275,6 +275,86 @@
   0%, 100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.55); }
   50%       { box-shadow: 0 0 0 8px rgba(231, 76, 60, 0); }
 }
+
+/* =========================================================
+   새기능 안내 말풍선 (플로팅 버튼 위)
+   ========================================================= */
+#assistant-root .imsmassi-feature-bubble {
+  position: fixed;
+  bottom: 112px; /* 플로팅 버튼(bottom:42 + height:56 + gap:14) */
+  right: 22px;
+  max-width: 220px;
+  background: #fff;
+  color: #222;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+  padding: 12px 32px 12px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  z-index: 2100;
+  user-select: none;
+}
+#assistant-root .imsmassi-feature-bubble--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* 아래 방향 꼬리 */
+#assistant-root .imsmassi-feature-bubble-arrow {
+  position: absolute;
+  bottom: -8px;
+  right: 22px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid #fff;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.08));
+}
+/* X 닫기 버튼 */
+#assistant-root .imsmassi-feature-bubble-close {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+}
+#assistant-root .imsmassi-feature-bubble-close:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+/* 다크모드 */
+#assistant-root.imsmassi-dark-mode .imsmassi-feature-bubble {
+  background: #2d2d2d;
+  color: #eee;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.45);
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-feature-bubble-arrow {
+  border-top-color: #2d2d2d;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-feature-bubble-close {
+  color: #aaa;
+}
+#assistant-root.imsmassi-dark-mode .imsmassi-feature-bubble-close:hover {
+  background: #3d3d3d;
+  color: #eee;
+}
+
 /* =========================================================
    패널 외부 래퍼: 탭 사이드바 + 패널을 함께 감싸는 위치 컨테이너.
    position:fixed 는 이곳에서만 관리 → 내부 요소는 overflow:hidden 가능.
@@ -1611,7 +1691,9 @@
   position: relative;
   display: inline-block;
   width: 44px;
+  min-width: 44px;
   height: 24px;
+  flex-shrink: 0;
 }
 #assistant-root .imsmassi-toggle-switch input {
   opacity: 0;
@@ -3238,6 +3320,19 @@
     top 0.3s ease,
     left 0.3s ease;
   animation: imsmassi-guide-fadein 0.25s ease;
+}
+
+/* 추가기능 안내 백지 */
+.imsmassi-guide-feature-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #fff;
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+  border-radius: 20px;
+  padding: 2px 10px;
+  margin-bottom: 10px;
 }
 
 @keyframes imsmassi-guide-fadein {

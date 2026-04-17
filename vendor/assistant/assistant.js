@@ -206,6 +206,8 @@ function workerSend(type, payload) {
  * @param {Object} newState - Worker가 전달한 최신 상태 스냅샷
  */
 let _guideTriggered = false;
+let _featurePendingSteps = null;   // 말풍선 대기 중인 새기능 steps
+let _featureNoticeBubbleEl = null; // 현재 표시 중인 말풍선 엘리먼트
 
 function handleStateUpdate(newState) {
   // Worker STATE_UPDATE가 덮어쓰면 안 되는 로컬 전용 상태값을 보존합니다.
@@ -216,6 +218,10 @@ function handleStateUpdate(newState) {
   const savedDraftText = state.memoDraftText;
   const savedMenu = state.selectedMenu;
   const savedArea = state.selectedArea;
+  // 가이드 진행 중에는 expanded 상태를 Worker 스냅샷으로 덮어쓰지 않음
+  const savedMemoPanelExpanded = (typeof AssistantGuide !== 'undefined' && AssistantGuide._active)
+    ? state.isMemoPanelExpanded
+    : undefined;
   // 다른 탭의 읽음 처리 감지를 위해 이전 미확인 상태를 보존
   const wasUnread = !!state.hasUnreadReminder;
   const _prevMemoCount = Array.isArray(state.memos) ? state.memos.length : 0;
@@ -235,6 +241,8 @@ function handleStateUpdate(newState) {
   // 컨텍스트 복원: MutationObserver/bridge가 설정한 값이 race로 덮어쓰이지 않도록 보존
   if (savedMenu) state.selectedMenu = savedMenu;
   if (savedArea) state.selectedArea = savedArea;
+  // 가이드 진행 중 expanded 상태 보호
+  if (savedMemoPanelExpanded !== undefined) state.isMemoPanelExpanded = savedMemoPanelExpanded;
   // CSS 커스텀 프로퍼티: state 복원 후 DOM에 테마/다크모드 반영
   const root = getAssistantStyleRoot();
   if (root) {
@@ -253,10 +261,24 @@ function handleStateUpdate(newState) {
 
   // 온보딩 가이드: 첫 입장 시(Worker 초기 상태 로드 후) 최초 1회만 표시
   if (!_guideTriggered && state.hasSeenGuide === false) {
+    // 신규 사용자 → 전체 가이드 표시
     _guideTriggered = true;
     setTimeout(() => {
       if (typeof AssistantGuide !== "undefined") AssistantGuide.start();
     }, 600);
+  } else if (!_guideTriggered && state.hasSeenGuide === true) {
+    // 기존 사용자 → featureId가 있고 아직 확인하지 않은 추가기능 step만 추출
+    const seen = Array.isArray(state.seenFeatureSteps) ? state.seenFeatureSteps : [];
+    const unseenFeatureSteps = (typeof AssistantGuide !== "undefined")
+      ? AssistantGuide.steps.filter(s => s.featureId && !seen.includes(s.featureId))
+      : [];
+    if (unseenFeatureSteps.length > 0) {
+      _guideTriggered = true;
+      setTimeout(() => showFeatureNoticeBubble(unseenFeatureSteps), 800);
+    } else {
+      // 미확인 추가기능 없음 → 재트리거 방지
+      _guideTriggered = true;
+    }
   }
 
   // [IoC] 라이프사이클 훅 실행
@@ -3111,7 +3133,10 @@ const AssistantGuide = {
       setup: async function () {
         AssistantGuide._removeDemoPostit();
         if (state.assistantOpen) closeAssistant();
-        if (state.isMemoPanelExpanded) toggleMemoSidePanel();
+        if (state.isMemoPanelExpanded) {
+          state.isMemoPanelExpanded = false;
+          updateMemoSidePanelState();
+        }
         await AssistantGuide._waitForVisible("#imsmassi-floating-btn");
       },
     },
@@ -3126,10 +3151,6 @@ const AssistantGuide = {
         await AssistantGuide._ensurePanel();
         if (state.activeTab !== "memo") setActiveTab("memo");
         await AssistantGuide._waitForVisible("#imsmassi-memo-layout");
-        if (state.isMemoPanelExpanded) {
-          toggleMemoSidePanel();
-          await AssistantGuide._waitForHidden("#memo-side-panel");
-        }
       },
     },
     /* ─── STEP 3 : 포스트잇 데모 ────────────────────────────────────────── */
@@ -3141,10 +3162,6 @@ const AssistantGuide = {
         await AssistantGuide._ensurePanel();
         if (state.activeTab !== "memo") setActiveTab("memo");
         await AssistantGuide._waitForVisible("#imsmassi-memo-layout");
-        if (state.isMemoPanelExpanded) {
-          toggleMemoSidePanel();
-          await AssistantGuide._waitForHidden("#memo-side-panel");
-        }
         AssistantGuide._removeDemoPostit();
         AssistantGuide._createDemoPostit();
         await AssistantGuide._waitForVisible('[data-guide-demo="postit"]');
@@ -3158,17 +3175,14 @@ const AssistantGuide = {
       setup: async function () {
         AssistantGuide._removeDemoPostit();
         await AssistantGuide._ensurePanel();
-        if (state.isMemoPanelExpanded) {
-          toggleMemoSidePanel();
-          await AssistantGuide._waitForHidden("#memo-side-panel");
-        }
         if (state.activeTab !== "memo") setActiveTab("memo");
         await AssistantGuide._waitForVisible("#imsmassi-memo-layout");
-        toggleMemoSidePanel();
-        await AssistantGuide._waitForVisible("#memo-side-panel");
-        // 사이드패널의 transform/opacity transition 완료 대기
-        await AssistantGuide._waitForTransitionEnd(".imsmassi-memo-side-content");
-        // 패널이 스크롤 컨테이너 밖에 있을 수 있으므로 뷰포트 안으로 끌어옴
+        // 사이드패널이 아직 열려있지 않으면 열기
+        if (!state.isMemoPanelExpanded) {
+          toggleMemoSidePanel();
+          await AssistantGuide._waitForVisible("#memo-side-panel");
+          await AssistantGuide._waitForTransitionEnd(".imsmassi-memo-side-content");
+        }
         const sp = document.getElementById("memo-side-panel");
         if (sp) sp.scrollIntoView({ behavior: "instant", block: "nearest" });
       },
@@ -3181,37 +3195,38 @@ const AssistantGuide = {
       setup: async function () {
         AssistantGuide._removeDemoPostit();
         await AssistantGuide._ensurePanel();
-        if (state.isMemoPanelExpanded) {
-          toggleMemoSidePanel();
-          await AssistantGuide._waitForHidden("#memo-side-panel");
-        }
         setActiveTab("dashboard");
         await AssistantGuide._waitForVisible("#imsmassi-dashboard-today");
         const todayEl = document.getElementById("imsmassi-dashboard-today");
         if (todayEl) todayEl.scrollIntoView({ behavior: "smooth", block: "start" });
       },
     },
-    /* ─── STEP 6 : 단축키 메뉴얼 ────────────────────────────────────────── */
+    /* ─── STEP 6 : 단축키 버튼 하이라이트 ──────────────────────────────── */
     {
-      // 모달을 열고 모달 내 단축키 목록 영역을 하이라이트
-      targetSelector: ".imsmassi-shortcut-manual-body",
+      featureId: "shortcutManual",  // 추가기능 식별자 — 기존 사용자에게 개별 노출 관리
+      targetSelector: ".imsmassi-shortcut-manual-btn",
       get title() { return t("onboarding.step6Title"); },
       get description() { return t("onboarding.step6Desc"); },
       setup: async function () {
         AssistantGuide._removeDemoPostit();
         await AssistantGuide._ensurePanel();
-        if (state.isMemoPanelExpanded) {
-          toggleMemoSidePanel();
-          await AssistantGuide._waitForHidden("#memo-side-panel");
-        }
-        // hiddenUI.shortcutManual 이 꺼져 있으면 활성화
+        // hiddenUI.shortcutManual 이 꺼져 있으면 활성화 후 헤더 즉각 반영
         if (!state.hiddenUI) state.hiddenUI = {};
         if (!state.hiddenUI.shortcutManual) {
           state.hiddenUI.shortcutManual = true;
-          renderUI();
-          await AssistantGuide._waitForVisible(".imsmassi-shortcut-manual-btn");
+          updateDashboardButton();
         }
-        // 단축키 모달 열기 → body 영역이 렌더될 때까지 폴링
+        await AssistantGuide._waitForVisible(".imsmassi-shortcut-manual-btn");
+      },
+    },
+    /* ─── STEP 7 : 단축키 모달 오픈 & 하이라이트 ────────────────────────── */
+    {
+      featureId: "shortcutManual",  // step 6과 같은 featureId → 추가기능 가이드 시 함께 묶임
+      tooltipPlacement: "top-right",
+      targetSelector: ".imsmassi-shortcut-manual-body",
+      get title() { return t("onboarding.step7Title"); },
+      get description() { return t("onboarding.step7Desc"); },
+      setup: async function () {
         openShortcutManual();
         await AssistantGuide._waitForVisible(".imsmassi-shortcut-manual-body");
       },
@@ -3227,20 +3242,54 @@ const AssistantGuide = {
   _active: false,
   _padding: 10,
   _demoPostitEl: null,
+  // 추가기능 전용 모드 — startFeatureOnly() 호출 시 true, 해당 step만 표시
+  _featureOnlyMode: false,
+  _featureSteps: null,
+  // 현재 활성 step 배열 (전체 가이드 vs 추가기능 전용)
+  get _activeSteps() {
+    return (this._featureOnlyMode && this._featureSteps) ? this._featureSteps : this.steps;
+  },
 
   // ── 공개 API ──────────────────────────────────────────────────────────────────
   async start() {
     if (this._active) return;
     this._active = true;
+    this._featureOnlyMode = false;
+    this._featureSteps = null;
     this.currentStep = 0;
     this._createDOM();
     await this._gotoStep(0);
     assiConsole.log("[Assistant] 온보딩 가이드 시작");
   },
 
+  /**
+   * 추가기능 전용 가이드 — 기존 사용자에게 새로 추가된 feature step만 표시합니다.
+   * @param {Array} featureSteps - featureId가 있는 step 객체 배열
+   */
+  async startFeatureOnly(featureSteps) {
+    if (this._active || !featureSteps?.length) return;
+    this._active = true;
+    this._featureOnlyMode = true;
+    this._featureSteps = featureSteps;
+    this.currentStep = 0;
+    // 새기능 안내는 패널 expanded 상태에서 시작
+    if (!state.assistantOpen) {
+      openAssistant();
+      await this._waitForVisible("#imsmassi-floating-panel");
+    }
+    if (!state.isMemoPanelExpanded) {
+      state.isMemoPanelExpanded = true;
+      updateMemoSidePanelState();
+      updateDashboardButton();
+    }
+    this._createDOM();
+    await this._gotoStep(0);
+    assiConsole.log("[Assistant] 추가기능 가이드 시작:", featureSteps.map(s => s.featureId));
+  },
+
   async next() {
     if (!this._active) return;
-    if (this.currentStep < this.steps.length - 1) {
+    if (this.currentStep < this._activeSteps.length - 1) {
       await this._gotoStep(this.currentStep + 1);
     } else {
       this._finish();
@@ -3329,6 +3378,12 @@ const AssistantGuide = {
       openAssistant();
       await this._waitForVisible("#imsmassi-floating-panel");
     }
+    // 모든 가이드 스텝은 패널 expanded 상태로 진행 (패널 열림 여부와 무관하게 항상 보장)
+    if (!state.isMemoPanelExpanded) {
+      state.isMemoPanelExpanded = true;
+      updateMemoSidePanelState();
+      updateDashboardButton();
+    }
   },
 
   /**
@@ -3369,7 +3424,7 @@ const AssistantGuide = {
     // 단계 전환 전: 이전 단계에서 열린 모달(예: step6 단축키 메뉴얼)을 닫아 BG·모달창이 잔류하지 않도록 처리
     if (state.currentModal) closeModal();
     this.currentStep = idx;
-    const step = this.steps[idx];
+    const step = this._activeSteps[idx];
     if (typeof step.setup === "function") {
       await step.setup();
     }
@@ -3435,8 +3490,8 @@ const AssistantGuide = {
 
   _renderStep() {
     if (!this.tooltipEl) return;
-    const step = this.steps[this.currentStep];
-    const total = this.steps.length;
+    const step = this._activeSteps[this.currentStep];
+    const total = this._activeSteps.length;
     const isLast = this.currentStep === total - 1;
     const isFirst = this.currentStep === 0;
 
@@ -3446,7 +3501,13 @@ const AssistantGuide = {
         `<span class="imsmassi-guide-dot${i === this.currentStep ? " imsmassi-guide-dot-active" : ""}"></span>`,
     ).join("");
 
+    // 추가기능 전용 모드일 때 뱃지 표시
+    const featureBadge = this._featureOnlyMode
+      ? `<div class="imsmassi-guide-feature-badge">${t("onboarding.featureBadge") || "✨ 새 기능 안내"}</div>`
+      : "";
+
     this.tooltipEl.innerHTML = `
+      ${featureBadge}
       <div class="imsmassi-guide-progress">${dots}</div>
       <div class="imsmassi-guide-title">${step.title}</div>
       <div class="imsmassi-guide-desc">${step.description}</div>
@@ -3520,6 +3581,37 @@ const AssistantGuide = {
     const p = this._padding;
     const gap = 18;
     let top, left;
+
+    // step에 tooltipPlacement가 지정되어 있으면 우선 적용 (타겟 경계 바깥 기준)
+    const placement = this._activeSteps[this.currentStep]?.tooltipPlacement;
+    if (placement && target) {
+      const r = target.getBoundingClientRect();
+      if (placement === "top-right") {
+        // 타겟 우측, 상단 정렬
+        top = r.top;
+        left = r.right + gap;
+      } else if (placement === "top-left") {
+        top = r.top - th - gap;
+        left = r.left;
+      } else if (placement === "bottom-right") {
+        top = r.bottom + gap;
+        left = r.right - tw;
+      } else if (placement === "bottom-left") {
+        top = r.bottom + gap;
+        left = r.left;
+      } else if (placement === "right-top") {
+        top = r.top;
+        left = r.right + gap;
+      } else if (placement === "left-top") {
+        top = r.top;
+        left = r.left - tw - gap;
+      }
+      left = Math.max(16, Math.min(left, vw - tw - 16));
+      top  = Math.max(16, Math.min(top,  vh - th - 16));
+      this.tooltipEl.style.left = `${left}px`;
+      this.tooltipEl.style.top  = `${top}px`;
+      return;
+    }
 
     if (!target) {
       top = vh / 2 - th / 2;
@@ -3598,14 +3690,42 @@ const AssistantGuide = {
 
   // ── 종료 & 정리 ────────────────────────────────────────────────────────────────
   _finish() {
+    const wasFeatureOnly = this._featureOnlyMode;
+    const featureIds = wasFeatureOnly && this._featureSteps
+      ? this._featureSteps.map(s => s.featureId).filter(Boolean)
+      : [];
+
     this._active = false;
+    this._featureOnlyMode = false;
+    this._featureSteps = null;
     this._removeDemoPostit();
     this._cleanup();
-    // step6에서 단축키 모달이 열린 채로 종료될 수 있으므로 닫기
-    if (state.currentModal === "shortcutManual") closeModal();
-    workerSend("MARK_GUIDE_SEEN", {});
-    state.hasSeenGuide = true;
-    assiConsole.log("[Assistant] 온보딩 가이드 완료");
+    // 열린 모달(단축키 메뉴얼 등) 닫기
+    if (state.currentModal) closeModal();
+
+    if (wasFeatureOnly && featureIds.length > 0) {
+      // 추가기능 가이드 완료 → 확인된 featureId 저장
+      workerSend("MARK_FEATURE_SEEN", { featureIds });
+      if (!Array.isArray(state.seenFeatureSteps)) state.seenFeatureSteps = [];
+      featureIds.forEach(id => {
+        if (!state.seenFeatureSteps.includes(id)) state.seenFeatureSteps.push(id);
+      });
+      assiConsole.log("[Assistant] 추가기능 가이드 완료:", featureIds);
+    } else {
+      // 전체 가이드 완료 → 모든 featureId도 함께 seen 처리 (재노출 방지)
+      const allFeatureIds = [...new Set(this.steps.map(s => s.featureId).filter(Boolean))];
+      workerSend("MARK_GUIDE_SEEN", {});
+      if (allFeatureIds.length > 0) {
+        workerSend("MARK_FEATURE_SEEN", { featureIds: allFeatureIds });
+        if (!Array.isArray(state.seenFeatureSteps)) state.seenFeatureSteps = [];
+        allFeatureIds.forEach(id => {
+          if (!state.seenFeatureSteps.includes(id)) state.seenFeatureSteps.push(id);
+        });
+      }
+      state.hasSeenGuide = true;
+      assiConsole.log("[Assistant] 온보딩 가이드 완료");
+
+    }
   },
 
   _cleanup() {
@@ -8249,10 +8369,81 @@ function testReminderNotification() {
 // ========================================
 // 알림 시스템 테스트 함수
 // ========================================
+
+/**
+ * 플로팅 버튼 위에 새기능 안내 말풍선을 표시합니다.
+ * 말풍선 클릭 / 패널 오픈 시 자동 dismiss 후 가이드가 시작됩니다.
+ */
+function showFeatureNoticeBubble(featureSteps) {
+  if (!featureSteps || featureSteps.length === 0) return;
+  _featurePendingSteps = featureSteps;
+
+  // 이미 말풍선이 있으면 제거 후 재생성
+  if (_featureNoticeBubbleEl) {
+    _featureNoticeBubbleEl.remove();
+    _featureNoticeBubbleEl = null;
+  }
+
+  const msg = t('onboarding.featureNoticeMsg');
+
+  const bubble = document.createElement('div');
+  bubble.className = 'imsmassi-feature-bubble';
+  bubble.setAttribute('role', 'status');
+  bubble.innerHTML = `
+    <button class="imsmassi-feature-bubble-close" aria-label="닫기" title="닫기">✕</button>
+    <span class="imsmassi-feature-bubble-msg">${msg.replace(/\n/g, '<br>')}</span>
+    <div class="imsmassi-feature-bubble-arrow"></div>
+  `;
+
+  // X 버튼: 말풍선 닫기 (가이드 취소)
+  bubble.querySelector('.imsmassi-feature-bubble-close').addEventListener('click', (e) => {
+    e.stopPropagation();
+    _featurePendingSteps = null;
+    dismissFeatureNoticeBubble();
+  });
+
+  // 말풍선 클릭: 패널 열기 (openAssistant에서 가이드 시작)
+  bubble.addEventListener('click', () => {
+    if (!state.assistantOpen) openAssistant();
+  });
+
+  const root = document.getElementById('assistant-root');
+  if (root) root.appendChild(bubble);
+  _featureNoticeBubbleEl = bubble;
+
+  // fade-in
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => bubble.classList.add('imsmassi-feature-bubble--visible'));
+  });
+}
+
+/**
+ * 말풍선을 fade-out 후 DOM에서 제거합니다.
+ */
+function dismissFeatureNoticeBubble() {
+  const el = _featureNoticeBubbleEl;
+  if (!el) return;
+  _featureNoticeBubbleEl = null;
+  el.classList.remove('imsmassi-feature-bubble--visible');
+  el.addEventListener('transitionend', () => el.remove(), { once: true });
+  // transitionend가 안 오는 경우 fallback
+  setTimeout(() => { if (el.parentNode) el.remove(); }, 500);
+}
+
 function openAssistant() {
+  const pendingSteps = _featureNoticeBubbleEl ? _featurePendingSteps : null;
+  if (_featureNoticeBubbleEl) {
+    _featurePendingSteps = null;
+    dismissFeatureNoticeBubble();
+  }
   state.assistantOpen = true;
   renderAssistant();
   _runHook('onPanelOpen');
+  if (pendingSteps && pendingSteps.length > 0) {
+    setTimeout(() => {
+      if (typeof AssistantGuide !== 'undefined') AssistantGuide.startFeatureOnly(pendingSteps);
+    }, 300);
+  }
 }
 
 function closeAssistant() {
@@ -8854,18 +9045,12 @@ function buildShortcutManualModal() {
       ],
     },
     {
-      group: t("modal.shortcutGroupAssistant") || "어시스턴트",
-      items: [
-        { keys: ["Ctrl", "`"], desc: t("shortcut.toggleAssistant") || "패널 열기/닫기" },
-        { keys: ["Escape"], desc: t("shortcut.closeModal") },
-      ],
-    },
-    {
       group: t("modal.shortcutGroupScreen"),
       items: [
         { keys: ["Ctrl", "/"], desc: t("shortcut.screenHelp") },
-        { keys: ["Ctrl", "L"], desc: t("shortcut.screenIdSearch") },
+        { keys: ["Escape"], desc: t("shortcut.closeModal") },
         { keys: ["Ctrl", "Shift", "X"], desc: t("shortcut.gridZoom") },
+        { keys: ["Ctrl", "`"], desc: t("shortcut.toggleAssistant") },
       ],
     },
     {
@@ -8874,13 +9059,10 @@ function buildShortcutManualModal() {
         { keys: ["Delete"], desc: t("shortcut.cellDelete") },
         { keys: ["Alt", "Insert"], desc: t("shortcut.rowAdd") },
         { keys: ["Alt", "Delete"], desc: t("shortcut.rowDelete") },
-        { keys: ["Ctrl", "A"], desc: t("shortcut.gridCopyAll") },
+        // { keys: ["Ctrl", "A"], desc: t("shortcut.gridCopyAll") },
         { keys: ["Ctrl", "Shift", "F"], desc: t("shortcut.gridSearch") },
-      ],
-    },
-    {
-      group: t("modal.shortcutGroupEtc"),
-      items: [
+        { keys: ["Ctrl", "C"], desc: t("shortcut.excelCopy") },
+        { keys: ["Ctrl", "V"], desc: t("shortcut.excelPaste") },
         { keys: ["F2"], desc: t("shortcut.cellDoubleClick") },
       ],
     },
