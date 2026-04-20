@@ -337,7 +337,9 @@
     "gridSearch": "그리드 텍스트 검색",
     "excelCopy": "엑셀 복사",
     "excelPaste": "엑셀 붙여넣기",
-    "cellDoubleClick": "그리드 셀 더블클릭"
+    "cellDoubleClick": "그리드 셀 더블클릭",
+    "arrowKeys": "방향키",
+    "arrowKeyMove": "폼/그리드 이동"
   },
 
   "onboarding": {

@@ -24,7 +24,6 @@
 
 /**
  * AssistantConfig - 어시스턴트 전역 설정 객체
- * 코드 내 하드코딩된 매직 넘버들의 단일 진실 원천(Single Source of Truth)
  */
 const AssistantConfig = {
   /** 패널 / 포스트잇 UI 크기 */
@@ -274,7 +273,7 @@ function handleStateUpdate(newState) {
       : [];
     if (unseenFeatureSteps.length > 0) {
       _guideTriggered = true;
-      setTimeout(() => showFeatureNoticeBubble(unseenFeatureSteps), 800);
+      setTimeout(() => showFeatureDim(unseenFeatureSteps), 800);
     } else {
       // 미확인 추가기능 없음 → 재트리거 방지
       _guideTriggered = true;
@@ -8371,8 +8370,48 @@ function testReminderNotification() {
 // ========================================
 
 /**
- * 플로팅 버튼 위에 새기능 안내 말풍선을 표시합니다.
- * 말풍선 클릭 / 패널 오픈 시 자동 dismiss 후 가이드가 시작됩니다.
+ * 화면을 딤처리하고 플로팅 버튼을 스포트라이트로 부각시킵니다.
+ * 플로팅 버튼 클릭(openAssistant) 시 딤이 해제되고 가이드가 시작됩니다.
+ */
+function showFeatureDim(featureSteps) {
+  if (!featureSteps || featureSteps.length === 0) return;
+  _featurePendingSteps = featureSteps;
+  if (_featureNoticeBubbleEl) { _featureNoticeBubbleEl.remove(); _featureNoticeBubbleEl = null; }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'imsmassi-feature-dim-overlay';
+
+  const hint = document.createElement('div');
+  hint.className = 'imsmassi-feature-dim-hint';
+  hint.textContent = t('onboarding.featureNoticeMsg') || '✨ 새 기능 안내';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'imsmassi-feature-dim-close';
+  closeBtn.setAttribute('aria-label', '닫기');
+  closeBtn.textContent = '✕';
+  closeBtn.addEventListener('click', (e) => { e.stopPropagation(); dismissFeatureDim(); });
+
+  overlay.appendChild(hint);
+  overlay.appendChild(closeBtn);
+  overlay.addEventListener('click', () => { if (!state.assistantOpen) openAssistant(); });
+
+  document.body.appendChild(overlay);
+  _featureNoticeBubbleEl = overlay;
+
+  requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('imsmassi-feature-dim-overlay--visible')));
+}
+
+function dismissFeatureDim() {
+  const el = _featureNoticeBubbleEl;
+  if (!el) return;
+  _featureNoticeBubbleEl = null;
+  el.classList.remove('imsmassi-feature-dim-overlay--visible');
+  el.addEventListener('transitionend', () => el.remove(), { once: true });
+  setTimeout(() => { if (el.parentNode) el.remove(); }, 500);
+}
+
+/**
+ * 플로팅 버튼 위에 새기능 안내 말풍선을 표시합니다. (현재 미사용)
  */
 function showFeatureNoticeBubble(featureSteps) {
   if (!featureSteps || featureSteps.length === 0) return;
@@ -8395,10 +8434,9 @@ function showFeatureNoticeBubble(featureSteps) {
     <div class="imsmassi-feature-bubble-arrow"></div>
   `;
 
-  // X 버튼: 말풍선 닫기 (가이드 취소)
+  // X 버튼: 말풍선만 닫기 (가이드는 패널 열면 그대로 실행)
   bubble.querySelector('.imsmassi-feature-bubble-close').addEventListener('click', (e) => {
     e.stopPropagation();
-    _featurePendingSteps = null;
     dismissFeatureNoticeBubble();
   });
 
@@ -8431,11 +8469,12 @@ function dismissFeatureNoticeBubble() {
 }
 
 function openAssistant() {
-  const pendingSteps = _featureNoticeBubbleEl ? _featurePendingSteps : null;
+  // 딤/말풍선이 표시 중이면 해제, pendingSteps가 있으면 패널 열린 후 가이드 시작
+  const pendingSteps = _featurePendingSteps ? [..._featurePendingSteps] : null;
   if (_featureNoticeBubbleEl) {
-    _featurePendingSteps = null;
-    dismissFeatureNoticeBubble();
+    dismissFeatureDim();
   }
+  _featurePendingSteps = null;
   state.assistantOpen = true;
   renderAssistant();
   _runHook('onPanelOpen');
@@ -9051,6 +9090,8 @@ function buildShortcutManualModal() {
         { keys: ["Escape"], desc: t("shortcut.closeModal") },
         { keys: ["Ctrl", "Shift", "X"], desc: t("shortcut.gridZoom") },
         { keys: ["Ctrl", "`"], desc: t("shortcut.toggleAssistant") },
+        { keys: ["Ctrl", t("shortcut.arrowKeys")], desc: t("shortcut.arrowKeyMove") },
+        { keys: ["Ctrl", "L"], desc: t("shortcut.screenIdSearch") },
       ],
     },
     {

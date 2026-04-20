@@ -277,6 +277,78 @@
 }
 
 /* =========================================================
+   새기능 안내 딤 오버레이
+   ========================================================= */
+/* 플로팅 버튼(z-index:2001) 아래에 딤 레이어를 깔아 자연스럽게 부각 */
+.imsmassi-feature-dim-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.35s ease;
+  cursor: pointer;
+  pointer-events: all;
+}
+.imsmassi-feature-dim-overlay--visible {
+  background: rgba(0, 0, 0, 0.55);
+}
+/* 힌트 텍스트: 플로팅 버튼 위에 위치 */
+.imsmassi-feature-dim-hint {
+  position: fixed;
+  bottom: 112px;
+  right: 16px;
+  background: #fff;
+  color: #1e2a3b;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+  pointer-events: none;
+  white-space: pre-line;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.3s ease 0.1s, transform 0.3s ease 0.1s;
+}
+.imsmassi-feature-dim-overlay--visible .imsmassi-feature-dim-hint {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* 힌트 아래 꼬리 */
+.imsmassi-feature-dim-hint::after {
+  content: '';
+  position: absolute;
+  bottom: -7px;
+  right: 24px;
+  width: 0; height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 7px solid #fff;
+}
+/* 닫기 버튼 (오른쪽 상단) */
+.imsmassi-feature-dim-close {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  z-index: 2001;
+}
+.imsmassi-feature-dim-close:hover { background: rgba(255,255,255,0.35); }
+
+/* =========================================================
    새기능 안내 말풍선 (플로팅 버튼 위)
    ========================================================= */
 #assistant-root .imsmassi-feature-bubble {

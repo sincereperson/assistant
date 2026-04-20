@@ -337,7 +337,9 @@
     "gridSearch": "Search grid text",
     "excelCopy": "Excel copy",
     "excelPaste": "Excel paste",
-    "cellDoubleClick": "Double-click grid cell"
+    "cellDoubleClick": "Double-click grid cell",
+    "arrowKeys": "Arrowkey",
+    "arrowKeyMove": "Move form/grid"
   },
 
   "onboarding": {
