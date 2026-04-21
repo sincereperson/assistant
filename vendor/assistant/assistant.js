@@ -1651,6 +1651,8 @@ let state = {
     reminderNotificationEnabled: true,
     // 토스트 알림 on/off
     toastEnabled: false,
+    // 자동완성 on/off
+    autocompleteEnabled: false,
   },
 
   // 저장 용량 (시뮬레이션)
@@ -1693,6 +1695,7 @@ let state = {
     areaColorMode: true, // 푸터 업무영역 컬러모드 토글 버튼 노출 여부
     shortcutManual: true, // 헤더 단축키 메뉴얼 버튼 노출 여부
     featureSectionTitle: false, // 기능 설정 섹션 타이틀 노출 여부 (기본값 true: 표시)
+    autocomplete: false, // 자동완성 설정 행 노출 여부
   },
 };
 // state 초기화 완료 — 이후부터 assiConsole 로깅 활성화
@@ -2095,6 +2098,8 @@ function setDarkMode(isDark) {
 }
 
 function setSelectedArea(areaId) {
+  // 이전 영역 체류 시간 flush 후 전환
+  _flushSessionTime(state.selectedArea);
   const areaSelect = document.getElementById("area-select");
   if (areaSelect) areaSelect.value = areaId;
   workerSend("CONTEXT_CHANGE", { areaId });
@@ -2107,7 +2112,9 @@ function selectMenu(menu) {
   const payload = { menuId: menu };
   if (typeof _stickyLayerConfig.getAreaId === "function") {
     const areaId = _stickyLayerConfig.getAreaId(menu);
-    if (areaId) {
+    if (areaId && areaId !== state.selectedArea) {
+      // 이전 영역 체류 시간 flush 후 전환
+      _flushSessionTime(state.selectedArea);
       state.selectedArea = areaId;
       payload.areaId = areaId;
     }
@@ -2870,7 +2877,15 @@ window.addEventListener("assistant:mounted", (event) => {
   function notifyActive(isActive) {
     if (!window.assistantInitialized) return;
     workerSend("TAB_ACTIVE", { isActive });
-
+    if (isActive) {
+      // 재활성: 타이머 리셋 (비활성 중 경과 시간 제외)
+      _sessionTabActive = true;
+      _sessionAreaStart = Date.now();
+    } else {
+      // 비활성: 지금까지 시간 flush 후 정지
+      _flushSessionTime(state.selectedArea);
+      _sessionTabActive = false;
+    }
   }
 
   // Page Visibility API: 탭 전환/최소화 감지
@@ -2905,7 +2920,7 @@ window.addEventListener("beforeunload", () => {
 });
 /**
  * [개발자 도구 전용] 특정 고급 설정 UI 항목 노출/숨김 개별 토글
- * @param {string} key - 'timeInsight' | 'markdown' | 'debugLog' | 'autoNav' | 'theme' | 'darkMode' | 'areaColorMode' | 'shortcutManual' | 'featureSectionTitle'
+ * @param {string} key - 'timeInsight' | 'markdown' | 'debugLog' | 'autoNav' | 'theme' | 'darkMode' | 'areaColorMode' | 'shortcutManual' | 'featureSectionTitle' | 'autocomplete'
  * @param {boolean} visible - 노출 여부 (true: 표시, false: 숨김)
  *
  * 사용 예시 (브라우저 콘솔):
@@ -2929,6 +2944,7 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
       areaColorMode: false,
       shortcutManual: false,
       featureSectionTitle: true,
+      autocomplete: false,
     };
   }
 
@@ -2944,8 +2960,8 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
       return;
     }
 
-    // darkMode 버튼 변경 시 패널 푸터 즉각 반영
-    if (key === "darkMode" || key === "theme") {
+    // darkMode / theme / areaColorMode 변경 시 패널 푸터 즉각 반영
+    if (key === "darkMode" || key === "theme" || key === "areaColorMode") {
       renderAssistant();
       return;
     }
@@ -4376,23 +4392,7 @@ function deleteTemplate(templateId) {
 // ========================================
 function setTimePeriod(period) {
   state.timePeriod = period;
-  assiConsole.log("시간 기간 변경:", period);
 
-  // 디버깅: 현재 버킷 데이터 출력
-  const now = new Date();
-  let debugKey = "";
-  if (period === "today") {
-    debugKey = getDailyBucket(now);
-  } else if (period === "week") {
-    debugKey = getWeeklyBucket(now);
-  } else if (period === "month") {
-    debugKey = getMonthlyBucket(now);
-  }
-
-  assiConsole.log(`[setTimePeriod] ${period} (키: ${debugKey})`);
-  assiConsole.log("[setTimePeriod] 전체 버킷:", state.timeBuckets);
-
-  // 강제 렌더링
   const assistantContent = document.getElementById(
     "imsmassi-assistant-content",
   );
@@ -4457,10 +4457,14 @@ function _readSettingsFromDOM() {
     toastEnabled: g("setting-toast")?.checked ?? state.settings.toastEnabled,
     showTimeTab: g("setting-show-time-tab")
       ? g("setting-show-time-tab").checked
-      : state.settings.showTimeTab !== false,
+      : state.settings.showTimeTab,
+    browserNotificationEnabled:
+      g("setting-browser-notification")?.checked ?? state.settings.browserNotificationEnabled,
     // Task 2.3: lastBackup은 DOM에 없으므로 항상 현재 state 값을 유지
     // (downloadExportData()에서 갱신된 값이 Worker에 전달되도록 보장)
     lastBackup: state.settings.lastBackup,
+    autocompleteEnabled:
+      g("setting-autocomplete")?.checked ?? state.settings.autocompleteEnabled,
   };
 }
 
@@ -7785,55 +7789,72 @@ function recordToBucket(areaId, elapsedMs) {
 // ========================================
 // 시간 추적 함수들
 // ========================================
-// [Worker 위임] 메뉴 시간 통계 저장/로드 (STATE_UPDATE로 자동 복원됨)
-// IndexedDB에 메뉴 시간 통계 저장
-// [Worker 위임] saveMenuTimeStats (BEFORE_UNLOAD 메시지로 Worker가 처리)
-function saveMenuTimeStats() {
-  workerSend("BEFORE_UNLOAD", {});
+// 현재 세션 시간 누적 (클라이언트 메모리 전용 — Worker는 unload 시에만 저장)
+// { daily: { 'YYYY-MM-DD': { areaId: ms } }, weekly: {...}, monthly: {...} }
+let _sessionBuckets = { daily: {}, weekly: {}, monthly: {} };
+let _sessionAreaStart = Date.now(); // 현재 영역 체류 시작 시점
+let _sessionTabActive = true;       // 탭 활성 여부 — false이면 시간 누적 정지
+
+// areaId 체류 시간을 _sessionBuckets에 누적
+function _flushSessionTime(areaId) {
+  if (!areaId || !_sessionTabActive) return; // 비활성 탭은 누적 없이 스킵
+  const now = Date.now();
+  const elapsedMs = now - _sessionAreaStart;
+  _sessionAreaStart = now;
+  if (elapsedMs <= 0) return;
+  const today = new Date();
+  const dk = getDailyBucket(today);
+  const wk = getWeeklyBucket(today);
+  const mk = getMonthlyBucket(today);
+  [['daily', dk], ['weekly', wk], ['monthly', mk]].forEach(([bucket, key]) => {
+    if (!_sessionBuckets[bucket][key]) _sessionBuckets[bucket][key] = {};
+    _sessionBuckets[bucket][key][areaId] = (_sessionBuckets[bucket][key][areaId] || 0) + elapsedMs;
+  });
 }
 
-// Area ID 기반 시간 기록 (Worker 경유)
+// 영역 전환 시 이전 영역 flush (setSelectedArea, CONTEXT_CHANGE 전에 호출)
 function recordAreaTime(areaId) {
-  if (!areaId) return;
-  const now = Date.now();
-  const elapsedMs = now - state.lastMenuChangeTime;
-  state.lastMenuChangeTime = now;
-  workerSend("RECORD_AREA_TIME", { areaId, elapsedMs });
+  _flushSessionTime(areaId);
+}
+
+// unload 시 Worker에 세션 데이터 전송
+function saveMenuTimeStats() {
+  // 현재 영역 재시 항시 flush
+  _flushSessionTime(state.selectedArea);
+  workerSend("BEFORE_UNLOAD", { sessionBuckets: _sessionBuckets });
 }
 
 function getTimeStats(period = "today") {
-  // 기간별 버킷 데이터 사용 (timeBuckets에서 조회)
   const now = Date.now();
   const today = new Date();
 
-  // 해당 period의 버킷 키 계산
+  // DB 저장분 (이전 세션)
   let bucketKey = "";
-  let bucketData = {};
+  let dbBucket = {};
+  let sessionBucket = {};
 
   if (period === "today") {
     bucketKey = getDailyBucket(today);
-    bucketData = state.timeBuckets?.daily?.[bucketKey] || {};
+    dbBucket = state.timeBuckets?.daily?.[bucketKey] || {};
+    sessionBucket = _sessionBuckets.daily?.[bucketKey] || {};
   } else if (period === "week") {
     bucketKey = getWeeklyBucket(today);
-    bucketData = state.timeBuckets?.weekly?.[bucketKey] || {};
+    dbBucket = state.timeBuckets?.weekly?.[bucketKey] || {};
+    sessionBucket = _sessionBuckets.weekly?.[bucketKey] || {};
   } else if (period === "month") {
     bucketKey = getMonthlyBucket(today);
-    bucketData = state.timeBuckets?.monthly?.[bucketKey] || {};
+    dbBucket = state.timeBuckets?.monthly?.[bucketKey] || {};
+    sessionBucket = _sessionBuckets.monthly?.[bucketKey] || {};
   }
 
-  assiConsole.log(
-    `[getTimeStats] 기간: ${period}, 버킷: ${bucketKey}, 데이터:`,
-    bucketData,
-  );
-
-  // 실제 저장된 시간 데이터로 items 생성 (area.id 기반)
   const items = getBusinessAreas().map((area) => {
     const key = area.id;
-    let totalMs = bucketData[key] || 0;
+    // DB 저장분 + 이번 세션 flush된 분
+    let totalMs = (dbBucket[key] || 0) + (sessionBucket[key] || 0);
 
-    // 현재 선택된 영역은 실시간으로 경과 시간 포함
-    if (state.selectedArea === key && state.lastMenuChangeTime) {
-      totalMs += Math.max(0, now - state.lastMenuChangeTime);
+    // 현재 영역: 마지막 flush 이후 지금까지 실시간 더함 (활성 탭만)
+    if (state.selectedArea === key && _sessionTabActive) {
+      totalMs += Math.max(0, now - _sessionAreaStart);
     }
 
     const hours = Math.floor(totalMs / (1000 * 60 * 60));
@@ -9261,9 +9282,9 @@ function getSettingsHtml(closeHandler) {
           </div>
         </div>
 
-        <!-- 기능 설정 -->
-        <div class="imsmassi-settings-section">
-          <div class="imsmassi-settings-section-title" style="display: ${state.hiddenUI.featureSectionTitle !== false ? 'flex' : 'none'};"><span class="imsmassi-modal-icon imsmassi-icon-settings"></span>${t("settings.sectionFeature")}</div>
+        <!-- 기능 설정 (featureSectionTitle=true일 때만 섹션 전체 노출) -->
+        <div class="imsmassi-settings-section" style="display: ${state.hiddenUI.featureSectionTitle ? 'block' : 'none'}">
+          <div class="imsmassi-settings-section-title"><span class="imsmassi-modal-icon imsmassi-icon-settings"></span>${t("settings.sectionFeature")}</div>
           <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.timeInsight ? "flex" : "none"};">
             <div>
               <span class="imsmassi-settings-label">${t("settings.timeInsightLabel")}</span>
@@ -9297,13 +9318,24 @@ function getSettingsHtml(closeHandler) {
             </label>
           </div>
 
-          <div class="imsmassi-settings-row" style="display: ${state.hiddenUI.autoNav ? "flex" : "none"};">
+          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.autoNav ? "flex" : "none"};">
             <div>
               <span class="imsmassi-settings-label">${t("settings.autoDashboardLabel")}</span>
               <div class="imsmassi-settings-desc">${t("settings.autoDashboardDesc")}</div>
             </div>
             <label class="imsmassi-toggle-switch">
               <input type="checkbox" id="setting-auto-dashboard" ${state.settings.autoNavigateToDashboard ? "checked" : ""}>
+              <span class="imsmassi-toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="imsmassi-settings-row" style="display: ${state.hiddenUI.autocomplete ? "flex" : "none"};">
+            <div>
+              <span class="imsmassi-settings-label">자동완성</span>
+              <div class="imsmassi-settings-desc">입력 시 자동완성 기능을 켜거나 끕니다.</div>
+            </div>
+            <label class="imsmassi-toggle-switch">
+              <input type="checkbox" id="setting-autocomplete" ${state.settings.autocompleteEnabled ? "checked" : ""}>
               <span class="imsmassi-toggle-slider"></span>
             </label>
           </div>
@@ -9388,6 +9420,21 @@ function initSettingsTab() {
       };
     }
   });
+
+  // 자동완성 토글 — 외부 객체(AssistantAutocomplete) 호출 포함
+  const autocompleteEl = document.getElementById("setting-autocomplete");
+  if (autocompleteEl) {
+    autocompleteEl.onchange = () => {
+      const enabled = autocompleteEl.checked;
+      assiConsole.log(`설정 변경 - 자동완성: ${enabled ? "ON" : "OFF"}`);
+      if (typeof window.AssistantAutocomplete?.setEnabled === "function") {
+        window.AssistantAutocomplete.setEnabled(enabled);
+      } else {
+        assiConsole.warn("[Autocomplete] window.AssistantAutocomplete.setEnabled 미정의 — 브로드캐스트만 처리");
+      }
+      saveSettings({ silent: true });
+    };
+  }
 
   const selectMap = ["setting-clipboard", "setting-oldmemos"];
   selectMap.forEach((id) => {

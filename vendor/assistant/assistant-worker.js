@@ -600,8 +600,7 @@ function getSnapshot(port) {
     memoFilter:          state.memoFilter,
     isMemoPanelExpanded: state.isMemoPanelExpanded,
     lastMenuChangeTime:  ctx ? ctx.lastMenuChangeTime  : state.lastMenuChangeTime,
-    // 시간 통계: DB에 저장된 값만 반환 (탭 간 중복 누적 방지)
-    // 현재 세션 누적분은 BEFORE_UNLOAD 시점에만 DB에 병합 저장됨
+    // 시간 통계: DB 저장분만 반환 (세션 누적은 클라이언트 _sessionBuckets가 직접 관리)
     menuTimeStats:       state.menuTimeStats,
     timeBuckets:         state.timeBuckets,
     memos:               state.memos,
@@ -1462,8 +1461,31 @@ async function handleToggleLabel(port, payload) {
 }
 
 async function handleRecordAreaTime(port, payload) {
-  recordClientAreaTime(port, payload.areaId);
-  // 시간 기록은 브로드캐스트 없이 로컬 업데이트만 (성능)
+  const { areaId, elapsedMs } = payload;
+  if (!areaId || !(elapsedMs > 0)) return;
+  const ctx = getClientContext(port);
+  if (!ctx.isActive) return;
+
+  // payload.elapsedMs를 직접 사용 (언제나 클라이언트가 측정한 값을 신뢰)
+  if (!ctx.menuTimeStats[areaId]) ctx.menuTimeStats[areaId] = 0;
+  ctx.menuTimeStats[areaId] += elapsedMs;
+  if (!ctx.timeBuckets) ctx.timeBuckets = { daily: {}, weekly: {}, monthly: {} };
+  const nowDate = new Date();
+  const dk = getDailyBucket(nowDate);
+  const wk = getWeeklyBucket(nowDate);
+  const mk = getMonthlyBucket(nowDate);
+  const add = (bucket, key) => {
+    if (!ctx.timeBuckets[bucket]) ctx.timeBuckets[bucket] = {};
+    if (!ctx.timeBuckets[bucket][key]) ctx.timeBuckets[bucket][key] = {};
+    ctx.timeBuckets[bucket][key][areaId] = (ctx.timeBuckets[bucket][key][areaId] || 0) + elapsedMs;
+  };
+  add('daily', dk);
+  add('weekly', wk);
+  add('monthly', mk);
+  // lastMenuChangeTime 리셋 → 클라이언트 state.lastMenuChangeTime도 STATE_UPDATE로 동기화됨
+  ctx.lastMenuChangeTime = Date.now();
+
+  sendTo(port, 'STATE_UPDATE', getSnapshot(port));
 }
 
 /**
@@ -1532,34 +1554,16 @@ async function handleClearOldData(port, payload) {
   broadcastState();
 }
 
-async function handleBeforeUnload(port) {
-  const ctx = clientContextMap.get(port);
-  if (ctx) {
-    // 현재 선택 영역의 잔여 시간 기록
-    recordClientAreaTime(port, ctx.selectedArea);
-    // DB에 저장된 누적 stats + 이 탭의 현재 세션 stats를 병합하여 저장
-    try {
-      const savedStats   = (await db.getSetting('menu_time_stats')) || {};
-      const mergedStats  = mergeStats(savedStats, ctx.menuTimeStats);
-      await db.saveSetting('menu_time_stats', mergedStats);
-      // 전역 state도 업데이트 (다른 탭의 getSnapshot 기준값 갱신)
-      state.menuTimeStats = mergedStats;
-
-      const savedBuckets  = (await db.getSetting('time_buckets')) || { daily: {}, weekly: {}, monthly: {} };
-      const mergedBuckets = mergeTimeBuckets(savedBuckets, ctx.timeBuckets);
-      await db.saveSetting('time_buckets', mergedBuckets);
-      state.timeBuckets = mergedBuckets;
-
-      // 저장 완료 후 이 탭의 세션 stats 리셋 (중복 저장 방지)
-      ctx.menuTimeStats = {};
-      ctx.timeBuckets   = { daily: {}, weekly: {}, monthly: {} };
-      ctx.lastMenuChangeTime = Date.now();
-    } catch (error) {
-      console.error('[Worker] 탭 종료 시 시간 통계 저장 실패:', error);
-    }
-  } else {
-    // ctx가 없는 경우 기존 방식으로 폴백
-    await saveMenuTimeStats();
+async function handleBeforeUnload(port, payload) {
+  // 클라이언트가 보낸 sessionBuckets(이번 세션 전체 누적)를 DB에 병합 저장
+  const sessionBuckets = payload?.sessionBuckets || null;
+  try {
+    const savedBuckets  = (await db.getSetting('time_buckets')) || { daily: {}, weekly: {}, monthly: {} };
+    const mergedBuckets = sessionBuckets ? mergeTimeBuckets(savedBuckets, sessionBuckets) : savedBuckets;
+    await db.saveSetting('time_buckets', mergedBuckets);
+    state.timeBuckets = mergedBuckets;
+  } catch (error) {
+    console.error('[Worker] 탭 종료 시 시간 통계 저장 실패:', error);
   }
   if (state.settings) await db.saveSetting('app_settings', state.settings);
   await db.saveSetting('sticky_notes', state.stickyNotes || []);
