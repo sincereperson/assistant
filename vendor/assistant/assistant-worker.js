@@ -476,8 +476,10 @@ const state = {
     markdownEnabled: true,
     autoNavigateToDashboard: true,
     browserNotificationEnabled: true,
+    reminderNotificationEnabled: true,
     toastEnabled: true,
     showTimeTab: false,
+    autocompleteEnabled: false,
   },
   nextMemoId: 10,
   nextTemplateId: 10,
@@ -917,6 +919,9 @@ async function loadStateFromDB() {
   const savedMemoFilter = await db.getSetting('memoFilter');
   if (['menu', 'area', 'all'].includes(savedMemoFilter)) state.memoFilter = savedMemoFilter;
 
+  const savedAutocompleteEnabled = await db.getSetting('autocompleteEnabled');
+  if (typeof savedAutocompleteEnabled === 'boolean') state.settings.autocompleteEnabled = savedAutocompleteEnabled;
+
   allMemos.forEach(memo => {
     if (!memo.id) return;
     state.memos[memo.id] = memo;
@@ -980,6 +985,7 @@ async function loadStateFromDB() {
       debugLogs:                   settings.debugLogs                   !== undefined ? settings.debugLogs                   : state.settings.debugLogs,
       toastEnabled:                settings.toastEnabled                !== undefined ? settings.toastEnabled                : state.settings.toastEnabled,
       showTimeTab:                 settings.showTimeTab                 !== undefined ? settings.showTimeTab                 : state.settings.showTimeTab,
+      autocompleteEnabled:         settings.autocompleteEnabled         !== undefined ? settings.autocompleteEnabled         : state.settings.autocompleteEnabled,
     };
     // Issue 5 긴급패치: 시간인사이트 항상 false로 초기화 (DB 저장값 무시)
     state.settings.showTimeTab = false;
@@ -1355,6 +1361,7 @@ async function handleSaveSettings(port, payload) {
     },
   };
   await db.saveSetting('app_settings', state.settings);
+  await db.saveSetting('autocompleteEnabled', state.settings.autocompleteEnabled);
   broadcastState();
 }
 

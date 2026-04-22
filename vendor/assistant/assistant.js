@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // 📦 assistant.js — 솔로몬 어시스턴트 프론트엔드 코어
 // ============================================================================
 // 섹션 구성 (Top → Bottom)
@@ -1164,8 +1164,8 @@ const THEME_SWATCHES = {
   earthbrown: { primary: "#C9BEAA", light: "#D6CEC0", border: "" },
   oceangreen: { primary: "#7CE0D3", light: "#A9E9E1", border: "" },
   lightbeige: {
-    primary: "#FBF1E6",
-    light: "#FAF3EB",
+    primary: "#f0e7dd",
+    light: "#f0e7dd",
     border: "1px solid #ccc",
   },
 };
@@ -1691,7 +1691,7 @@ let state = {
     darkMode: true, // 푸터 다크모드 토글 버튼 노출 여부
     areaColorMode: true, // 푸터 업무영역 컬러모드 토글 버튼 노출 여부
     shortcutManual: true, // 헤더 단축키 메뉴얼 버튼 노출 여부
-    featureSectionTitle: false, // 기능 설정 섹션 타이틀 노출 여부 (기본값 true: 표시)
+    featureSectionTitle: true, // 기능 설정 섹션 타이틀 노출 여부
     autocomplete: true, // 자동완성 설정 행 노출 여부
   },
 };

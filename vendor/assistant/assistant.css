@@ -140,11 +140,11 @@
 
 /* ── lightbeige 테마: primary 컬러 ── */
 #assistant-root[data-theme="lightbeige"] {
-  --imsmassi-primary:       #fbf1e6;
-  --imsmassi-primary-light: #faf3eb;
+  --imsmassi-primary:       #f0e7dd;
+  --imsmassi-primary-light: #f0e7dd;
   --imsmassi-primary-dark:  #d6cec5;
   --imsmassi-action-primary-bg:       #d6cec5;
-  --imsmassi-action-primary-hover-bg:  #fbf1e6;
+  --imsmassi-action-primary-hover-bg:  #f0e7dd;
   --imsmassi-action-primary-text:      #191f28;
   --imsmassi-action-primary-border:    #d6cec5;
   --imsmassi-action-secondary-bg:      #f4ece0;
@@ -2226,8 +2226,8 @@
   --imsmassi-primary-dark:  #44a79e;
 }
 #sticky-layer[data-theme="lightbeige"] {
-  --imsmassi-primary:       #fbf1e6;
-  --imsmassi-primary-light: #faf3eb;
+  --imsmassi-primary:       #f0e7dd;
+  --imsmassi-primary-light: #f0e7dd;
   --imsmassi-primary-dark:  #d6cec5;
 }
 #sticky-layer.imsmassi-dark-mode[data-theme="lightbeige"] {
@@ -3783,7 +3783,7 @@
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-count-num {
   color: var(--imsmassi-primary-dark);
 }
-/* lightbeige primary(#fbf1e6)가 배경과 대비가 부족하므로 어두운 색으로 보정 */
+/* lightbeige primary(#f0e7dd)가 배경과 대비가 부족하므로 어두운 색으로 보정 */
 #assistant-root[data-theme="lightbeige"]:not(.imsmassi-dark-mode) .imsmassi-memo-count-num {
   color: var(--imsmassi-screen-btn-active-color); /* #7d6a56 웜 다크브라운 */
 }
