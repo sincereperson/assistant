@@ -1692,7 +1692,7 @@ let state = {
     areaColorMode: true, // 푸터 업무영역 컬러모드 토글 버튼 노출 여부
     shortcutManual: true, // 헤더 단축키 메뉴얼 버튼 노출 여부
     featureSectionTitle: false, // 기능 설정 섹션 타이틀 노출 여부 (기본값 true: 표시)
-    autocomplete: false, // 자동완성 설정 행 노출 여부
+    autocomplete: true, // 자동완성 설정 행 노출 여부
   },
 };
 // state 초기화 완료 — 이후부터 assiConsole 로깅 활성화
@@ -2938,7 +2938,7 @@ window.toggleAssistantHiddenUI = function (key, visible = true) {
       areaColorMode: false,
       shortcutManual: false,
       featureSectionTitle: true,
-      autocomplete: false,
+      autocomplete: true,
     };
   }
 
