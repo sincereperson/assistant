@@ -1,4 +1,4 @@
-﻿// ============================================================================
+// ============================================================================
 // 📦 assistant.js — 솔로몬 어시스턴트 프론트엔드 코어
 // ============================================================================
 // 섹션 구성 (Top → Bottom)
@@ -1686,12 +1686,9 @@ let state = {
 
   // 개발자 도구로 개별 온오프할 수 있는 설정 UI 노출 여부 (기본값 false: 숨김)
   hiddenUI: {
-    timeInsight: false,
-    markdown: false,
     debugLog: false,
-    autoNav: false,
-    theme: true,    // 푸터 테마/모드 전환 UI 노줄 여부
-    darkMode: true, // 푸터 다크모드 토글 버튼 노줄 여부
+    theme: true,    // 푸터 테마/모드 전환 UI 노출 여부
+    darkMode: true, // 푸터 다크모드 토글 버튼 노출 여부
     areaColorMode: true, // 푸터 업무영역 컬러모드 토글 버튼 노출 여부
     shortcutManual: true, // 헤더 단축키 메뉴얼 버튼 노출 여부
     featureSectionTitle: false, // 기능 설정 섹션 타이틀 노출 여부 (기본값 true: 표시)
@@ -2920,25 +2917,22 @@ window.addEventListener("beforeunload", () => {
 });
 /**
  * [개발자 도구 전용] 특정 고급 설정 UI 항목 노출/숨김 개별 토글
- * @param {string} key - 'timeInsight' | 'markdown' | 'debugLog' | 'autoNav' | 'theme' | 'darkMode' | 'areaColorMode' | 'shortcutManual' | 'featureSectionTitle' | 'autocomplete'
+ * @param {string} key - 'debugLog' | 'theme' | 'darkMode' | 'areaColorMode' | 'shortcutManual' | 'featureSectionTitle' | 'autocomplete'
  * @param {boolean} visible - 노출 여부 (true: 표시, false: 숨김)
  *
  * 사용 예시 (브라우저 콘솔):
  *   toggleAssistantHiddenUI('theme', true);                  // 푸터 테마 UI 표시
  *   toggleAssistantHiddenUI('darkMode', true);               // 푸터 다크모드 버튼 표시
  *   toggleAssistantHiddenUI('areaColorMode', true);          // 푸터 업무영역 컬러모드 버튼 표시
- *   toggleAssistantHiddenUI('markdown', false);              // 마크다운 단축키 숨김
  *   toggleAssistantHiddenUI('shortcutManual', true);         // 헤더 단축키 메뉴얼 버튼 표시
- *   toggleAssistantHiddenUI('featureSectionTitle', false);   // 기능 설정 섹션 타이틀 숨김
+ *   toggleAssistantHiddenUI('featureSectionTitle', true);    // 기능 설정 섹션 표시
+ *   toggleAssistantHiddenUI('autocomplete', true);           // 자동완성 설정 행 표시
  */
 window.toggleAssistantHiddenUI = function (key, visible = true) {
   // 상태 안전성 검사
   if (!state.hiddenUI) {
     state.hiddenUI = {
-      timeInsight: false,
-      markdown: false,
       debugLog: false,
-      autoNav: false,
       theme: false,
       darkMode: false,
       areaColorMode: false,
@@ -4475,7 +4469,6 @@ async function saveSettings(options = {}) {
 
   // 로컬 즉각 반영 (UI 반응성)
   Object.assign(state.settings, newSettings);
-  state.autoNavigateToDashboard = newSettings.autoNavigateToDashboard;
 
   if (
     newSettings.browserNotificationEnabled &&
@@ -7332,9 +7325,6 @@ function renderTimeTab() {
 }
 
 function renderDashboardTab() {
-  // showTimeTab 설정이 false이면 시간 인사이트 섹션 렌더링 생략
-  const timeHtml = state.settings?.showTimeTab !== false ? renderTimeTab() : "";
-
   // 백업 알림 배너 계산
   let backupBannerHtml = "";
   if (state.settings.backupReminder) {
@@ -7519,18 +7509,6 @@ function renderDashboardTab() {
         ${recentMemosHtml || `<div class="imsmassi-dashboard-empty">${t("dashboard.recentMemoEmpty")}</div>`}
       </div>
     </div>
-
-    ${
-      state.settings?.showTimeTab !== false
-        ? `
-    <div class="imsmassi-dashboard-section dashboard-time-section">
-      <div class="imsmassi-dashboard-section-header">
-        <span>${t("dashboard.sectionTimeInsight")}</span>
-      </div>
-      ${timeHtml}
-    </div>`
-        : ""
-    }
   `;
 }
 
@@ -8116,11 +8094,8 @@ function sendBrowserNotification(title, options = {}) {
 // UI 알림 표시 (어시스턴트 상태에 따라 다르게 표시)
 function showNotificationToast(title, content, areaId = "", duration = 6000) {
   if (state.assistantOpen) {
-    // 어시스턴트 열려있으면
-    if (!state.autoNavigateToDashboard) {
-      // 대시보드 탭으로 이동 (차단 설정 OFF 시)
-      setActiveTab("dashboard");
-    }
+    // 어시스턴트 열려있으면 대시보드 탭으로 이동
+    setActiveTab("dashboard");
     // 우측 상단 토스트로 표시
     showRightTopToast(title, content, areaId, duration);
   } else {
@@ -8370,25 +8345,6 @@ function stopReminderSystem() {
     window.reminderCheckInterval = null;
   }
 }
-
-function testReminderNotification() {
-  const title = "리마인더 테스트";
-  const content = "리마인더 알림 테스트 메시지입니다.";
-  const areaId = state.selectedArea || "underwriting";
-  const now = Date.now();
-  showNotificationToast(title, content, areaId, 6000);
-  sendBrowserNotification(title, {
-    body: content,
-    tag: `reminder-test-${now}`,
-    requireInteraction: false,
-  });
-  // 알림 이력 저장 (RECORD_NOTIFICATION) — 뱃지/타이틀은 Worker broadcastState→syncNotifTabTitle 경로로 반영
-  workerSend('RECORD_NOTIFICATION', { memoId: null, title, firedAt: now });
-}
-
-// ========================================
-// 알림 시스템 테스트 함수
-// ========================================
 
 /**
  * 화면을 딤처리하고 플로팅 버튼을 스포트라이트로 부각시킵니다.
@@ -9285,28 +9241,6 @@ function getSettingsHtml(closeHandler) {
         <!-- 기능 설정 (featureSectionTitle=true일 때만 섹션 전체 노출) -->
         <div class="imsmassi-settings-section" style="display: ${state.hiddenUI.featureSectionTitle ? 'block' : 'none'}">
           <div class="imsmassi-settings-section-title"><span class="imsmassi-modal-icon imsmassi-icon-settings"></span>${t("settings.sectionFeature")}</div>
-          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.timeInsight ? "flex" : "none"};">
-            <div>
-              <span class="imsmassi-settings-label">${t("settings.timeInsightLabel")}</span>
-              <div class="imsmassi-settings-desc">${t("settings.timeInsightDesc")}</div>
-            </div>
-            <label class="imsmassi-toggle-switch">
-              <input type="checkbox" id="setting-show-time-tab" ${state.settings.showTimeTab !== false ? "checked" : ""}>
-              <span class="imsmassi-toggle-slider"></span>
-            </label>
-          </div>
-
-          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.markdown ? "flex" : "none"};">
-            <div>
-              <span class="imsmassi-settings-label">${t("settings.markdownLabel")}</span>
-              <div class="imsmassi-settings-desc">${t("settings.markdownDesc")}</div>
-            </div>
-            <label class="imsmassi-toggle-switch">
-              <input type="checkbox" id="setting-markdown" ${state.settings.markdownEnabled ? "checked" : ""}>
-              <span class="imsmassi-toggle-slider"></span>
-            </label>
-          </div>
-
           <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.debugLog ? "flex" : "none"};">
             <div>
               <span class="imsmassi-settings-label">${t("settings.debugLogLabel")}</span>
@@ -9314,17 +9248,6 @@ function getSettingsHtml(closeHandler) {
             </div>
             <label class="imsmassi-toggle-switch">
               <input type="checkbox" id="setting-debug-logs" ${state.settings.debugLogs ? "checked" : ""}>
-              <span class="imsmassi-toggle-slider"></span>
-            </label>
-          </div>
-
-          <div class="imsmassi-settings-row imsmassi-settings-row-mb" style="display: ${state.hiddenUI.autoNav ? "flex" : "none"};">
-            <div>
-              <span class="imsmassi-settings-label">${t("settings.autoDashboardLabel")}</span>
-              <div class="imsmassi-settings-desc">${t("settings.autoDashboardDesc")}</div>
-            </div>
-            <label class="imsmassi-toggle-switch">
-              <input type="checkbox" id="setting-auto-dashboard" ${state.settings.autoNavigateToDashboard ? "checked" : ""}>
               <span class="imsmassi-toggle-slider"></span>
             </label>
           </div>
@@ -9401,14 +9324,11 @@ function renderSettingsTab() {
 
 function initSettingsTab() {
   const toggleMap = [
-    { id: "setting-markdown", label: "마크다운 단축키" },
     { id: "setting-debug-logs", label: "디버그 로그" },
-    { id: "setting-auto-dashboard", label: "대시보드 이동 차단" },
     { id: "setting-backup", label: "백업 알림" },
     { id: "setting-reminder-notification", label: "리마인더 알림" },
     { id: "setting-browser-notification", label: "브라우저 알림" },
     { id: "setting-toast", label: "토스트 알림" },
-    { id: "setting-show-time-tab", label: "시간 탭 표시" },
   ];
 
   toggleMap.forEach(({ id, label }) => {
@@ -9513,7 +9433,7 @@ async function confirmSetReminder() {
     reminderRepeat: isRepeat,
   });
   closeModal();
-  if (!state.autoNavigateToDashboard) setActiveTab("dashboard");
+  setActiveTab("dashboard");
 }
 
 function confirmClearReminder() {
