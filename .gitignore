@@ -1,8 +1,1 @@
-docs/convert_md_to_docx.py
-docs/DEVELOPER_GUIDE.docx
-docs/generate_developer_guide_docx.py
-docs/개발자가이드_v2.docx
-docs/개발자가이드-1.docx
-docs/__pycache__/convert_md_to_docx.cpython-313.pyc
-docs/ASSISTANT_USER_GUIDE.docx
-docs/ASSISTANT_USER_GUIDE.md
+docs/

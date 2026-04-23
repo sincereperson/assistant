@@ -177,6 +177,8 @@
     "markdownDesc": "**bold**, *italic*, ~~strikethrough~~, etc.",
     "debugLogLabel": "Debug Log",
     "debugLogDesc": "Toggle console log output on/off",
+    "autocompleteLabel": "Autocomplete",
+    "autocompleteDesc": "Toggle autocomplete suggestions while typing.",
     "autoDashboardLabel": "Block Dashboard Navigation",
     "autoDashboardDesc": "Prevent auto-navigation to dashboard when reminders fire or are set",
 

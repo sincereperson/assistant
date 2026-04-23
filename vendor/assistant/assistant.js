@@ -2414,74 +2414,68 @@ function renderAssistant() {
   // 정적 HTML 요소 로케일 동기화
   syncStaticLocaleElements();
 
+  // 탭 그룹 + 헤더/푸터는 패널 open 여부와 무관하게 항상 구성 (외부 주입 타이밍 보장)
+  const headerForTab = document.getElementById("imsmassi-assistant-header");
+  if (headerForTab) updateDashboardButton();
+
+  // 푸터 — background/border/color 는 CSS(.imsmassi-assistant-footer) 에서 var 참조
+  const footer = document.getElementById("imsmassi-assistant-footer");
+  if (footer) {
+    const footerModes = document.getElementById("imsmassi-assistant-footer-modes");
+    if (footerModes) {
+      footerModes.style.display = "";
+      const darkPillHtml = state.hiddenUI.darkMode
+        ? `
+          <div class="imsmassi-dark-toggle-pill">
+            <button class="imsmassi-dtp-btn${!state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="${t("ui.lightModeLabel")}"><span class="imsmassi-dtp-icon imsmassi-dtp-icon--sun"></span></button>
+            <button class="imsmassi-dtp-btn${state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="${t("ui.darkModeLabel")}"><span class="imsmassi-dtp-icon imsmassi-dtp-icon--moon"></span></button>
+          </div>`
+        : "";
+      const acmPillHtml = state.hiddenUI.areaColorMode
+        ? `
+          <div class="imsmassi-acm-pill">
+            <button class="imsmassi-acm-btn${!state.areaColorMode ? " imsmassi-active" : ""}" onclick="toggleAreaColorMode()" title="${t("ui.areaColorOffLabel")}"><span class="imsmassi-dtp-icon imsmassi-acm-icon--no-color"></span></button>
+            <button class="imsmassi-acm-btn${state.areaColorMode ? " imsmassi-active" : ""}" onclick="toggleAreaColorMode()" title="${t("ui.areaColorOnLabel")}"><span class="imsmassi-dtp-icon imsmassi-acm-icon--palette"></span></button>
+          </div>`
+        : "";
+      footerModes.innerHTML = `${acmPillHtml}${darkPillHtml}`;
+    }
+
+    const footerThemes = document.getElementById("imsmassi-assistant-footer-themes");
+    if (footerThemes) {
+      if (state.hiddenUI.theme) {
+        footerThemes.style.display = "";
+        let themeIconsHtml = "";
+        Object.entries(themes).forEach(([key, thm]) => {
+          const isActive = state.currentTheme === key;
+          const activeRing = isActive
+            ? `box-shadow: 0 0 0 2px ${state.isDarkMode ? "#FFF" : "#191F28"};`
+            : "";
+          const sw = THEME_SWATCHES[key] || THEME_SWATCHES.classic;
+          const dotColor = isActive ? theme.primary : sw.primary;
+          themeIconsHtml += `
+            <button class="imsmassi-assistant-footer-theme-btn ${isActive ? "imsmassi-active" : ""}"
+                    title="${t("theme." + key) || thm.name}"
+                    onclick="setTheme('${key}')"
+                    style="background: ${dotColor}; border-color: ${c.border}; ${activeRing}"></button>
+          `;
+        });
+        footerThemes.innerHTML = themeIconsHtml;
+      } else {
+        footerThemes.style.display = "none";
+        footerThemes.innerHTML = "";
+      }
+    }
+
+    updateFooterStorageInfo(c);
+    updateStorageEstimate();
+  }
+
   if (!state.assistantOpen) return;
 
   // 헤더 — background/color 는 CSS(.imsmassi-assistant-header) 에서 var 참조
   const header = document.getElementById("imsmassi-assistant-header");
   if (!header) return;
-  updateDashboardButton();
-
-  // 푸터 — background/border/color 는 CSS(.imsmassi-assistant-footer) 에서 var 참조
-  const footer = document.getElementById("imsmassi-assistant-footer");
-  if (!footer) return;
-
-  const footerModes = document.getElementById(
-    "imsmassi-assistant-footer-modes",
-  );
-  if (footerModes) {
-    footerModes.style.display = "";
-    const darkPillHtml = state.hiddenUI.darkMode
-      ? `
-        <div class="imsmassi-dark-toggle-pill">
-          <button class="imsmassi-dtp-btn${!state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="${t("ui.lightModeLabel")}"><span class="imsmassi-dtp-icon imsmassi-dtp-icon--sun"></span></button>
-          <button class="imsmassi-dtp-btn${state.isDarkMode ? " imsmassi-active" : ""}" onclick="setDarkMode(!state.isDarkMode)" title="${t("ui.darkModeLabel")}"><span class="imsmassi-dtp-icon imsmassi-dtp-icon--moon"></span></button>
-        </div>`
-      : "";
-    const acmPillHtml = state.hiddenUI.areaColorMode
-      ? `
-        <div class="imsmassi-acm-pill">
-          <button class="imsmassi-acm-btn${!state.areaColorMode ? " imsmassi-active" : ""}" onclick="toggleAreaColorMode()" title="${t("ui.areaColorOffLabel")}"><span class="imsmassi-dtp-icon imsmassi-acm-icon--no-color"></span></button>
-          <button class="imsmassi-acm-btn${state.areaColorMode ? " imsmassi-active" : ""}" onclick="toggleAreaColorMode()" title="${t("ui.areaColorOnLabel")}"><span class="imsmassi-dtp-icon imsmassi-acm-icon--palette"></span></button>
-        </div>`
-      : "";
-    footerModes.innerHTML = `
-      ${acmPillHtml}
-      ${darkPillHtml}
-    `;
-  }
-
-  const footerThemes = document.getElementById(
-    "imsmassi-assistant-footer-themes",
-  );
-  if (footerThemes) {
-    if (state.hiddenUI.theme) {
-      // 테마 컬러 버튼 표시
-      footerThemes.style.display = "";
-      let themeIconsHtml = "";
-      Object.entries(themes).forEach(([key, thm]) => {
-        const isActive = state.currentTheme === key;
-        const activeRing = isActive
-          ? `box-shadow: 0 0 0 2px ${state.isDarkMode ? "#FFF" : "#191F28"};`
-          : "";
-        const sw = THEME_SWATCHES[key] || THEME_SWATCHES.classic;
-        const dotColor = isActive ? theme.primary : sw.primary;
-        themeIconsHtml += `
-          <button class="imsmassi-assistant-footer-theme-btn ${isActive ? "imsmassi-active" : ""}"
-                  title="${t("theme." + key) || thm.name}"
-                  onclick="setTheme('${key}')"
-                  style="background: ${dotColor}; border-color: ${c.border}; ${activeRing}"></button>
-        `;
-      });
-      footerThemes.innerHTML = themeIconsHtml;
-    } else {
-      // 빈 껍데기가 남지 않도록 완전히 숨김
-      footerThemes.style.display = "none";
-      footerThemes.innerHTML = "";
-    }
-  }
-
-  updateFooterStorageInfo(c);
-  updateStorageEstimate();
 
   renderAssistantContent();
 }
@@ -9254,8 +9248,8 @@ function getSettingsHtml(closeHandler) {
 
           <div class="imsmassi-settings-row" style="display: ${state.hiddenUI.autocomplete ? "flex" : "none"};">
             <div>
-              <span class="imsmassi-settings-label">자동완성</span>
-              <div class="imsmassi-settings-desc">입력 시 자동완성 기능을 켜거나 끕니다.</div>
+              <span class="imsmassi-settings-label">${t("settings.autocompleteLabel")}</span>
+              <div class="imsmassi-settings-desc">${t("settings.autocompleteDesc")}</div>
             </div>
             <label class="imsmassi-toggle-switch">
               <input type="checkbox" id="setting-autocomplete" ${state.settings.autocompleteEnabled ? "checked" : ""}>

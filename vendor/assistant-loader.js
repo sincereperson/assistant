@@ -186,7 +186,9 @@
       });
 
       if (typeof window.bootstrapAssistant === 'function') {
-        window.bootstrapAssistant(config);
+        // bootstrapAssistant는 async: loadLocale → renderAll 완료 후 이벤트 발행
+        await window.bootstrapAssistant(config);
+        window.dispatchEvent(new CustomEvent('assistant:mounted', { detail: config }));
       } else {
         window.dispatchEvent(new CustomEvent('assistant:mounted', { detail: config }));
       }

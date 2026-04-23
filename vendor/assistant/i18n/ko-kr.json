@@ -177,6 +177,8 @@
     "markdownDesc": "**굵게**, *기울임*, ~~취소선~~ 등",
     "debugLogLabel": "디버그 로그",
     "debugLogDesc": "콘솔 로그 출력 on/off",
+    "autocompleteLabel": "자동완성",
+    "autocompleteDesc": "입력 시 자동완성 기능을 켜거나 끕니다.",
     "autoDashboardLabel": "대시보드 이동 차단",
     "autoDashboardDesc": "알림이 울리거나 설정할 때 대시보드로 자동 이동하지 않음",
 
