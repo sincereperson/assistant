@@ -1652,7 +1652,7 @@ let state = {
     // 토스트 알림 on/off
     toastEnabled: false,
     // 자동완성 on/off
-    autocompleteEnabled: false,
+    autocompleteEnabled: true,
   },
 
   // 저장 용량 (시뮬레이션)
@@ -2030,6 +2030,10 @@ function notifyThemeChange(changed = null) {
 
   if (typeof ThemeManager === "object" && typeof ThemeManager.changeTask === "function") {
     ThemeManager.changeTask(detail.areaColorMode? true : false);
+  }
+
+  if (typeof WSUIUtil === "object" && typeof WSUIUtil.prefs.setAutoComplete === "function") {
+    WSUIUtil.prefs.setAutoComplete(state.settings.autocompleteEnabled);
   }
 
   if (changed === 'theme')         _runHook('onThemeChange', detail);
@@ -9061,7 +9065,7 @@ function buildShortcutManualModal() {
         { keys: ["Escape"], desc: t("shortcut.closeModal") },
         { keys: ["Ctrl", "Shift", "X"], desc: t("shortcut.gridZoom") },
         { keys: ["Ctrl", "`"], desc: t("shortcut.toggleAssistant") },
-        { keys: ["Ctrl", t("shortcut.arrowKeys")], desc: t("shortcut.arrowKeyMove") },
+        { keys: ["Alt", t("shortcut.arrowKeys")], desc: t("shortcut.arrowKeysMove") },
         { keys: ["Ctrl", "L"], desc: t("shortcut.screenIdSearch") },
       ],
     },
@@ -9071,10 +9075,8 @@ function buildShortcutManualModal() {
         { keys: ["Delete"], desc: t("shortcut.cellDelete") },
         { keys: ["Alt", "Insert"], desc: t("shortcut.rowAdd") },
         { keys: ["Alt", "Delete"], desc: t("shortcut.rowDelete") },
-        // { keys: ["Ctrl", "A"], desc: t("shortcut.gridCopyAll") },
+        { keys: ["Ctrl", "Alt", "A"], desc: t("shortcut.gridCopyAll") },
         { keys: ["Ctrl", "Shift", "F"], desc: t("shortcut.gridSearch") },
-        { keys: ["Ctrl", "C"], desc: t("shortcut.excelCopy") },
-        { keys: ["Ctrl", "V"], desc: t("shortcut.excelPaste") },
         { keys: ["F2"], desc: t("shortcut.cellDoubleClick") },
       ],
     },
@@ -9341,8 +9343,8 @@ function initSettingsTab() {
     autocompleteEl.onchange = () => {
       const enabled = autocompleteEl.checked;
       assiConsole.log(`설정 변경 - 자동완성: ${enabled ? "ON" : "OFF"}`);
-      if (typeof window.AssistantAutocomplete?.setEnabled === "function") {
-        window.AssistantAutocomplete.setEnabled(enabled);
+      if (typeof WSUIUtil === "object" && typeof WSUIUtil.prefs.setAutoComplete === "function") {
+        WSUIUtil.prefs.setAutoComplete(enabled);
       } else {
         assiConsole.warn("[Autocomplete] window.AssistantAutocomplete.setEnabled 미정의 — 브로드캐스트만 처리");
       }

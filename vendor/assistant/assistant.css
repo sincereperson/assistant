@@ -223,12 +223,13 @@
 /* ========== scoped overrides (웹스퀘어/외부 CSS 충돌 방지) ========== */
 #assistant-root .imsmassi-floating-btn {
   position: fixed;
-  bottom: 42px;
-  right: 30px;
+  bottom: 20px;
+  right: 20px;
   width: 56px;
   height: 56px;
   border-radius: 50%;
   border: none;
+  box-shadow: 0px 4px 4px 0px rgba(0,0,0,0.2);
   cursor: pointer;
   z-index: 2001;
   display: flex;
@@ -470,19 +471,23 @@
   position: absolute;
   top: 0;
   left: 0;
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   cursor: nwse-resize;
   z-index: 50;
   background: transparent;
+  /* overflow: hidden 클리핑 방어: border-radius 영역 밖 콘텐츠가 잘리지 않도록
+     핸들 자체는 visible로 두고 ::before를 border-radius 안쪽으로 충분히 배치 */
+  overflow: visible;
 }
 #assistant-root .imsmassi-panel-resize-handle-nw::before {
   content: '';
   position: absolute;
-  top: 6px;
-  left: 6px;
-  width: 8px;
-  height: 8px;
+  /* border-radius(14px) 클리핑 영향권 밖 — 충분히 안쪽으로 배치 */
+  top: 10px;
+  left: 10px;
+  width: 9px;
+  height: 9px;
   border-top: 2px solid var(--imsmassi-header-btn-color, rgba(255,255,255,0.7));
   border-left: 2px solid var(--imsmassi-header-btn-color, rgba(255,255,255,0.7));
   border-radius: 2px 0 0 0;
