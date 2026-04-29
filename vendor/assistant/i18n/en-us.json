@@ -341,7 +341,7 @@
     "excelPaste": "Excel paste",
     "cellDoubleClick": "Double-click grid cell",
     "arrowKeys": "Arrowkey",
-    "arrowKeyMove": "Move form/grid"
+    "arrowKeysMove": "Move form/grid"
   },
 
   "onboarding": {
