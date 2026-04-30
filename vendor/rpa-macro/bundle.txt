@@ -1,0 +1,1616 @@
+// ─────────────────────────────────────────────────────────────────
+// rpa-macro/bundle.txt — 콘솔 paste 전용 합본 (메일 반입 호환)
+//
+// 사용:
+//   1) 솔로몬 화면(또는 어시스턴트 떠있는 페이지)에서 F12 콘솔 열기
+//   2) 이 파일 전체를 콘솔에 paste → Enter
+//   3) 화면 우하단(또는 어시스턴트 패널 안)에 매크로 토글 박스 등장
+//   4) [● 녹화] → 작업 → [■ 종료] → [▶ 재생]
+//
+// 구성: solomon-adapter → rpa-decorator → macro-recorder → assistant-bridge
+//       + 마지막에 자동 init 한 줄
+// 의존: 외부 라이브러리 0, 표준 DOM API만 사용
+//
+// Phase B 보강 (4/28 폐쇄망 검증 결과 반영):
+//   1. change 이벤트 캡처 — select/checkbox/날짜위젯/팝업 적용 동작 처리
+//   2. 재생 시 $p.comp setValue 우선 호출 — 솔로몬 핸들러 체인 정상 발화
+//   3. 재생 후 blur dispatch — onkillfocus 핸들러 트리거
+//   4. 어시스턴트/매크로 토글 영역 제외 — 재귀 캡처 방지
+// ─────────────────────────────────────────────────────────────────
+
+
+// ===== solomon-adapter.js =====
+// solomon-adapter.js — 솔로몬 환경 어댑터 (다단 폴백 rpaId 생성기)
+//
+// 무엇: DOM 요소 하나를 받아서 rpaId(별명) 문자열을 만들어 반환한다.
+//       매칭 안 되면 null 반환 + unmatched 리스트에 push.
+// 왜:   솔로몬은 화면마다 명명 규칙이 다를 수 있어 단일 규칙으로는 부족.
+//       PoC plan §4 — ID 규칙 일반화 금지.
+// 어떻게: 여러 폴백 단계를 순서대로 시도. 처음 매칭되는 단계의 결과 채택.
+//
+// Phase A 범위: 폴백 1·2단계만 구현
+//   1) data-title 한글 라벨 + window.getMenuId() scope
+//   2) DOM id 의미 suffix (동적 prefix 제거 후)
+// Phase B 보강 (4/29 — 베어 select 미캡처 이슈):
+//   3) name 속성
+//   4) aria-label 속성
+//   5) placeholder 속성 (input/textarea)
+//   6) 부모 <label> 텍스트 (자기 자신 노드 제거 후)
+//   7) 직전 형제 텍스트/짧은 라벨 노드
+//   8) 위치 기반 폴백 (parent 식별자 + tagName + index) — 마지막 보루
+// 화면별 룰셋 테이블은 향후 확장 후보.
+
+(function (root) {
+  // ─────────────────────────────────────────────────────
+  // 내부 상태
+  // ─────────────────────────────────────────────────────
+  const stats = {
+    matched: {
+      fallback1: 0,  // data-title
+      fallback2: 0,  // id suffix
+      fallback3: 0,  // name
+      fallback4: 0,  // aria-label
+      fallback5: 0,  // placeholder
+      fallback6: 0,  // label 텍스트
+      fallback7: 0,  // 직전 형제 텍스트
+      fallback8: 0,  // 위치 기반
+    },
+    unmatched: [],   // [{ tagName, id, classList, ... }]
+  };
+
+  // 별명 정규화 — 공백/제어문자를 _ 로, 너무 긴 경우 컷.
+  // querySelector의 셀렉터 안정성과 사람이 읽기 좋은 길이 양쪽을 노린다.
+  function normalizeName(s) {
+    if (!s) return null;
+    const cleaned = String(s).replace(/[\s ]+/g, '_').replace(/[^\w\-가-힣]/g, '').slice(0, 40);
+    return cleaned || null;
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 유틸 — scope 추출
+  // ─────────────────────────────────────────────────────
+  function getScope() {
+    // 1) 호스트 제공 함수 우선 (어시스턴트 demo 패턴)
+    if (typeof window.getMenuId === 'function') {
+      const id = window.getMenuId();
+      if (id) return id;          // 예: "UW-001"
+    }
+    // 2) 폴백: 활성 화면 패널의 data-screen-id
+    const sel = document.querySelector('.w2windowContainer_selectedNameLayer');
+    if (sel?.dataset?.screenId) return sel.dataset.screenId;
+    // 3) 마지막 폴백: .pg-id 텍스트
+    const pgEl = document.querySelector('.pg-id');
+    if (pgEl?.textContent) return pgEl.textContent.trim();
+    return 'UNKNOWN';
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 폴백 1: data-title 한글 라벨
+  // ─────────────────────────────────────────────────────
+  // td/th 같은 부모 요소를 거슬러 올라가며 data-title 탐색.
+  // 예: <td data-title="$$상품코드"><input ...></td>
+  // → "$$상품코드"에서 "$$" 접두사 제거 후 사용
+  function tryDataTitle(el) {
+    let cursor = el;
+    while (cursor && cursor !== document.body) {
+      const t = cursor.getAttribute?.('data-title');
+      if (t) return t.replace(/^\$\$/, '').trim();
+      cursor = cursor.parentElement;
+    }
+    return null;
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 폴백 2: DOM id 의미 suffix
+  // ─────────────────────────────────────────────────────
+  // 예: "mf_Frames_Main_subWindow10_wframe_..._divClsBs_edtCtNo"
+  //     → 동적 prefix/표준 noise 제거
+  //     → 의미 토큰 2개("divClsBs", "edtCtNo") 결합
+  //     → "divClsBs_edtCtNo"
+  //
+  // 1토큰만 쓰면 같은 라벨/같은 element-name 을 공유하는 위젯이 영역(divX)만
+  // 다른 경우 충돌(multi-match)이 난다 — 검색조건 vs 종목기본의 "계약번호_edtCtNo".
+  // 의미 토큰을 끝에서 최대 2개 모아 결합해 영역 구분을 포함한다.
+  //
+  // skipTokens: 솔로몬 id 가 일관되게 끼워넣는 표준 noise (위치 정보 없음)
+  const SKIP_ID_TOKENS = new Set([
+    'mf', 'frames', 'main', 'wframe', 'workmain',
+    'group', 'tbody', 'thead', 'div', 'span',
+  ]);
+
+  function tryIdSuffix(el) {
+    const id = el.id;
+    if (!id) return null;
+    const parts = id.split('_');
+    if (parts.length === 0) return null;
+
+    // 끝에서부터 의미 토큰 모음 — 최대 2개
+    const meaningful = [];
+    for (let i = parts.length - 1; i >= 0 && meaningful.length < 2; i--) {
+      const tok = parts[i];
+      if (!tok) continue;
+      if (/^uuid$/i.test(tok)) continue;
+      if (SKIP_ID_TOKENS.has(tok.toLowerCase())) continue;
+      // 순수 숫자 토큰 처리:
+      //   - "wq_uuid_NNN" 같이 직전 토큰이 wq/uuid 면 의미 없는 자동 ID → 스킵
+      //   - "row_5", "cell_3", "page_2" 등은 의미 있는 인덱스 → 보존
+      //     (그렇지 않으면 row_0, row_1 같은 행들이 모두 'row' 로 충돌)
+      if (/^\d+$/.test(tok)) {
+        const prev = (parts[i - 1] || '').toLowerCase();
+        if (prev === 'uuid' || prev === 'wq') continue;
+      }
+      meaningful.unshift(tok);
+    }
+    return meaningful.length ? meaningful.join('_') : null;
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 폴백 3: name 속성
+  // ─────────────────────────────────────────────────────
+  // 표준 폼 요소면 거의 박혀있는 1차 hint. 동적 prefix 없음.
+  function tryNameAttr(el) {
+    return normalizeName(el.getAttribute?.('name'));
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 폴백 4: aria-label
+  // ─────────────────────────────────────────────────────
+  function tryAriaLabel(el) {
+    return normalizeName(el.getAttribute?.('aria-label'));
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 폴백 5: placeholder (input/textarea 한정)
+  // ─────────────────────────────────────────────────────
+  function tryPlaceholder(el) {
+    const tag = el.tagName?.toLowerCase();
+    if (tag !== 'input' && tag !== 'textarea') return null;
+    return normalizeName(el.getAttribute?.('placeholder'));
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 폴백 6: 부모 <label> 텍스트
+  // ─────────────────────────────────────────────────────
+  // 패턴: <label>보험 상품<select>...</select></label>
+  //       → label 텍스트만 추출(자기 자신·다른 입력칸 제거 후) → "보험_상품"
+  // for-id 매칭(<label for="x">...) 도 동일 방식으로 커버.
+  function tryLabelText(el) {
+    let label = el.closest?.('label');
+    if (!label && el.id) {
+      // for=id 로 연결된 label 도 시도
+      label = document.querySelector?.(`label[for="${cssEscapeAttr(el.id)}"]`);
+    }
+    if (!label) return null;
+    const clone = label.cloneNode(true);
+    // 자기 자신과 다른 폼 컨트롤은 제거 — label 텍스트만 남김
+    clone.querySelectorAll?.('input, select, textarea, button')
+      .forEach((n) => n.remove());
+    const text = (clone.textContent || '').trim();
+    return normalizeName(text);
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 폴백 7: 직전 형제 텍스트/짧은 라벨
+  // ─────────────────────────────────────────────────────
+  // 패턴: <span>고객명</span><input>
+  //       → "고객명"
+  // 텍스트 노드 또는 30자 이내의 element를 라벨로 인정.
+  function tryPrecedingText(el) {
+    let prev = el.previousSibling;
+    while (prev) {
+      if (prev.nodeType === 3 /* TEXT_NODE */) {
+        const t = (prev.textContent || '').trim();
+        if (t) return normalizeName(t);
+      } else if (prev.nodeType === 1 /* ELEMENT_NODE */) {
+        // 입력/버튼류는 라벨이 아니므로 중단
+        const ptag = prev.tagName.toLowerCase();
+        if (['input', 'select', 'textarea', 'button'].includes(ptag)) break;
+        const t = (prev.textContent || '').replace(/\s+/g, ' ').trim();
+        if (t && t.length <= 30) return normalizeName(t);
+        break;
+      }
+      prev = prev.previousSibling;
+    }
+    return null;
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 폴백 8: 위치 기반 (마지막 보루)
+  // ─────────────────────────────────────────────────────
+  // 식별 단서가 전혀 없는 베어 요소(예: <select> 만)도 매크로에 잡혀야 한다.
+  // 부모 식별자(id/class) + 같은 태그 형제 인덱스 조합으로 합성.
+  // 같은 화면(scope)/같은 부모/같은 태그 안에서 위치가 바뀌지 않는 한 안정.
+  function tryPositional(el) {
+    const parent = el.parentElement;
+    if (!parent) return null;
+    const sameTag = Array.from(parent.children).filter((c) => c.tagName === el.tagName);
+    const idx = sameTag.indexOf(el);
+    if (idx < 0) return null;
+    const parentTag = parent.tagName?.toLowerCase() || 'p';
+    const parentHint =
+      parent.id ||
+      (parent.className && typeof parent.className === 'string'
+        ? parent.className.split(/\s+/).find((c) => c && !/^w2|^uw_/.test(c))
+        : null) ||
+      parentTag;
+    return normalizeName(`${parentHint}_${el.tagName.toLowerCase()}_${idx}`);
+  }
+
+  // CSS.escape 폴백 (속성 값용)
+  function cssEscapeAttr(s) {
+    if (typeof CSS !== 'undefined' && CSS.escape) return CSS.escape(s);
+    return String(s).replace(/"/g, '\\"');
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 컴포넌트 종류 분류 (rpaId의 component 부분)
+  // ─────────────────────────────────────────────────────
+  function classifyComponent(el) {
+    // WebSquare 커스텀 위젯 우선 (tagName 보다 먼저)
+    if (el.matches?.('[role="button"]')) return 'btn';
+    if (el.matches?.('[role="combobox"], .w2autoComplete')) return 'combobox';
+    if (el.matches?.('.w2selectbox_native')) return 'select';
+    if (el.matches?.('.w2inputCalendar, .w2inputCalendar_div, .w2datepicker')) return 'datepicker';
+    if (el.matches?.('.w2popup')) return 'popup';
+
+    const tag = el.tagName?.toLowerCase();
+    if (tag === 'input') {
+      const type = (el.type || 'text').toLowerCase();
+      if (type === 'button' || type === 'submit') return 'btn';
+      return 'form';
+    }
+    if (tag === 'button') return 'btn';
+    if (tag === 'select') return 'select';
+    if (tag === 'tr') return 'row';
+    if (tag === 'td') return 'cell';
+    if (tag === 'a') return 'link';
+    return tag || 'el';
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 메인 진입점
+  // ─────────────────────────────────────────────────────
+  function makeRpaId(el) {
+    if (!el || el.nodeType !== 1) return null;
+
+    const scope = getScope();
+    const component = classifyComponent(el);
+
+    // 우선순위:
+    //   1. data-title (의미 가장 명확)  ← + id suffix 가 있으면 결합 (유일성)
+    //   2. id suffix  (솔로몬 메인 패턴)
+    //   3. name       (표준 폼 속성)
+    //   4. aria-label (접근성 라벨)
+    //   5. placeholder
+    //   6. 부모 <label> 텍스트            ← + id suffix 결합
+    //   7. 직전 형제 텍스트                ← + id suffix 결합
+    //   8. 위치 기반 합성 — 베어 요소 마지막 보루
+    //
+    // 유일성 보강 (4/29): 같은 라벨을 공유하는 위젯이 여러 개 있을 때
+    //   (예: 검색조건의 "적용일자"와 본문의 "적용일자")
+    //   라벨 단독으로는 querySelector 가 첫 매칭만 찾아 잘못된 위젯에
+    //   재생이 들어간다. id suffix 가 있으면 결합해서 유일성을 확보.
+    //   id 없는 요소는 라벨 단독을 그대로 사용 (현재 동작 유지).
+    const idName = tryIdSuffix(el);
+
+    const tries = [
+      ['fallback1', tryDataTitle, true],   // composite: 라벨 + id
+      ['fallback2', tryIdSuffix,  false],  // 이미 id 자체
+      ['fallback3', tryNameAttr,  true],
+      ['fallback4', tryAriaLabel, true],
+      ['fallback5', tryPlaceholder, true],
+      ['fallback6', tryLabelText, true],
+      ['fallback7', tryPrecedingText, true],
+      ['fallback8', tryPositional, false], // 이미 위치로 유일
+    ];
+
+    for (const [key, fn, allowComposite] of tries) {
+      const name = fn(el);
+      if (name) {
+        stats.matched[key]++;
+        const finalName = (allowComposite && idName && idName !== name)
+          ? `${name}_${idName}`
+          : name;
+        return `${scope}.${component}.${finalName}`;
+      }
+    }
+
+    // 매칭 실패 — unmatched 보고 (위치 폴백까지 실패한 케이스만 도달)
+    stats.unmatched.push({
+      tagName: el.tagName,
+      id: el.id || '(no id)',
+      classList: el.className || '',
+      text: (el.textContent || '').slice(0, 30),
+    });
+    return null;
+  }
+
+  function getStats() {
+    return JSON.parse(JSON.stringify(stats));
+  }
+
+  function resetStats() {
+    Object.keys(stats.matched).forEach((k) => { stats.matched[k] = 0; });
+    stats.unmatched.length = 0;
+  }
+
+  // ─────────────────────────────────────────────────────
+  // Export
+  // ─────────────────────────────────────────────────────
+  const api = { makeRpaId, getStats, resetStats, getScope };
+  if (typeof window !== 'undefined') window.SolomonAdapter = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+// ===== rpa-decorator.js =====
+// rpa-decorator.js — 식별자 주입기
+//
+// 무엇: 페이지의 모든 입력칸/버튼/링크에 data-rpa-id 를 자동으로 붙인다.
+//       동적으로 추가되는 요소도 MutationObserver로 감지해 자동 데코레이션.
+// 왜:   매크로 녹화·재생이 *고정 별명* 으로 요소를 찾아갈 수 있도록.
+//       솔로몬 DOM id는 동적이라 매번 바뀌므로, 별명을 미리 박아둬야 안정.
+// 어떻게:
+//   1) decorate(root): 한 번 일괄 스캔
+//   2) startObserving(root): 동적 추가 자동 감지 시작
+//   3) stopObserving(): 감지 종료
+//   4) 어떤 요소에 어떤 별명을 부여할지는 SolomonAdapter.makeRpaId() 위임
+//
+// 가이드 원본(2.5절 decorateGrid)는 그리드 한정. PoC plan §2-1 검토대로
+// 그리드 외 일반 요소까지 커버하도록 확장. 단 재귀 비용을 줄이기 위해
+// "관심 있는 요소 셀렉터" 만 스캔.
+
+(function (root) {
+  // 데코레이션 대상 셀렉터 (관심 요소만 스캔)
+  // WebSquare 커스텀 위젯 외곽도 포함 — 내부 readonly input은 setValue로만
+  // 값이 바뀌고 native change 가 안 나오므로, 외곽 위젯에 별명을 박아두고
+  // recorder가 라벨 변경을 따로 관찰해야 한다.
+  const TARGET_SELECTOR = [
+    'input',
+    'button',
+    'select',
+    'textarea',
+    'a[href]',
+    'tr[data-rowid]',          // 가이드 원본 패턴
+    'td[data-colkey]',         // 가이드 원본 패턴
+    '[data-clickable]',
+    '[role="button"]',         // div/span 으로 만든 버튼 (모달 확인/취소 등)
+    '[role="combobox"]',       // WebSquare w2autoComplete 등 콤보박스 외곽
+    '.w2autoComplete',         // 클래스 매칭 (role 미부여 변종 대비)
+    '.w2selectbox_native',     // WebSquare 기본 셀렉트박스
+    '.w2inputCalendar',        // 날짜 위젯 (calUep... 등) — value 가 inner input
+    '.w2inputCalendar_div',    // 날짜 위젯 외곽 div 변종
+    '.w2datepicker',           // (구버전 호환) 날짜 위젯
+    '.w2popup',                // 팝업/모달 외곽 (모달 안 input/click 추적용)
+  ].join(', ');
+
+  // 데코레이션 제외 영역 (재귀 캡처 방지 + unmatched 노이즈 제거)
+  // - 어시스턴트 자체 UI / 우리 매크로 토글 박스 / 사용자 수동 마커
+  const EXCLUDE_SELECTOR = [
+    '#assistant-mount',
+    '#assistant-root',
+    '.imsmassi-assistant-body',
+    '#imsmassi-panel-outer',
+    '.imsmassi-floating-btn',
+    '#rpa-macro-toggle',
+    '[data-rpa-skip]',
+  ].join(', ');
+
+  function isExcluded(el) {
+    return !!(el && el.closest && el.closest(EXCLUDE_SELECTOR));
+  }
+
+  let observer = null;
+  let lastDecoratedCount = 0;
+
+  function getAdapter() {
+    return (typeof window !== 'undefined' && window.SolomonAdapter)
+      ? window.SolomonAdapter
+      : null;
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 단일 요소 데코레이션
+  // ─────────────────────────────────────────────────────
+  function decorateElement(el) {
+    // 이미 박혀있으면 skip (중복 방지 + 안정성)
+    if (el.dataset.rpaId) return false;
+    // 제외 영역(어시스턴트/매크로 토글)은 별명 안 박음 — adapter unmatched 도 발생 X
+    if (isExcluded(el)) return false;
+
+    const adapter = getAdapter();
+    if (!adapter) {
+      console.warn('[rpa-decorator] SolomonAdapter 미로드');
+      return false;
+    }
+
+    const rpaId = adapter.makeRpaId(el);
+    if (!rpaId) return false;     // unmatched는 어댑터가 stats에 기록
+
+    el.dataset.rpaId = rpaId;
+    return true;
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 일괄 스캔
+  // ─────────────────────────────────────────────────────
+  function decorate(rootEl = document) {
+    let count = 0;
+    const targets = rootEl.querySelectorAll(TARGET_SELECTOR);
+    targets.forEach((el) => {
+      if (decorateElement(el)) count++;
+    });
+    lastDecoratedCount = count;
+    return count;
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 동적 감지 (MutationObserver)
+  // ─────────────────────────────────────────────────────
+  // - 새로 추가된 노드(addedNodes)에서 TARGET_SELECTOR 매칭 요소를 데코레이션
+  // - 기존 노드의 속성 변경은 감시 안 함 (성능)
+  function startObserving(rootEl = document.body) {
+    if (observer) return;
+    observer = new MutationObserver((mutations) => {
+      for (const mut of mutations) {
+        for (const node of mut.addedNodes) {
+          if (node.nodeType !== 1) continue;
+          // 추가된 노드 자체 검사
+          if (node.matches?.(TARGET_SELECTOR)) decorateElement(node);
+          // 추가된 서브트리 안의 대상 검사
+          node.querySelectorAll?.(TARGET_SELECTOR)?.forEach(decorateElement);
+        }
+      }
+    });
+    observer.observe(rootEl, { childList: true, subtree: true });
+  }
+
+  function stopObserving() {
+    observer?.disconnect();
+    observer = null;
+  }
+
+  // ─────────────────────────────────────────────────────
+  // 가이드 원본의 decorateGrid 도 호환 유지 (필요 시 직접 호출)
+  // ─────────────────────────────────────────────────────
+  function decorateGrid(gridId, scope) {
+    const grid = document.getElementById(gridId);
+    if (!grid) return 0;
+    let count = 0;
+    grid.querySelectorAll('tr[data-rowid]').forEach((tr) => {
+      const rid = tr.dataset.rowid;
+      if (!tr.dataset.rpaId) {
+        tr.dataset.rpaId = `${scope}.grid.row_${rid}`;
+        count++;
+      }
+      tr.querySelectorAll('td[data-colkey]').forEach((td) => {
+        const ck = td.dataset.colkey;
+        if (!td.dataset.rpaId) {
+          td.dataset.rpaId = `${scope}.grid.row_${rid}.cell_${ck}`;
+          count++;
+        }
+      });
+    });
+    return count;
+  }
+
+  // ─────────────────────────────────────────────────────
+  // Export
+  // ─────────────────────────────────────────────────────
+  const api = {
+    decorate,
+    decorateElement,
+    decorateGrid,
+    startObserving,
+    stopObserving,
+    getLastCount: () => lastDecoratedCount,
+  };
+  if (typeof window !== 'undefined') window.RpaDecorator = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+// ===== macro-recorder.js =====
+// macro-recorder.js — 매크로 녹화·재생 엔진
+//
+// 무엇: 사용자의 click/input/change 이벤트를 시간 순서로 events[]에 기록(start~stop),
+//       나중에 events를 받아 같은 순서로 재현(replay).
+// 왜:   사용자가 본인 반복 작업을 1회 녹화 → 매번 자동 재생. RPA의 가장 단순한 형태.
+// 어떻게:
+//   - start() / stop() 명시 호출 (자동 추적 X)
+//   - data-rpa-id 가 박힌 요소만 캡처 (식별자 없는 요소는 노이즈로 제외)
+//   - 어시스턴트/매크로 토글 영역은 캡처 제외 (재귀 캡처 방지)
+//   - 재생 시 웹스퀘어 컴포넌트 API ($p.comp[id].setValue) 우선 사용 (Phase B 보강)
+//
+// Phase B 보강 (4/28 폐쇄망 검증 결과 반영):
+//   1. change 이벤트 캡처 — select/checkbox/날짜위젯/팝업 적용 동작 처리
+//   2. 재생 시 $p.comp setValue 우선 호출 — 솔로몬 내부 상태 + 핸들러 체인 정상 발화
+//   3. 재생 후 blur dispatch — onkillfocus 핸들러 트리거
+//   4. 어시스턴트/매크로 토글 영역 제외 — 재귀 캡처 방지
+//
+// Phase C 보강 (4/29 — WebSquare 커스텀 콤보박스 캡처):
+//   5. w2autoComplete 등 readonly + setValue 위젯의 라벨 변경을 감지해
+//      가짜 change 이벤트로 events 에 push. native change 가 안 나오는 위젯의
+//      값 변경을 캡처하기 위한 우회로.
+//
+// Phase D 보강 (4/29 — 캘린더 위젯 + 모달 결과 캡처):
+//   6. value 폴링 — w2inputCalendar 처럼 input.value (프로퍼티) 만 바뀌고
+//      DOM mutation 이 안 나오는 위젯의 값 변경을 setInterval 로 250ms 폴링.
+//      MutationObserver 와 같은 _wqLastSnap Map 을 공유해 dedupe.
+//   7. 모달 commit 후 부모 폼 변경도 같은 폴러가 자동 캡처. 모달 인터랙션
+//      자체를 재현하지 않고, 결과로 바뀐 부모 값만 setValue 로 재현하는 전략.
+
+(function (root) {
+  // ─────────────────────────────────────────────
+  // 캡처 제외 영역 (재귀 캡처 방지)
+  // ─────────────────────────────────────────────
+  // 어시스턴트 자체 UI / 우리 매크로 토글 / 사용자가 명시 제외한 영역
+  const EXCLUDE_SELECTOR = [
+    '#assistant-mount',                  // 어시스턴트 마운트 컨테이너
+    '#assistant-root',                   // 어시스턴트 루트
+    '.imsmassi-assistant-body',          // 어시스턴트 바디
+    '#imsmassi-panel-outer',             // 어시스턴트 패널 외부
+    '.imsmassi-floating-btn',            // 어시스턴트 플로팅 버튼
+    '#rpa-macro-toggle',                 // 우리 매크로 토글 박스
+    '[data-rpa-skip]',                   // 사용자 수동 마커
+  ].join(', ');
+
+  // 커스텀 콤보박스/위젯 — readonly 라 native change 가 안 나오는 위젯들.
+  // 데코는 rpa-decorator.js TARGET_SELECTOR 와 동기화되어야 한다.
+  const WIDGET_SELECTOR = [
+    '[data-rpa-id][role="combobox"]',
+    '[data-rpa-id].w2autoComplete',
+    '[data-rpa-id].w2selectbox_native',
+    '[data-rpa-id].w2inputCalendar',
+    '[data-rpa-id].w2inputCalendar_div',
+    '[data-rpa-id].w2datepicker',
+  ].join(', ');
+
+  // 폴러가 추가로 감시할 일반 폼 요소 — 모달 commit 후 부모 폼 input 에
+  // setValue 만으로 값이 들어오는 케이스를 잡기 위해.
+  // 위젯 내부 input 은 WIDGET_SELECTOR 매칭으로 별도 처리되므로 :not() 으로 제외.
+  const FORM_POLL_SELECTOR = [
+    '[data-rpa-id]:is(input,select,textarea):not([type=button]):not([type=submit])',
+  ].join(', ');
+
+  function isExcluded(el) {
+    return !!(el && el.closest && el.closest(EXCLUDE_SELECTOR));
+  }
+
+  // Phase I: WebSquare $p.comp.getValue() 우선으로 raw 값 읽기.
+  //   사업비 같은 w2inputNumber/w2inputAmount 위젯은 표시값이 "123,123"이지만
+  //   내부 raw 는 "123123" 이다. 표시값을 캡처/재생하면 setValue 가 콤마를
+  //   못 파싱해 NaN 으로 망가진다. getValue 가 있으면 그걸 우선 쓰고,
+  //   없으면 .value 로 폴백.
+  function readRawValue(el) {
+    if (!el) return '';
+    try {
+      const comp = window.$p && window.$p.comp && window.$p.comp[el.id];
+      if (comp && typeof comp.getValue === 'function') {
+        const v = comp.getValue();
+        return v == null ? '' : String(v);
+      }
+    } catch (_) { /* fall through */ }
+    return typeof el.value === 'string' ? el.value : '';
+  }
+
+  // 위젯의 현재 값/라벨 스냅샷.
+  // 우선순위: $p.comp.getValue() → 내부 input.value → 라벨 텍스트
+  // value 는 재생 시 setValue 인자로 쓰이므로 *내부 값* 을 우선.
+  function readWidgetValue(widget) {
+    let value = '';
+    let label = readWidgetLabel(widget);
+    try {
+      const comp = window.$p && window.$p.comp && window.$p.comp[widget.id];
+      if (comp && typeof comp.getValue === 'function') {
+        value = String(comp.getValue() ?? '');
+        return { value, label };
+      }
+    } catch (_) { /* fall through */ }
+    const innerInput = widget.querySelector('input');
+    if (innerInput && typeof innerInput.value === 'string') {
+      value = innerInput.value;
+      return { value, label };
+    }
+    // 마지막 폴백: 라벨 텍스트를 값으로 (덜 정확하지만 setValue 가 라벨로
+    // 검색하는 위젯도 있어 동작은 함)
+    return { value: label, label };
+  }
+
+  function readWidgetLabel(widget) {
+    // 1) `${widget.id}_label` (WebSquare 표준 패턴)
+    if (widget.id) {
+      const direct = document.getElementById(widget.id + '_label');
+      if (direct) return (direct.textContent || '').trim();
+    }
+    // 2) 클래스 기반 폴백
+    const span = widget.querySelector('.w2autoComplete_label_label, .w2datepicker_label, [class*="_label_label"]');
+    if (span) return (span.textContent || '').trim();
+    // 3) 위젯 자체의 텍스트 (마지막 보루)
+    return (widget.textContent || '').trim().slice(0, 60);
+  }
+
+  class MacroRecorder {
+    constructor(options = {}) {
+      this.events = [];
+      this.recording = false;
+      this.options = {
+        captureClick: true,
+        captureInput: true,
+        captureChange: true,           // 신규: select/checkbox/날짜위젯
+        captureWidgets: true,          // Phase C: w2autoComplete 등 라벨 감시
+        useWebSquareApi: true,         // 신규: 재생 시 $p.comp.setValue 우선
+        dispatchBlurAfter: true,       // 신규: 입력 재생 후 blur dispatch
+        debug: false,                  // Phase G: true 면 캡처 즉시 콘솔 표시
+        ...options,
+      };
+      this._click = null;
+      this._dblclick = null;          // Phase J: 행 더블클릭(=선택+확정) 캡처
+      this._input = null;
+      this._change = null;
+      this._wqWatcher = null;
+      this._wqLastSnap = null;         // Map<rpaId, { value, label }>
+      this._wqPollerId = null;         // setInterval id (Phase D)
+      this._wqPollIntervalMs = options.widgetPollIntervalMs ?? 250;
+    }
+
+    // ─────────────────────────────────────────────
+    // 녹화
+    // ─────────────────────────────────────────────
+    start() {
+      this.events = [];
+      this.recording = true;
+      this._bindHandlers();
+    }
+
+    stop() {
+      this.recording = false;
+      this._unbindHandlers();
+      return this.events;
+    }
+
+    _bindHandlers() {
+      if (this.options.captureClick) {
+        this._click = (e) => this._record('click', e);
+        document.addEventListener('click', this._click, true);
+        // Phase J: 더블클릭(행 선택+확정) — click/click/dblclick 시퀀스 중 dblclick 캡처
+        this._dblclick = (e) => this._record('dblclick', e);
+        document.addEventListener('dblclick', this._dblclick, true);
+      }
+      if (this.options.captureInput) {
+        this._input = (e) => this._record('input', e);
+        document.addEventListener('input', this._input, true);
+      }
+      if (this.options.captureChange) {
+        this._change = (e) => this._record('change', e);
+        document.addEventListener('change', this._change, true);
+      }
+      if (this.options.captureWidgets) {
+        this._bindWidgetWatcher();
+      }
+    }
+
+    _unbindHandlers() {
+      if (this._click)    document.removeEventListener('click',    this._click,    true);
+      if (this._dblclick) document.removeEventListener('dblclick', this._dblclick, true);
+      if (this._input)    document.removeEventListener('input',    this._input,    true);
+      if (this._change)   document.removeEventListener('change',   this._change,   true);
+      this._click = this._dblclick = this._input = this._change = null;
+      this._unbindWidgetWatcher();
+    }
+
+    // ─────────────────────────────────────────────
+    // Phase C: WebSquare 콤보박스 라벨 변경 감지
+    // ─────────────────────────────────────────────
+    // 단일 document-level MutationObserver 로 처리.
+    // characterData/childList 변경 → 부모로 거슬러 올라가 데코된 위젯을 찾음.
+    // value/label 둘 다 동일하면 무시 (debounce 효과).
+    _bindWidgetWatcher() {
+      this._wqLastSnap = new Map();
+      // 초기 스냅샷 — 녹화 시작 시점의 값을 baseline 으로
+      document.querySelectorAll(WIDGET_SELECTOR).forEach((w) => {
+        if (isExcluded(w)) return;
+        this._wqLastSnap.set(w.dataset.rpaId, readWidgetValue(w));
+      });
+      // Phase E: 일반 폼 요소도 baseline 잡기 (모달 commit 결과 폴링용)
+      // Phase I: readRawValue 통일
+      document.querySelectorAll(FORM_POLL_SELECTOR).forEach((el) => {
+        if (isExcluded(el)) return;
+        if (el.closest(WIDGET_SELECTOR)) return;  // 위젯 내부는 위에서 처리
+        const rpaId = el.dataset.rpaId;
+        if (!rpaId) return;
+        this._wqLastSnap.set(rpaId, { value: readRawValue(el), label: '' });
+      });
+
+      this._wqWatcher = new MutationObserver((mutations) => {
+        if (!this.recording) return;
+        // 같은 위젯에 대해 한 번의 mutation 버스트가 여러 번 깨질 수 있어
+        // dirty set 으로 모은 뒤 한 번에 비교
+        const dirty = new Set();
+        for (const mut of mutations) {
+          const target = mut.target.nodeType === 3 /* TEXT_NODE */
+            ? mut.target.parentElement
+            : mut.target;
+          if (!target || !target.closest) continue;
+          const widget = target.closest(WIDGET_SELECTOR);
+          if (!widget) continue;
+          if (isExcluded(widget)) continue;
+          dirty.add(widget);
+        }
+        for (const widget of dirty) {
+          const rpaId = widget.dataset.rpaId;
+          if (!rpaId) continue;
+          const snap = readWidgetValue(widget);
+          const prev = this._wqLastSnap.get(rpaId);
+          if (prev && prev.value === snap.value && prev.label === snap.label) continue;
+          this._wqLastSnap.set(rpaId, snap);
+          this.events.push({
+            type: 'change',
+            rpaId,
+            value: snap.value,
+            label: snap.label,
+            widget: 'wq',           // 재생 시 setValue 우선 힌트
+            ts: Date.now(),
+          });
+        }
+      });
+      this._wqWatcher.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+
+      // Phase D: 값 폴러 — MutationObserver 가 못 보는 input.value 프로퍼티
+      //          변경(캘린더, 모달 commit 결과 등)을 잡기 위한 보강.
+      //          _wqLastSnap 을 공유하므로 MO 와 dedupe 자동.
+      this._wqPollerId = setInterval(() => this._pollWidgetValues(), this._wqPollIntervalMs);
+    }
+
+    _pollWidgetValues() {
+      if (!this.recording) return;
+      // 1) 커스텀 위젯 (라벨/내부 input 종합)
+      const widgets = document.querySelectorAll(WIDGET_SELECTOR);
+      for (const widget of widgets) {
+        if (isExcluded(widget)) continue;
+        const rpaId = widget.dataset.rpaId;
+        if (!rpaId) continue;
+        const snap = readWidgetValue(widget);
+        if (this._handleSnap(rpaId, snap, 'wq')) continue;
+      }
+      // 2) Phase E: 일반 폼 요소 — 모달 commit 등 .value 프로퍼티만 바뀌는 케이스
+      // Phase I: readRawValue 로 WebSquare 컴포넌트 raw 값 우선 읽기.
+      const inputs = document.querySelectorAll(FORM_POLL_SELECTOR);
+      for (const input of inputs) {
+        if (isExcluded(input)) continue;
+        // 위젯 내부는 위 루프에서 처리됨
+        if (input.closest(WIDGET_SELECTOR)) continue;
+        const rpaId = input.dataset.rpaId;
+        if (!rpaId) continue;
+        const snap = { value: readRawValue(input), label: '' };
+        this._handleSnap(rpaId, snap, 'form');
+      }
+    }
+
+    // 공통 스냅샷 처리: prev 와 다르면 events 에 push, 같으면 no-op.
+    // baseline (prev 가 아예 없는 경우) 은 record 하지 않고 lastSnap 만 갱신.
+    // return true 면 변경 감지 (호출측 continue 신호 — 의미는 없지만 일관성).
+    _handleSnap(rpaId, snap, kind) {
+      const prev = this._wqLastSnap.get(rpaId);
+      if (prev && prev.value === snap.value && prev.label === snap.label) return false;
+      this._wqLastSnap.set(rpaId, snap);
+      if (!prev) return false; // baseline
+      const ev = {
+        type: 'change',
+        rpaId,
+        value: snap.value,
+        source: 'poll',
+        ts: Date.now(),
+      };
+      if (kind === 'wq') {
+        ev.label = snap.label;
+        ev.widget = 'wq';
+      }
+      this.events.push(ev);
+      return true;
+    }
+
+    _unbindWidgetWatcher() {
+      if (this._wqWatcher) {
+        this._wqWatcher.disconnect();
+        this._wqWatcher = null;
+      }
+      if (this._wqPollerId) {
+        clearInterval(this._wqPollerId);
+        this._wqPollerId = null;
+      }
+      this._wqLastSnap = null;
+    }
+
+    _record(type, e) {
+      if (!this.recording) return;
+      const target = e.target;
+      if (!target || target.nodeType !== 1) return;
+      // 어시스턴트/매크로 토글 영역은 무시 (재귀 캡처 방지)
+      if (isExcluded(target)) return;
+
+      // Phase C/D: 커스텀 위젯 내부 click/input/change 는 widget watcher 가
+      // 외곽 위젯 rpaId 로 단일 change 이벤트로 변환한다. 안쪽 input 도
+      // rpaId 가 박혀있어 native 이벤트가 한 번 더 기록되면 dupe 가 되므로
+      // 위젯 내부 이벤트는 모두 드롭. (replay 는 외곽 widget 의 setValue 만
+      // 호출하면 됨) — dblclick 은 row 더블클릭 같이 위젯 밖 케이스 위주라
+      // 단순화 위해 동일 처리.
+      if (target.closest && target.closest(WIDGET_SELECTOR)) {
+        return;
+      }
+
+      // Phase J: 더블클릭이 들어오면 직전 같은 rpaId 의 click 1~2 건은
+      //          드롭. 브라우저는 click+click+dblclick 순으로 발화하므로
+      //          replay 시 두 번의 click 이 row select toggling 을 일으켜
+      //          dblclick 효과(=선택 확정)를 가릴 수 있다.
+      if (type === 'dblclick') {
+        let popped = 0;
+        while (popped < 2 && this.events.length > 0) {
+          const last = this.events[this.events.length - 1];
+          if (last.type === 'click' && last.rpaId === target.dataset?.rpaId) {
+            this.events.pop();
+            popped++;
+          } else break;
+        }
+      }
+
+      const rpaId = target.dataset?.rpaId;
+      if (!rpaId) return;          // 식별자 없는 요소는 기록 제외
+
+      // Phase I: WebSquare 컴포넌트면 raw 값 우선 (사업비 NaNNaN 방지).
+      // 일반 input 은 .value 그대로.
+      const curValue = readRawValue(target);
+
+      // Phase E: native value 이벤트는 폴러와 dedupe 위해 lastSnap 도 갱신.
+      // 같은 변경을 폴러가 한 번 더 잡지 않도록.
+      if ((type === 'change' || type === 'input') && this._wqLastSnap) {
+        this._wqLastSnap.set(rpaId, { value: curValue, label: '' });
+      }
+
+      // Phase G: 키 입력 이벤트 압축.
+      //   브라우저는 글자마다 input 이벤트를 발화한다("ABC" → 3건). 같은 rpaId
+      //   에 대해 연속된 input 은 마지막 값만 의미 있으므로 마지막 1건으로 합친다.
+      //   replay 시간 단축 + 이벤트 부풀림 방지.
+      if (type === 'input' && this.events.length > 0) {
+        const last = this.events[this.events.length - 1];
+        if (last.type === 'input' && last.rpaId === rpaId) {
+          last.value = curValue;
+          last.ts = Date.now();
+          return;
+        }
+      }
+
+      // Phase G: 동일 값 redundant change 드롭.
+      //   blur 시점에 input 직후 같은 값으로 change 가 한 번 더 오는 패턴 흔함.
+      //   이미 input 으로 캡처된 같은 rpaId+값이면 중복.
+      if (type === 'change' && this.events.length > 0) {
+        const last = this.events[this.events.length - 1];
+        if (last.rpaId === rpaId && (last.value ?? '') === curValue
+            && (last.type === 'input' || last.type === 'change')) {
+          return;
+        }
+      }
+
+      this.events.push({
+        type,
+        rpaId,
+        value: curValue,
+        // select 의 경우 selectedIndex 도 같이 (재생 시 안정성)
+        selectedIndex: target.tagName === 'SELECT' ? target.selectedIndex : undefined,
+        ts: Date.now(),
+      });
+
+      if (this.options.debug) {
+        // Phase G: 진단용 — 캡처 즉시 콘솔에 표시 (paste 같은 케이스 추적)
+        console.log('[macro-recorder] ', type, rpaId, JSON.stringify(curValue));
+      }
+    }
+
+    // ─────────────────────────────────────────────
+    // 재생
+    // ─────────────────────────────────────────────
+    async replay(events, opts = {}) {
+      const speed = opts.speed ?? 1;
+      const onProgress = opts.onProgress;
+      const throwOnFail = opts.throwOnFail ?? false;
+      const useApi = opts.useWebSquareApi ?? this.options.useWebSquareApi;
+      const dispatchBlur = opts.dispatchBlurAfter ?? this.options.dispatchBlurAfter;
+      const failed = [];
+      let completedCount = 0;
+
+      for (let i = 0; i < events.length; i++) {
+        const ev = events[i];
+        try {
+          onProgress?.(i, events.length, ev);
+
+          const sel = `[data-rpa-id="${cssEscape(ev.rpaId)}"]`;
+          let matches = document.querySelectorAll(sel);
+          if (matches.length === 0) {
+            await this._waitFor(ev.rpaId, 2000);
+            matches = document.querySelectorAll(sel);
+          }
+          if (matches.length === 0) {
+            const reason = 'element not found';
+            failed.push({ index: i, rpaId: ev.rpaId, reason });
+            if (throwOnFail) throw new Error(`replay failed: ${ev.rpaId}`);
+            continue;
+          }
+          // 다중 매칭 — 잘못된 첫 매칭에 setValue 가 들어가면 깜빡임/오작동.
+          // 어댑터의 rpaId 유일화 후에는 발생하지 않아야 하지만, 옛 매크로
+          // 호환을 위해 콘솔 경고만 남기고 첫 매치로 진행.
+          if (matches.length > 1) {
+            console.warn(
+              `[macro-recorder] multi-match (${matches.length}) for rpaId="${ev.rpaId}" — ` +
+              `using first match. 매크로를 다시 녹화하면 유일한 rpaId 로 갱신됩니다.`,
+              { matches: Array.from(matches).map((m) => m.id || '(no id)') }
+            );
+          }
+          const el = matches[0];
+
+          // ── 액션 디스패치 ──────────────────────────
+          if (ev.type === 'click') {
+            // Phase F: WebSquare 모달 확인/취소 등 일부 버튼은 mousedown/mouseup
+            //          핸들러까지 같이 와야 동작한다. el.click() 만으로는
+            //          click 이벤트만 발화되므로 풀 마우스 시퀀스를 추가.
+            try {
+              const Mouse = window.MouseEvent;
+              if (Mouse) {
+                el.dispatchEvent(new Mouse('mousedown', { bubbles: true, cancelable: true }));
+                el.dispatchEvent(new Mouse('mouseup',   { bubbles: true, cancelable: true }));
+              }
+            } catch (_) { /* ignore */ }
+            // 표준 click — onclick 핸들러 + click listener 모두 발화
+            el.click();
+          } else if (ev.type === 'dblclick') {
+            // Phase J: 더블클릭 재생 — 브라우저 자연 시퀀스(클릭2회 + dblclick)
+            //          를 모사. WebSquare 그리드의 위임 핸들러가 정상 트리거됨.
+            try {
+              const Mouse = window.MouseEvent;
+              if (Mouse) {
+                for (let n = 0; n < 2; n++) {
+                  el.dispatchEvent(new Mouse('mousedown', { bubbles: true, cancelable: true }));
+                  el.dispatchEvent(new Mouse('mouseup',   { bubbles: true, cancelable: true }));
+                  el.dispatchEvent(new Mouse('click',     { bubbles: true, cancelable: true }));
+                }
+                el.dispatchEvent(new Mouse('dblclick', { bubbles: true, cancelable: true }));
+              } else {
+                el.click(); el.click();
+              }
+            } catch (_) { /* ignore */ }
+          } else if (ev.type === 'input' || ev.type === 'change') {
+            // 보강 1: 웹스퀘어 컴포넌트 API 우선 사용
+            let handled = useApi && trySetValueViaWebSquare(el, ev.value, ev.selectedIndex);
+
+            // Phase C: 위젯 이벤트인데 외곽 div 의 setValue 가 실패하면
+            //          내부 input 으로 폴백 (API 미주입 환경 대비)
+            if (!handled && ev.widget === 'wq') {
+              const innerInput = el.querySelector?.('input');
+              if (innerInput) {
+                innerInput.value = ev.value;
+                innerInput.dispatchEvent(new Event('change', { bubbles: true }));
+                handled = true;
+              }
+            }
+
+            if (!handled) {
+              // 폴백: 표준 DOM
+              el.value = ev.value;
+              if (typeof ev.selectedIndex === 'number' && el.tagName === 'SELECT') {
+                el.selectedIndex = ev.selectedIndex;
+              }
+              el.dispatchEvent(new Event(ev.type, { bubbles: true }));
+              // change 가 안 와있어도 input 변경 후 change 도 같이 발화 (안전망)
+              if (ev.type === 'input') {
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            }
+
+            // 보강 3: blur dispatch — onkillfocus 핸들러 트리거
+            if (dispatchBlur) {
+              try {
+                el.dispatchEvent(new Event('blur', { bubbles: true }));
+              } catch (_) { /* ignore */ }
+            }
+          }
+
+          completedCount++;
+          // Phase F/J: 이벤트 종류별 sleep 차등.
+          //   click/dblclick 은 비동기 후속(서브미션·모달 그리드 로딩 + 모달 닫기)
+          //   가능성이 높아 기본 400ms. value 이벤트는 100ms 유지.
+          //   사용자가 옵션으로 override 가능.
+          const isClickish = ev.type === 'click' || ev.type === 'dblclick';
+          const baseGap = isClickish
+            ? (opts.clickGapMs ?? 400)
+            : (opts.valueGapMs ?? 100);
+          await sleep(baseGap / speed);
+        } catch (err) {
+          if (throwOnFail) throw err;
+          failed.push({ index: i, rpaId: ev.rpaId, reason: String(err.message || err) });
+        }
+      }
+
+      return {
+        success: failed.length === 0,
+        completedCount,
+        totalCount: events.length,
+        failed,
+      };
+    }
+
+    _waitFor(rpaId, timeout) {
+      return new Promise((resolve) => {
+        const start = Date.now();
+        const sel = `[data-rpa-id="${cssEscape(rpaId)}"]`;
+        const check = () => {
+          if (document.querySelector(sel)) resolve(true);
+          else if (Date.now() - start > timeout) resolve(false);
+          else requestAnimationFrame(check);
+        };
+        check();
+      });
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // 보강 2: 웹스퀘어 컴포넌트 API 우선 사용
+  // ─────────────────────────────────────────────
+  // 솔로몬 컴포넌트는 자체 상태 관리가 있어 단순 value 설정으로는
+  // 내부 상태가 갱신되지 않는다. $p.comp[fullId].setValue() 호출 시
+  // 내부 상태와 핸들러 체인(onkillfocus 등)이 정상 발화한다.
+  //
+  // 우선순위:
+  //   1. window.$p.comp[fullId].setValue(value)
+  //   2. window.WebSquare.util.getComponentById(fullId).setValue(value)
+  //   3. 실패 시 false 반환 → 호출측에서 표준 DOM 폴백
+  function trySetValueViaWebSquare(el, value, selectedIndex) {
+    if (!el || !el.id) return false;
+    const fullId = el.id;
+    try {
+      const comp1 = window.$p && window.$p.comp && window.$p.comp[fullId];
+      if (comp1 && typeof comp1.setValue === 'function') {
+        comp1.setValue(value);
+        return true;
+      }
+    } catch (_) { /* fall through */ }
+    try {
+      const util = window.WebSquare && window.WebSquare.util;
+      if (util && typeof util.getComponentById === 'function') {
+        const comp2 = util.getComponentById(fullId);
+        if (comp2 && typeof comp2.setValue === 'function') {
+          comp2.setValue(value);
+          return true;
+        }
+      }
+    } catch (_) { /* fall through */ }
+    return false;
+  }
+
+  // ─────────────────────────────────────────────
+  // Helpers
+  // ─────────────────────────────────────────────
+  function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  // CSS.escape 폴백 — 한글/특수문자 안전한 셀렉터 생성
+  function cssEscape(s) {
+    if (typeof CSS !== 'undefined' && CSS.escape) return CSS.escape(s);
+    return String(s).replace(/(["\\\[\]:.\s])/g, '\\$1');
+  }
+
+  // ─────────────────────────────────────────────
+  // Export
+  // ─────────────────────────────────────────────
+  if (typeof window !== 'undefined') window.MacroRecorder = MacroRecorder;
+  if (typeof module !== 'undefined' && module.exports) module.exports = MacroRecorder;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+// ===== assistant-bridge.js =====
+// assistant-bridge.js — 어시스턴트 패널에 매크로 토글 + 라이브러리 UI 주입
+//
+// 무엇: 어시스턴트가 떠 있을 때 그 패널 안에 [● 녹화]/[■ 종료]/[▶ 재생] 버튼과
+//       *매크로 라이브러리 목록*을 DOM 주입한다. 어시스턴트 메인 코드는 *수정하지 않는다*.
+// 왜:   사용자가 매크로를 어시스턴트에서 시작·종료·관리할 수 있게.
+//       단 어시스턴트 빌드 사이클과 분리(코드 수정 X).
+// 어떻게:
+//   1) DOMReady 후 어시스턴트 패널이 있으면 그 안에 컨트롤 박스 끼워넣기,
+//      없으면 페이지 우하단 floating
+//   2) 녹화 종료 시 events 를 *자체 localStorage 키*(rpa-macros)에 매크로 1건으로 저장
+//      — 어시스턴트의 클립보드/메모/템플릿 탭은 건드리지 않는다
+//   3) 컨트롤 박스 하단에 매크로 목록 렌더링, 각 항목에 [▶ 재생][✕ 삭제] 버튼
+//
+// 어시스턴트 미존재 시(외부망 데모) — floating 모드로도 모든 기능 동작.
+
+(function (root) {
+  // ─────────────────────────────────────────────
+  // 상수
+  // ─────────────────────────────────────────────
+  const STORAGE_KEY = 'rpa-macros';      // localStorage 자체 키
+  const SCHEMA_VERSION = 1;
+
+  // ─────────────────────────────────────────────
+  // 상태
+  // ─────────────────────────────────────────────
+  let recorder = null;
+  let lastEvents = [];
+  let uiRoot = null;
+  let mountedHost = 'floating';          // 'floating' | 'assistant'
+
+  function getRecorder() {
+    if (!recorder) {
+      if (typeof window.MacroRecorder !== 'function') {
+        console.warn('[assistant-bridge] MacroRecorder 미로드');
+        return null;
+      }
+      recorder = new window.MacroRecorder();
+    }
+    return recorder;
+  }
+
+  // ─────────────────────────────────────────────
+  // 매크로 라이브러리 — 자체 localStorage 키 (rpa-macros)
+  //   schema: { version, macros: [{ id, name, ts, menuId, eventCount, events }] }
+  // ─────────────────────────────────────────────
+  function loadLibrary() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { version: SCHEMA_VERSION, macros: [] };
+      const parsed = JSON.parse(raw);
+      if (!parsed?.macros) return { version: SCHEMA_VERSION, macros: [] };
+      return parsed;
+    } catch (err) {
+      console.warn('[assistant-bridge] library load 실패, 빈 라이브러리로 시작:', err);
+      return { version: SCHEMA_VERSION, macros: [] };
+    }
+  }
+
+  function saveLibrary(lib) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(lib));
+    } catch (err) {
+      console.warn('[assistant-bridge] library save 실패:', err);
+    }
+  }
+
+  function addMacro(events) {
+    const lib = loadLibrary();
+    const now = new Date();
+    const id = 'macro_' + now.getTime();
+    const name = formatName(now);
+    const menuId = window.SolomonAdapter?.getScope?.() || 'UNKNOWN';
+    lib.macros.push({
+      id,
+      name,
+      ts: now.toISOString(),
+      menuId,
+      eventCount: events.length,
+      events,
+    });
+    saveLibrary(lib);
+    return lib.macros[lib.macros.length - 1];
+  }
+
+  function removeMacro(id) {
+    const lib = loadLibrary();
+    lib.macros = lib.macros.filter((m) => m.id !== id);
+    saveLibrary(lib);
+  }
+
+  function getMacro(id) {
+    return loadLibrary().macros.find((m) => m.id === id);
+  }
+
+  function formatName(d) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `매크로_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+  }
+
+  // ─────────────────────────────────────────────
+  // UI 빌드
+  // ─────────────────────────────────────────────
+  function buildUi() {
+    if (uiRoot) return uiRoot;
+
+    uiRoot = document.createElement('div');
+    uiRoot.id = 'rpa-macro-toggle';
+    uiRoot.innerHTML = `
+      <div class="rmt-row">
+        <button class="rmt-btn rmt-rec" data-action="record">● 녹화</button>
+        <button class="rmt-btn rmt-stop" data-action="stop" disabled>■ 종료</button>
+        <button class="rmt-btn rmt-play" data-action="play-last" disabled>▶ 재생</button>
+      </div>
+      <div class="rmt-status" data-role="status">대기 중</div>
+      <div class="rmt-lib-wrap">
+        <div class="rmt-lib-header">
+          <span data-role="lib-title">매크로 목록 (0)</span>
+          <button class="rmt-mini" data-action="lib-clear" title="전체 삭제">전체 삭제</button>
+        </div>
+        <ul class="rmt-lib" data-role="lib"></ul>
+      </div>
+    `;
+
+    const style = document.createElement('style');
+    style.textContent = `
+      #rpa-macro-toggle {
+        font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #fff;
+        border: 1px solid #d0d0d0;
+        border-radius: 6px;
+        padding: 8px 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        z-index: 9999;
+      }
+      #rpa-macro-toggle.floating {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        width: 280px;
+      }
+      #rpa-macro-toggle .rmt-row { display: flex; gap: 4px; margin-bottom: 6px; }
+      #rpa-macro-toggle .rmt-btn {
+        flex: 1; padding: 4px 6px; font-size: 12px;
+        border: 1px solid #c0c0c0; background: #f7f7f7; border-radius: 4px;
+        cursor: pointer;
+      }
+      #rpa-macro-toggle .rmt-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+      #rpa-macro-toggle .rmt-rec { color: #c0392b; }
+      #rpa-macro-toggle .rmt-stop { color: #2c3e50; }
+      #rpa-macro-toggle .rmt-play { color: #27ae60; }
+      #rpa-macro-toggle .rmt-status {
+        font-size: 11px; color: #555; padding: 2px 4px;
+        background: #f1f3f5; border-radius: 3px;
+        margin-bottom: 8px;
+      }
+      #rpa-macro-toggle .rmt-lib-wrap {
+        border-top: 1px solid #e8e8e8; padding-top: 6px;
+      }
+      #rpa-macro-toggle .rmt-lib-header {
+        display: flex; justify-content: space-between; align-items: center;
+        font-size: 11px; color: #777; margin-bottom: 4px;
+      }
+      #rpa-macro-toggle .rmt-mini {
+        font-size: 10px; padding: 1px 4px;
+        border: 1px solid #ddd; background: #fafafa; border-radius: 3px;
+        cursor: pointer; color: #888;
+      }
+      #rpa-macro-toggle .rmt-lib {
+        list-style: none; margin: 0; padding: 0;
+        max-height: 180px; overflow-y: auto;
+      }
+      #rpa-macro-toggle .rmt-lib li {
+        display: flex; align-items: center; gap: 4px;
+        padding: 4px 0; border-bottom: 1px dashed #eee;
+        font-size: 11px;
+      }
+      #rpa-macro-toggle .rmt-lib li:last-child { border-bottom: none; }
+      #rpa-macro-toggle .rmt-lib .rmt-lib-name {
+        flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        color: #333;
+      }
+      #rpa-macro-toggle .rmt-lib .rmt-lib-meta {
+        color: #888; font-size: 10px; margin-right: 4px;
+      }
+      #rpa-macro-toggle .rmt-lib button {
+        font-size: 10px; padding: 1px 5px;
+        border: 1px solid #c0c0c0; background: #f7f7f7; border-radius: 3px;
+        cursor: pointer;
+      }
+      #rpa-macro-toggle .rmt-lib .rmt-lib-play { color: #27ae60; }
+      #rpa-macro-toggle .rmt-lib .rmt-lib-del  { color: #c0392b; }
+      #rpa-macro-toggle .rmt-lib-empty {
+        color: #aaa; text-align: center; padding: 8px 0;
+      }
+    `;
+    document.head.appendChild(style);
+
+    uiRoot.addEventListener('click', onUiClick);
+    return uiRoot;
+  }
+
+  function setStatus(text) {
+    const el = uiRoot?.querySelector('[data-role="status"]');
+    if (el) el.textContent = text;
+  }
+
+  function setBtnState({ recordEnabled, stopEnabled, playLastEnabled }) {
+    if (!uiRoot) return;
+    const m = (sel, enabled) => {
+      const b = uiRoot.querySelector(sel);
+      if (b) b.disabled = !enabled;
+    };
+    m('[data-action="record"]', recordEnabled);
+    m('[data-action="stop"]', stopEnabled);
+    m('[data-action="play-last"]', playLastEnabled);
+  }
+
+  // ─────────────────────────────────────────────
+  // 라이브러리 목록 렌더
+  // ─────────────────────────────────────────────
+  function renderLibrary() {
+    if (!uiRoot) return;
+    const lib = loadLibrary();
+    const list = uiRoot.querySelector('[data-role="lib"]');
+    const title = uiRoot.querySelector('[data-role="lib-title"]');
+    title.textContent = `매크로 목록 (${lib.macros.length})`;
+
+    if (lib.macros.length === 0) {
+      list.innerHTML = `<li class="rmt-lib-empty">아직 녹화한 매크로가 없습니다</li>`;
+      return;
+    }
+
+    // 최신순 (역순)
+    list.innerHTML = lib.macros.slice().reverse().map((m) => `
+      <li data-macro-id="${m.id}">
+        <span class="rmt-lib-name" title="${escapeHtml(m.name)} · ${m.menuId}">
+          ${escapeHtml(m.name)}
+        </span>
+        <span class="rmt-lib-meta">(${m.eventCount})</span>
+        <button class="rmt-lib-play" data-action="lib-play" title="재생">▶</button>
+        <button class="rmt-lib-del"  data-action="lib-del"  title="삭제">✕</button>
+      </li>
+    `).join('');
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  // ─────────────────────────────────────────────
+  // 액션 핸들러
+  // ─────────────────────────────────────────────
+  function onUiClick(e) {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'record') return doRecord();
+    if (action === 'stop')   return doStop();
+    if (action === 'play-last') return doPlayLast();
+    if (action === 'lib-play') {
+      const id = btn.closest('[data-macro-id]')?.dataset.macroId;
+      return doPlayById(id);
+    }
+    if (action === 'lib-del') {
+      const id = btn.closest('[data-macro-id]')?.dataset.macroId;
+      return doDelete(id);
+    }
+    if (action === 'lib-clear') return doClearAll();
+  }
+
+  function doRecord() {
+    const r = getRecorder();
+    if (!r) return;
+    r.start();
+    setStatus('녹화 중…');
+    setBtnState({ recordEnabled: false, stopEnabled: true, playLastEnabled: false });
+  }
+
+  function doStop() {
+    const r = getRecorder();
+    if (!r) return;
+    lastEvents = r.stop();
+    if (lastEvents.length === 0) {
+      setStatus('녹화 종료 — 캡처된 이벤트 없음 (data-rpa-id 박힌 요소 클릭/입력 필요)');
+      setBtnState({ recordEnabled: true, stopEnabled: false, playLastEnabled: false });
+      return;
+    }
+    const saved = addMacro(lastEvents);
+    setStatus(`저장 완료 — ${saved.name} (이벤트 ${saved.eventCount}개)`);
+    setBtnState({ recordEnabled: true, stopEnabled: false, playLastEnabled: true });
+    renderLibrary();
+  }
+
+  async function doPlayLast() {
+    if (!lastEvents.length) return;
+    await replayEvents(lastEvents, '방금 녹화');
+  }
+
+  async function doPlayById(id) {
+    if (!id) return;
+    const m = getMacro(id);
+    if (!m) {
+      setStatus(`재생 실패 — 매크로 ${id} 없음`);
+      return;
+    }
+    await replayEvents(m.events, m.name);
+  }
+
+  async function replayEvents(events, label) {
+    const r = getRecorder();
+    if (!r) return;
+    setBtnState({ recordEnabled: false, stopEnabled: false, playLastEnabled: false });
+    setStatus(`재생 시작 — ${label} (0/${events.length})`);
+
+    const result = await r.replay(events, {
+      onProgress: (i, total) => setStatus(`재생 중 ${label} (${i + 1}/${total})`),
+    });
+
+    if (result.success) {
+      setStatus(`재생 완료 ✓ ${label} (${result.completedCount}/${result.totalCount})`);
+    } else {
+      setStatus(`재생 일부 실패 ${label} (${result.completedCount}/${result.totalCount}, 실패 ${result.failed.length}건 — 콘솔 확인)`);
+      console.warn('[assistant-bridge] replay failed:', result.failed);
+    }
+    setBtnState({ recordEnabled: true, stopEnabled: false, playLastEnabled: lastEvents.length > 0 });
+  }
+
+  function doDelete(id) {
+    if (!id) return;
+    if (!confirm('이 매크로를 삭제할까요?')) return;
+    removeMacro(id);
+    renderLibrary();
+    setStatus('매크로 삭제됨');
+  }
+
+  function doClearAll() {
+    const lib = loadLibrary();
+    if (lib.macros.length === 0) return;
+    if (!confirm(`매크로 ${lib.macros.length}개를 모두 삭제할까요?`)) return;
+    saveLibrary({ version: SCHEMA_VERSION, macros: [] });
+    renderLibrary();
+    setStatus('전체 삭제됨');
+  }
+
+  // ─────────────────────────────────────────────
+  // 마운트
+  // ─────────────────────────────────────────────
+  // 어시스턴트 패널의 *적절한 자리* 후보 (우선순위 순).
+  // 첫 매칭에 prepend. 실제 어시스턴트(imsmassi-* 클래스)에선
+  // .imsmassi-assistant-content (메모/대시보드/설정 콘텐츠 영역) 안 최상단이
+  // 가장 자연스럽다.
+  const PANEL_SELECTORS = [
+    '.imsmassi-assistant-content',   // ← 1순위: 콘텐츠 영역 안
+    '.imsmassi-floating-panel',      // 2순위: 펼친 패널 자체
+    '#imsmassi-panel-outer',         // 3순위: 패널 외부 래퍼
+    '[data-assistant-panel]',        // 4순위: 호스트가 직접 표시
+    '#assistant-mount',              // 5순위: 마운트 컨테이너 (어시스턴트 root와 형제 위치)
+    '.imsmassi-panel',
+  ];
+
+  function findAssistantPanel() {
+    for (const sel of PANEL_SELECTORS) {
+      const el = document.querySelector(sel);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  function tryMountToAssistant() {
+    const panel = findAssistantPanel();
+    if (!panel) return false;
+    const ui = buildUi();
+    ui.classList.remove('floating');
+    if (panel.firstChild) panel.insertBefore(ui, panel.firstChild);
+    else panel.appendChild(ui);
+    mountedHost = 'assistant';
+    return true;
+  }
+
+  function mountFloating() {
+    const ui = buildUi();
+    ui.classList.add('floating');
+    document.body.appendChild(ui);
+    mountedHost = 'floating';
+  }
+
+  // 기존에 마운트된 토글을 DOM에서 떼어냄 (재마운트 전 단계).
+  function detachUi() {
+    if (uiRoot && uiRoot.parentNode) {
+      uiRoot.parentNode.removeChild(uiRoot);
+    }
+  }
+
+  // mount({ force: true }) 호출 시 *위치 무관* 재마운트.
+  // 옵션 없이 호출하면 idempotent (이미 적절한 자리면 그대로).
+  function mount(opts) {
+    const force = opts && opts.force === true;
+    const alreadyMounted = uiRoot && document.body.contains(uiRoot);
+
+    if (alreadyMounted && !force) {
+      // 어시스턴트 패널이 새로 등장했는데 우리는 floating에 머물러 있다면
+      // *암묵적 재마운트* 시도(시각적 위치 자동 따라감).
+      if (mountedHost === 'floating' && findAssistantPanel()) {
+        detachUi();
+        if (!tryMountToAssistant()) mountFloating();
+      }
+      return;
+    }
+
+    if (alreadyMounted && force) detachUi();
+    if (!tryMountToAssistant()) mountFloating();
+    setBtnState({ recordEnabled: true, stopEnabled: false, playLastEnabled: false });
+    setStatus('대기 중');
+    renderLibrary();
+  }
+
+  // 어시스턴트 패널이 *나중에 등장하거나 사라지면* 자동으로 재마운트한다.
+  // (사용자가 어시스턴트를 펼쳤다 접었다 할 때 자연스럽게 따라감)
+  let observer = null;
+  function startPanelObserver() {
+    if (observer) return;
+    observer = new MutationObserver(() => {
+      const panel = findAssistantPanel();
+      const inAssistant = uiRoot && panel && panel.contains(uiRoot);
+      const shouldBeAssistant = !!panel;
+
+      if (shouldBeAssistant && mountedHost !== 'assistant') {
+        // 어시스턴트 펼쳐졌는데 우리는 floating → 어시스턴트 안으로 이동
+        detachUi();
+        if (!tryMountToAssistant()) mountFloating();
+      } else if (!shouldBeAssistant && mountedHost === 'assistant') {
+        // 어시스턴트 접혀서 패널 사라짐 → floating으로 이동
+        detachUi();
+        mountFloating();
+      } else if (shouldBeAssistant && !inAssistant && mountedHost === 'assistant') {
+        // assistant 모드인데 패널 밖에 떨어진 경우(어시스턴트 재렌더링)
+        detachUi();
+        tryMountToAssistant();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  function init() {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => { mount(); startPanelObserver(); }, { once: true });
+    } else {
+      mount();
+      startPanelObserver();
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Export
+  // ─────────────────────────────────────────────
+  // 진단용: 가장 최근 매크로의 events 를 콘솔에 보기 좋게 출력.
+  // 사용: AssistantBridge.dumpLast()  또는  AssistantBridge.dumpLast(true) 면 클립보드 복사
+  function dumpLast(toClipboard = false) {
+    const lib = loadLibrary();
+    const last = lib.macros[lib.macros.length - 1];
+    if (!last) {
+      console.log('[assistant-bridge] 저장된 매크로 없음');
+      return null;
+    }
+    const json = JSON.stringify(last.events, null, 2);
+    console.log(`[assistant-bridge] "${last.name}" — ${last.eventCount} events`);
+    console.log(json);
+    if (toClipboard && typeof window !== 'undefined' && window.copy) {
+      try { window.copy(json); console.log('(클립보드 복사 완료)'); } catch (_) {}
+    }
+    return last.events;
+  }
+
+  const api = {
+    init,
+    mount,
+    getLastEvents: () => lastEvents.slice(),
+    getMountedHost: () => mountedHost,
+    getLibrary: () => loadLibrary(),
+    refreshLibrary: renderLibrary,
+    dumpLast,
+  };
+  if (typeof window !== 'undefined') window.AssistantBridge = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+// ─────────────────────────────────────────────────────────────────
+// 자동 init — paste 직후 즉시 활성화
+// ─────────────────────────────────────────────────────────────────
+(function bootstrap() {
+  try {
+    SolomonAdapter.resetStats();
+    const decoratedCount = RpaDecorator.decorate();
+    RpaDecorator.startObserving(document.body);
+    AssistantBridge.init();
+    const stats = SolomonAdapter.getStats();
+    console.log('[rpa-macro/bundle] 활성화 완료', {
+      mountedHost: AssistantBridge.getMountedHost(),
+      decoratedCount,
+      adapterStats: stats,
+    });
+  } catch (err) {
+    console.error('[rpa-macro/bundle] 활성화 실패:', err);
+  }
+})();
