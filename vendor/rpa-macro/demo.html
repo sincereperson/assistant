@@ -1,0 +1,2469 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>어시스턴트 Worker 아키텍처 테스트</title>
+
+    <!-- =====================================================
+  🔴 [배포시 제거] 테스트 전용 스타일
+       내부 시스템에는 이미 GNB·LNB·화면 컨테이너 스타일이 존재합니다.
+       아래 <style> 블록 전체를 제거하세요.
+  ===================================================== -->
+    <style>
+      body {
+        margin: 0;
+      }
+
+      /* ── 헤더 ── */
+      .sys-header {
+        height: 48px;
+        background: #2c3e50;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        padding: 0 20px;
+        gap: 16px;
+        font-size: 14px;
+        font-weight: 600;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+      .sys-header span {
+        opacity: 0.6;
+        font-size: 11px;
+        font-weight: 400;
+      }
+
+      /* ── GNB ── */
+      .sys-gnb {
+        height: 44px;
+        background: #34495e;
+        display: flex;
+        align-items: stretch;
+        padding: 0 12px;
+        gap: 2px;
+      }
+      .gnb-tab {
+        display: flex;
+        align-items: center;
+        padding: 0 18px;
+        color: rgba(255, 255, 255, 0.65);
+        font-size: 13px;
+        cursor: pointer;
+        border-bottom: 3px solid transparent;
+        transition: all 0.15s;
+        user-select: none;
+      }
+      .gnb-tab:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      /* ▼ setupContextObserver가 감시하는 클래스 */
+      .gnb-tab.w2group.active {
+        color: #fff;
+        border-bottom-color: #3498db;
+        background: rgba(52, 152, 219, 0.2);
+      }
+
+      /* ── LNB + 본문 ── */
+      .sys-body {
+        display: flex;
+        height: calc(100vh - 92px);
+      }
+      .sys-lnb {
+        width: 180px;
+        background: #2c3e50;
+        padding: 12px 0;
+        flex-shrink: 0;
+        overflow-y: auto;
+      }
+      .lnb-item {
+        padding: 9px 20px;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.12s;
+        user-select: none;
+      }
+      .lnb-item:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .lnb-item.active {
+        color: #3498db;
+        background: rgba(52, 152, 219, 0.12);
+        font-weight: 600;
+      }
+
+      /* ── 화면 컨테이너 영역 ── */
+      .sys-content {
+        flex: 1;
+        overflow: auto;
+        padding: 20px;
+      }
+
+      /* ── 각 화면 컨테이너 ── */
+      .screen-panel {
+        display: none; /* 비활성 화면은 숨김 */
+        background: #fff;
+        border-radius: 8px;
+        border: 2px solid #e0e4e9;
+        min-height: 300px;
+        padding: 16px;
+        position: relative;
+        transition: border-color 0.15s;
+      }
+      /* ▼ setupStickyLayerObserver가 감시하는 클래스 */
+      .screen-panel.selected {
+        display: block; /* 활성 화면만 표시 */
+        border-color: #3498db;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+      }
+      .screen-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #7f8c8d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+      }
+      .screen-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 12px;
+      }
+      .screen-hint {
+        font-size: 12px;
+        color: #95a5a6;
+      }
+
+      /* ── 어시스턴트 마운트 ── */
+      #assistant-mount {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 500;
+      }
+    </style>
+    <!-- ===================================================== 🔴 [배포시 제거] 끝 ===== -->
+  </head>
+  <body>
+    <!-- ══════════════════════════════════════════
+       가짜 내부 시스템 UI (Worker 테스트용)
+  ════════════════════════════════════════════ -->
+
+    <!-- 헤더 -->
+    <div class="sys-header">
+      SOLOMON SYSTEM
+      <span
+        >Worker 아키텍처 테스트 페이지 — GNB·화면 전환으로 컨텍스트 감지
+        확인</span
+      >
+    </div>
+
+    <!-- GNB: .w2group.active → setupContextObserver가 감지 -->
+    <div class="sys-gnb" id="sys-gnb">
+      <div class="gnb-tab w2group active" data-area-id="UW">
+        📋 UW 언더라이팅
+      </div>
+      <div class="gnb-tab w2group" data-area-id="CT">📝 CT 계약</div>
+      <div class="gnb-tab w2group" data-area-id="CL">⚖️ CL 손사</div>
+      <div class="gnb-tab w2group" data-area-id="AC">📊 AC 계수</div>
+      <div class="gnb-tab w2group" data-area-id="PF">📈 PF 실적</div>
+      <div class="gnb-tab w2group" data-area-id="ST">🔄 ST 정청산</div>
+      <div class="gnb-tab w2group" data-area-id="FN">💰 FN 회계</div>
+    </div>
+
+    <!-- 본문 -->
+    <div class="sys-body">
+      <!-- LNB -->
+      <div class="sys-lnb" id="sys-lnb"></div>
+
+      <!-- 화면 컨테이너 영역 -->
+      <div class="sys-content" id="sys-content">
+        <!-- w2windowContainer_selectedNameLayer 클래스는 현재 활성 화면 패널에 동적으로 추가됩니다.
+             실제 WebSquare 시스템과 동일한 방식: 활성 패널 자체가 windowContainerClass 역할 →
+             _resolveTargetContainer()가 .pg-id를 올바르게 탐색할 수 있습니다. -->
+
+        <!-- ══ UW-001 언더라이팅 조회 ══ -->
+        <div
+          class="screen-panel selected w2windowContainer_selectedNameLayer"
+          id="screen-UW-001"
+          data-screen-id="UW-001"
+          data-area-id="UW"
+        >
+          <div class="pg-id" style="display: none">UW-001</div>
+          <div class="screen-label">UW-001 · 언더라이팅</div>
+          <div class="screen-title">언더라이팅 조회</div>
+          <div
+            style="
+              display: flex;
+              gap: 8px;
+              margin-bottom: 10px;
+              flex-wrap: wrap;
+            "
+          >
+            <input
+              type="text"
+              placeholder="증권번호"
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+                width: 120px;
+              "
+            />
+            <input
+              type="text"
+              placeholder="계약자명"
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+                width: 110px;
+              "
+            />
+            <select
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+              "
+            >
+              <option>전체 상품</option>
+              <option>화재보험</option>
+              <option>배상책임</option>
+              <option>재산종합</option>
+            </select>
+            <button
+              style="
+                padding: 5px 14px;
+                background: #3498db;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+              "
+            >
+              🔍 조회
+            </button>
+          </div>
+          <table
+            style="width: 100%; border-collapse: collapse; font-size: 12px"
+          >
+            <thead>
+              <tr style="background: #f4f6f8">
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: center;
+                  "
+                >
+                  증권번호
+                </th>
+                <th style="border: 1px solid #e0e4e9; padding: 6px 8px">
+                  계약자
+                </th>
+                <th style="border: 1px solid #e0e4e9; padding: 6px 8px">
+                  상품명
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: right;
+                  "
+                >
+                  보험료
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: center;
+                  "
+                >
+                  상태
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  UW-2025-00123
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  ㈜한국물류
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  재산종합보험
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  12,450,000
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  <span
+                    style="
+                      background: #d5f5e3;
+                      color: #1e8449;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 11px;
+                    "
+                    >승인</span
+                  >
+                </td>
+              </tr>
+              <tr style="background: #fafafa">
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  UW-2025-00124
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  대성건설㈜
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  배상책임보험
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  3,200,000
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  <span
+                    style="
+                      background: #fdebd0;
+                      color: #d35400;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 11px;
+                    "
+                    >검토중</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  UW-2025-00125
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  서울식품㈜
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  화재보험
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  870,000
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  <span
+                    style="
+                      background: #d5f5e3;
+                      color: #1e8449;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 11px;
+                    "
+                    >승인</span
+                  >
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ══ UW-002 언더라이팅 등록 ══ -->
+        <div
+          class="screen-panel"
+          id="screen-UW-002"
+          data-screen-id="UW-002"
+          data-area-id="UW"
+        >
+          <div class="pg-id" style="display: none">UW-002</div>
+          <div class="screen-label">UW-002 · 언더라이팅</div>
+          <div class="screen-title">언더라이팅 등록</div>
+          <div
+            style="
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 8px;
+              font-size: 12px;
+            "
+          >
+            <label style="display: flex; flex-direction: column; gap: 3px"
+              >계약자명<input
+                type="text"
+                value="㈜미래산업"
+                style="
+                  border: 1px solid #ddd;
+                  border-radius: 4px;
+                  padding: 5px 8px;
+                  font-size: 12px;
+                "
+            /></label>
+            <label style="display: flex; flex-direction: column; gap: 3px"
+              >사업자번호<input
+                type="text"
+                value="123-45-67890"
+                style="
+                  border: 1px solid #ddd;
+                  border-radius: 4px;
+                  padding: 5px 8px;
+                  font-size: 12px;
+                "
+            /></label>
+            <label style="display: flex; flex-direction: column; gap: 3px"
+              >보험 상품<select
+                style="
+                  border: 1px solid #ddd;
+                  border-radius: 4px;
+                  padding: 5px 8px;
+                  font-size: 12px;
+                "
+              >
+                <option>재산종합보험</option>
+                <option>화재보험</option>
+                <option>배상책임</option>
+              </select></label
+            >
+            <label style="display: flex; flex-direction: column; gap: 3px"
+              >보험기간<input
+                type="text"
+                value="2025.03.01 ~ 2026.02.28"
+                style="
+                  border: 1px solid #ddd;
+                  border-radius: 4px;
+                  padding: 5px 8px;
+                  font-size: 12px;
+                "
+            /></label>
+            <label style="display: flex; flex-direction: column; gap: 3px"
+              >보험가입금액<input
+                type="text"
+                value="500,000,000"
+                style="
+                  border: 1px solid #ddd;
+                  border-radius: 4px;
+                  padding: 5px 8px;
+                  font-size: 12px;
+                "
+            /></label>
+            <label style="display: flex; flex-direction: column; gap: 3px"
+              >예상보험료<input
+                type="text"
+                value="4,750,000"
+                style="
+                  border: 1px solid #ddd;
+                  border-radius: 4px;
+                  padding: 5px 8px;
+                  font-size: 12px;
+                  color: #c0392b;
+                  font-weight: 600;
+                "
+            /></label>
+          </div>
+          <div
+            style="
+              margin-top: 10px;
+              display: flex;
+              gap: 8px;
+              justify-content: flex-end;
+            "
+          >
+            <button
+              style="
+                padding: 5px 16px;
+                background: #95a5a6;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+              "
+            >
+              초기화
+            </button>
+            <button
+              style="
+                padding: 5px 16px;
+                background: #3498db;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+              "
+            >
+              저장
+            </button>
+            <button
+              style="
+                padding: 5px 16px;
+                background: #27ae60;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+              "
+            >
+              결재요청
+            </button>
+          </div>
+        </div>
+
+        <!-- ══ CT-STALE : pg-id 불일치 테스트 ══
+             data-screen-id = "CT-002"    → getMenuId() 가 반환하는 값
+             .pg-id 텍스트   = "CT-STALE" → DOM 실제값 (의도적 불일치)
+        ══ -->
+        <div
+          class="screen-panel"
+          id="screen-CT-STALE"
+          data-screen-id="CT-002"
+          data-area-id="CT"
+        >
+          <!-- pg-id 텍스트를 data-screen-id와 다르게 설정 -->
+          <div class="pg-id" style="display:none">CT-STALE</div>
+          <div class="screen-label" style="background:#fff3cd; padding:6px 10px; border-radius:4px; margin-bottom:10px; color:#856404; font-size:11px;">
+            ⚠️ pg-id 불일치 테스트 화면
+          </div>
+          <div class="screen-title">CT-STALE 불일치 테스트</div>
+          <div style="background:#fff3cd; border:1px solid #ffc107; border-radius:6px; padding:12px; font-size:12px; color:#333; line-height:1.7;">
+            <strong>시뮬레이션 시나리오:</strong><br>
+            • <code style="background:#eee;padding:1px 4px;border-radius:3px;">getMenuId()</code> → <code style="background:#ffd;">"CT-002"</code> (data-screen-id 기준)<br>
+            • <code style="background:#eee;padding:1px 4px;border-radius:3px;">.pg-id</code> 텍스트 → <code style="background:#dfd;">"CT-STALE"</code> (DOM 실제값)<br><br>
+            이 화면이 <strong style="color:#c0392b">정상적으로 포스트잇이 붙으면</strong><br>
+            <code>_resolveTargetContainer()</code>가 pg-id 직접 탐색으로<br>
+            stale값 무시하고 올바르게 동작하는 것입니다.
+          </div>
+          <div style="margin-top:12px; font-size:11px; color:#888;">
+            콘솔에서 <code>state.selectedMenu</code> 확인 → <strong>CT-STALE</strong>로 동기화되면 정상
+          </div>
+        </div>
+
+        <!-- ══ CT-001 계약 목록 ══ -->
+        <div
+          class="screen-panel"
+          id="screen-CT-001"
+          data-screen-id="CT-001"
+          data-area-id="CT"
+        >
+          <div class="pg-id" style="display: none">CT-001</div>
+          <div class="screen-label">CT-001 · 계약</div>
+          <div class="screen-title">계약 목록</div>
+          <div
+            style="
+              display: flex;
+              gap: 8px;
+              margin-bottom: 10px;
+              flex-wrap: wrap;
+            "
+          >
+            <input
+              type="text"
+              placeholder="계약번호"
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+                width: 120px;
+              "
+            />
+            <input
+              type="text"
+              placeholder="피보험자명"
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+                width: 110px;
+              "
+            />
+            <input
+              type="date"
+              value="2025-01-01"
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+              "
+            />
+            <button
+              style="
+                padding: 5px 14px;
+                background: #e67e22;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+              "
+            >
+              🔍 조회
+            </button>
+          </div>
+          <table
+            style="width: 100%; border-collapse: collapse; font-size: 12px"
+          >
+            <thead>
+              <tr style="background: #fef9e7">
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: center;
+                  "
+                >
+                  계약번호
+                </th>
+                <th style="border: 1px solid #e0e4e9; padding: 6px 8px">
+                  피보험자
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: center;
+                  "
+                >
+                  계약일
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: right;
+                  "
+                >
+                  보험료
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: center;
+                  "
+                >
+                  상태
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  CT-2025-0441
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  이준호
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  2025.01.05
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  1,200,000
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  <span
+                    style="
+                      background: #d5f5e3;
+                      color: #1e8449;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 11px;
+                    "
+                    >유효</span
+                  >
+                </td>
+              </tr>
+              <tr style="background: #fafafa">
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  CT-2025-0442
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  박수진
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  2025.01.07
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  890,000
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  <span
+                    style="
+                      background: #d6eaf8;
+                      color: #1a5276;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 11px;
+                    "
+                    >갱신예정</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  CT-2025-0443
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  최동현
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  2025.01.09
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  2,540,000
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  <span
+                    style="
+                      background: #fadbd8;
+                      color: #922b21;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 11px;
+                    "
+                    >해지</span
+                  >
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ══ CL-001 사고 접수 ══ -->
+        <div
+          class="screen-panel"
+          id="screen-CL-001"
+          data-screen-id="CL-001"
+          data-area-id="CL"
+        >
+          <div class="pg-id" style="display: none">CL-001</div>
+          <div class="screen-label">CL-001 · 손사</div>
+          <div class="screen-title">사고 접수</div>
+          <div
+            style="
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 8px;
+              font-size: 12px;
+            "
+          >
+            <label style="display: flex; flex-direction: column; gap: 3px"
+              >계약번호<input
+                type="text"
+                value="CT-2025-0441"
+                style="
+                  border: 1px solid #ddd;
+                  border-radius: 4px;
+                  padding: 5px 8px;
+                  font-size: 12px;
+                "
+            /></label>
+            <label style="display: flex; flex-direction: column; gap: 3px"
+              >사고일시<input
+                type="text"
+                value="2025.03.04 14:30"
+                style="
+                  border: 1px solid #ddd;
+                  border-radius: 4px;
+                  padding: 5px 8px;
+                  font-size: 12px;
+                "
+            /></label>
+            <label style="display: flex; flex-direction: column; gap: 3px"
+              >사고유형<select
+                style="
+                  border: 1px solid #ddd;
+                  border-radius: 4px;
+                  padding: 5px 8px;
+                  font-size: 12px;
+                "
+              >
+                <option>화재</option>
+                <option>폭발</option>
+                <option>자연재해</option>
+                <option>도난</option>
+              </select></label
+            >
+            <label style="display: flex; flex-direction: column; gap: 3px"
+              >추정손해액<input
+                type="text"
+                value="15,300,000"
+                style="
+                  border: 1px solid #ddd;
+                  border-radius: 4px;
+                  padding: 5px 8px;
+                  font-size: 12px;
+                  color: #c0392b;
+                  font-weight: 600;
+                "
+            /></label>
+            <label
+              style="
+                grid-column: 1/-1;
+                display: flex;
+                flex-direction: column;
+                gap: 3px;
+              "
+              >사고개요<textarea
+                style="
+                  border: 1px solid #ddd;
+                  border-radius: 4px;
+                  padding: 5px 8px;
+                  font-size: 12px;
+                  height: 52px;
+                  resize: none;
+                "
+              >
+경기도 안산시 소재 공장 내부에서 전기 합선으로 인한 화재가 발생하여 생산설비 일부 소손됨.</textarea
+              >
+            </label>
+          </div>
+          <div
+            style="
+              margin-top: 8px;
+              display: flex;
+              gap: 8px;
+              justify-content: flex-end;
+            "
+          >
+            <button
+              style="
+                padding: 5px 16px;
+                background: #c0392b;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+              "
+            >
+              사고접수
+            </button>
+            <button
+              style="
+                padding: 5px 16px;
+                background: #8e44ad;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+              "
+            >
+              현장조사 배정
+            </button>
+          </div>
+        </div>
+
+        <!-- ══ AC-001 계수 조회 ══ -->
+        <div
+          class="screen-panel"
+          id="screen-AC-001"
+          data-screen-id="AC-001"
+          data-area-id="AC"
+        >
+          <div class="pg-id" style="display: none">AC-001</div>
+          <div class="screen-label">AC-001 · 계수</div>
+          <div class="screen-title">계수 조회</div>
+          <div
+            style="
+              display: flex;
+              gap: 8px;
+              margin-bottom: 10px;
+              align-items: center;
+              flex-wrap: wrap;
+            "
+          >
+            <select
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+              "
+            >
+              <option>2025년</option>
+              <option>2024년</option>
+            </select>
+            <select
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+              "
+            >
+              <option>전체 부문</option>
+              <option>화재</option>
+              <option>배상책임</option>
+              <option>재산종합</option>
+            </select>
+            <button
+              style="
+                padding: 5px 14px;
+                background: #1a5276;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+              "
+            >
+              📊 조회
+            </button>
+          </div>
+          <table
+            style="width: 100%; border-collapse: collapse; font-size: 12px"
+          >
+            <thead>
+              <tr style="background: #ebf5fb">
+                <th style="border: 1px solid #e0e4e9; padding: 6px 8px">
+                  부문
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: right;
+                  "
+                >
+                  원수보험료
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: right;
+                  "
+                >
+                  지급보험금
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: right;
+                  "
+                >
+                  손해율
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: right;
+                  "
+                >
+                  합산비율
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  화재
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  4,820M
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  2,940M
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                    color: #27ae60;
+                  "
+                >
+                  61.0%
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  98.4%
+                </td>
+              </tr>
+              <tr style="background: #fafafa">
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  배상책임
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  2,110M
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  1,650M
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                    color: #e74c3c;
+                  "
+                >
+                  78.2%
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  112.6%
+                </td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  재산종합
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  7,340M
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  3,890M
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                    color: #27ae60;
+                  "
+                >
+                  53.0%
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  91.2%
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ══ PF-001 실적 조회 ══ -->
+        <div
+          class="screen-panel"
+          id="screen-PF-001"
+          data-screen-id="PF-001"
+          data-area-id="PF"
+        >
+          <div class="pg-id" style="display: none">PF-001</div>
+          <div class="screen-label">PF-001 · 실적</div>
+          <div class="screen-title">실적 조회</div>
+          <div
+            style="
+              display: flex;
+              gap: 8px;
+              margin-bottom: 10px;
+              flex-wrap: wrap;
+            "
+          >
+            <select
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+              "
+            >
+              <option>2025년 1분기</option>
+              <option>2024년 4분기</option>
+            </select>
+            <select
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+              "
+            >
+              <option>전체 지점</option>
+              <option>서울본사</option>
+              <option>부산지점</option>
+              <option>대구지점</option>
+            </select>
+            <button
+              style="
+                padding: 5px 14px;
+                background: #1e8449;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+              "
+            >
+              📈 조회
+            </button>
+          </div>
+          <table
+            style="width: 100%; border-collapse: collapse; font-size: 12px"
+          >
+            <thead>
+              <tr style="background: #eafaf1">
+                <th style="border: 1px solid #e0e4e9; padding: 6px 8px">
+                  지점
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: right;
+                  "
+                >
+                  목표
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: right;
+                  "
+                >
+                  실적
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: right;
+                  "
+                >
+                  달성률
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: center;
+                  "
+                >
+                  전월대비
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  서울본사
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  12,000M
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  13,240M
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                    color: #27ae60;
+                    font-weight: 600;
+                  "
+                >
+                  110.3%
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                    color: #27ae60;
+                  "
+                >
+                  ▲ 4.2%
+                </td>
+              </tr>
+              <tr style="background: #fafafa">
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  부산지점
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  4,500M
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  4,120M
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                    color: #e74c3c;
+                    font-weight: 600;
+                  "
+                >
+                  91.6%
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                    color: #e74c3c;
+                  "
+                >
+                  ▼ 2.1%
+                </td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  대구지점
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  3,200M
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  3,380M
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                    color: #27ae60;
+                    font-weight: 600;
+                  "
+                >
+                  105.6%
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                    color: #27ae60;
+                  "
+                >
+                  ▲ 1.8%
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ══ ST-001 정산 내역 ══ -->
+        <div
+          class="screen-panel"
+          id="screen-ST-001"
+          data-screen-id="ST-001"
+          data-area-id="ST"
+        >
+          <div class="pg-id" style="display: none">ST-001</div>
+          <div class="screen-label">ST-001 · 정청산</div>
+          <div class="screen-title">정산 내역</div>
+          <div
+            style="
+              display: flex;
+              gap: 8px;
+              margin-bottom: 10px;
+              flex-wrap: wrap;
+            "
+          >
+            <input
+              type="text"
+              placeholder="정산번호"
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+                width: 130px;
+              "
+            />
+            <select
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+              "
+            >
+              <option>2025년 02월</option>
+              <option>2025년 01월</option>
+              <option>2024년 12월</option>
+            </select>
+            <button
+              style="
+                padding: 5px 14px;
+                background: #7d3c98;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+              "
+            >
+              🔍 조회
+            </button>
+          </div>
+          <table
+            style="width: 100%; border-collapse: collapse; font-size: 12px"
+          >
+            <thead>
+              <tr style="background: #f5eef8">
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: center;
+                  "
+                >
+                  정산번호
+                </th>
+                <th style="border: 1px solid #e0e4e9; padding: 6px 8px">
+                  거래처
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: right;
+                  "
+                >
+                  정산금액
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: center;
+                  "
+                >
+                  정산일
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: center;
+                  "
+                >
+                  상태
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  ST-25-0291
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  현대해운㈜
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  8,740,000
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  2025.02.28
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  <span
+                    style="
+                      background: #d5f5e3;
+                      color: #1e8449;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 11px;
+                    "
+                    >완료</span
+                  >
+                </td>
+              </tr>
+              <tr style="background: #fafafa">
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  ST-25-0292
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  삼성화재㈜
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  21,500,000
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  -
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  <span
+                    style="
+                      background: #fdebd0;
+                      color: #d35400;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 11px;
+                    "
+                    >처리중</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  ST-25-0293
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  LG생활건강
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  4,230,000
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  2025.02.27
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  <span
+                    style="
+                      background: #d5f5e3;
+                      color: #1e8449;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 11px;
+                    "
+                    >완료</span
+                  >
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ══ FN-001 회계 전표 ══ -->
+        <div
+          class="screen-panel"
+          id="screen-FN-001"
+          data-screen-id="FN-001"
+          data-area-id="FN"
+        >
+          <div class="pg-id" style="display: none">FN-001</div>
+          <div class="screen-label">FN-001 · 회계</div>
+          <div class="screen-title">회계 전표</div>
+          <div
+            style="
+              display: flex;
+              gap: 8px;
+              margin-bottom: 10px;
+              flex-wrap: wrap;
+            "
+          >
+            <input
+              type="text"
+              placeholder="전표번호"
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+                width: 130px;
+              "
+            />
+            <select
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+              "
+            >
+              <option>일반전표</option>
+              <option>입금전표</option>
+              <option>출금전표</option>
+              <option>대체전표</option>
+            </select>
+            <input
+              type="date"
+              value="2025-03-01"
+              style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 12px;
+              "
+            />
+            <button
+              style="
+                padding: 5px 14px;
+                background: #c0392b;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+              "
+            >
+              🔍 조회
+            </button>
+          </div>
+          <table
+            style="width: 100%; border-collapse: collapse; font-size: 12px"
+          >
+            <thead>
+              <tr style="background: #fdedec">
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: center;
+                  "
+                >
+                  전표번호
+                </th>
+                <th style="border: 1px solid #e0e4e9; padding: 6px 8px">
+                  계정과목
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: right;
+                  "
+                >
+                  차변
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: right;
+                  "
+                >
+                  대변
+                </th>
+                <th
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 6px 8px;
+                    text-align: center;
+                  "
+                >
+                  승인
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  FN-25-1041
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  보험료수입
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  -
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                    color: #1e8449;
+                  "
+                >
+                  12,450,000
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  <span
+                    style="
+                      background: #d5f5e3;
+                      color: #1e8449;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 11px;
+                    "
+                    >승인</span
+                  >
+                </td>
+              </tr>
+              <tr style="background: #fafafa">
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  FN-25-1042
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  지급보험금
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                    color: #c0392b;
+                  "
+                >
+                  8,200,000
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  -
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  <span
+                    style="
+                      background: #fdebd0;
+                      color: #d35400;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 11px;
+                    "
+                    >검토중</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  FN-25-1043
+                </td>
+                <td style="border: 1px solid #e0e4e9; padding: 5px 8px">
+                  사업비
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                    color: #c0392b;
+                  "
+                >
+                  1,830,000
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: right;
+                  "
+                >
+                  -
+                </td>
+                <td
+                  style="
+                    border: 1px solid #e0e4e9;
+                    padding: 5px 8px;
+                    text-align: center;
+                  "
+                >
+                  <span
+                    style="
+                      background: #d5f5e3;
+                      color: #1e8449;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 11px;
+                    "
+                    >승인</span
+                  >
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- /.sys-content -->
+    </div>
+    <!-- /.sys-body -->
+
+    <!-- ══════════════════════════════════════════
+       어시스턴트 마운트 포인트
+  ════════════════════════════════════════════ -->
+    <div id="assistant-mount"></div>
+
+    <!-- ══════════════════════════════════════════
+       호스트 시스템 인터랙션 스크립트
+  ════════════════════════════════════════════ -->
+    <script>
+      // GNB별 LNB 메뉴 데이터
+      const LNB_MENUS = {
+        UW: [
+          { id: "UW-001", label: "UW-001 조회" },
+          { id: "UW-002", label: "UW-002 등록" },
+          { id: "UW-003", label: "UW-003 수정" },
+          { id: "UW-004", label: "UW-004 결재" },
+          { id: "UW-005", label: "UW-005 보고서" },
+        ],
+        CT: [
+          { id: "CT-001", label: "CT-001 계약목록" },
+          { id: "CT-002", label: "CT-002 계약등록" },
+          { id: "CT-003", label: "CT-003 계약변경" },
+          { id: "CT-STALE", label: "⚠️ CT-STALE (pg-id 불일치 테스트)" },
+        ],
+        CL: [
+          { id: "CL-001", label: "CL-001 사고접수" },
+          { id: "CL-002", label: "CL-002 손사처리" },
+          { id: "CL-003", label: "CL-003 보험금지급" },
+        ],
+        AC: [
+          { id: "AC-001", label: "AC-001 계수조회" },
+          { id: "AC-002", label: "AC-002 통계" },
+        ],
+        PF: [
+          { id: "PF-001", label: "PF-001 실적조회" },
+          { id: "PF-002", label: "PF-002 목표관리" },
+        ],
+        ST: [
+          { id: "ST-001", label: "ST-001 정산내역" },
+          { id: "ST-002", label: "ST-002 청산처리" },
+        ],
+        FN: [
+          { id: "FN-001", label: "FN-001 회계전표" },
+          { id: "FN-002", label: "FN-002 결산" },
+        ],
+      };
+
+      function renderLnb(areaId) {
+        const lnb = document.getElementById("sys-lnb");
+        const menus = LNB_MENUS[areaId] || [];
+        lnb.innerHTML = "";
+        menus.forEach((m, i) => {
+          const item = document.createElement("div");
+          item.className = "lnb-item" + (i === 0 ? " active" : "");
+          item.dataset.menu = m.id;
+          item.textContent = m.label;
+          lnb.appendChild(item);
+        });
+      }
+
+      // screen-id → screen panel id 매핑 (데모에 존재하는 화면만)
+      const SCREEN_PANEL_MAP = {
+        "UW-001": "screen-UW-001",
+        "UW-002": "screen-UW-002",
+        "CT-001": "screen-CT-001",
+        "CT-002": "screen-CT-STALE",  // data-screen-id="CT-002" 이지만 pg-id="CT-STALE" (불일치 테스트)
+        "CL-001": "screen-CL-001",
+        "AC-001": "screen-AC-001",
+        "PF-001": "screen-PF-001",
+        "ST-001": "screen-ST-001",
+        "FN-001": "screen-FN-001",
+      };
+
+      // ── GNB 탭 전환: .w2group.active 클래스 변경 → setupContextObserver 감지 ──
+      document
+        .getElementById("sys-gnb")
+        .addEventListener("click", function (e) {
+          const tab = e.target.closest(".gnb-tab");
+          if (!tab) return;
+          document
+            .querySelectorAll(".gnb-tab")
+            .forEach((t) => t.classList.remove("active"));
+          tab.classList.add("active");
+          const areaId = tab.dataset.areaId;
+          renderLnb(areaId); // LNB 갱신
+          // 해당 업무의 첫 번째 화면 자동 활성화
+          const firstMenu = LNB_MENUS[areaId]?.[0];
+          if (firstMenu && SCREEN_PANEL_MAP[firstMenu.id]) {
+            activateScreen(SCREEN_PANEL_MAP[firstMenu.id]);
+          }
+        });
+
+      // ── LNB 항목 전환 (이벤트 위임) ──
+      document
+        .getElementById("sys-lnb")
+        .addEventListener("click", function (e) {
+          const item = e.target.closest(".lnb-item");
+          if (!item) return;
+          document
+            .querySelectorAll(".lnb-item")
+            .forEach((i) => i.classList.remove("active"));
+          item.classList.add("active");
+          const menuId = item.dataset.menu;
+          // 데모에 해당 화면 패널이 있으면 활성화, 없으면 menuId만 브리지 전달
+          if (SCREEN_PANEL_MAP[menuId]) {
+            activateScreen(SCREEN_PANEL_MAP[menuId]);
+          } else {
+            if (window.assistantBridge?.setMenu)
+              window.assistantBridge.setMenu(menuId);
+          }
+        });
+
+      // 초기 LNB 렌더링
+      renderLnb("UW");
+
+      // ── 화면 포커스 전환 ──
+      // .selected 클래스 변경 → setupStickyLayerObserver 감지
+      // data-area-id / data-screen-id 를 브리지로 전달 → Worker CONTEXT_CHANGE
+      // GNB·LNB DOM 은 건드리지 않습니다 (내부 시스템도 동일)
+      function activateScreen(screenId) {
+        // .selected 와 windowContainerClass 를 함께 토글
+        // → _resolveTargetContainer()가 활성 패널 안의 .pg-id를 정확히 탐색하도록 보장
+        document
+          .querySelectorAll(".screen-panel")
+          .forEach((p) => {
+            p.classList.remove("selected");
+            p.classList.remove("w2windowContainer_selectedNameLayer");
+          });
+        const target = document.getElementById(screenId);
+        if (!target) return;
+        target.classList.add("selected", "w2windowContainer_selectedNameLayer");
+
+        const areaId = target.dataset.areaId;
+        const menuId = target.dataset.screenId;
+
+        if (areaId && window.assistantBridge?.setArea)
+          window.assistantBridge.setArea(areaId);
+        if (menuId && window.assistantBridge?.setMenu)
+          window.assistantBridge.setMenu(menuId);
+      }
+
+      // ── getMenuId / getAreaId: setupStickyLayerObserver 초기화·옵저버에서 호출 ──
+      // 실제 WebSquare 내부시스템과 동일한 패턴:
+      //   getMenuId()는 windowContainerClass(=현재 포커스된 화면 패널)의 data-screen-id를 반환합니다.
+      // CT-STALE 테스트: data-screen-id="CT-STALE" (stale) vs .pg-id 텍스트 "CT-002" (실제) 불일치를
+      //   _resolveTargetContainer()가 감지하여 state.selectedMenu를 "CT-002"로 자동 교정합니다.
+      window.getMenuId = function () {
+        return (
+          document.querySelector(".w2windowContainer_selectedNameLayer")?.dataset
+            .screenId || ""
+        );
+      };
+      window.getAreaId = function (menuId) {
+        // menuId 와 일치하는 패널에서 areaId 우선 조회, 없으면 현재 selected 패널 기준
+        const byId = document.querySelector(
+          `.screen-panel[data-screen-id="${menuId}"]`,
+        );
+        return (
+          (byId || document.querySelector(".screen-panel.selected"))?.dataset
+            .areaId || ""
+        );
+      };
+
+      // sticky-layer 위치를 주기적으로 반영
+      setInterval(() => {}, 0); // placeholder
+    </script>
+
+    <!-- ══════════════════════════════════════════
+       어시스턴트 로더
+  ════════════════════════════════════════════ -->
+    <script src="../assistant-loader.js"></script>
+    <script>
+      /**
+       * 웹스퀘어 내부시스템은 window.onload = init; 패턴으로 초기화됩니다.
+       * 어시스턴트는 내부시스템 init() 완료 후 실행되어야 하므로,
+       * 기존 onload를 교체하지 않고 아래처럼 체이닝합니다.
+       *
+       * ── 실제 배포 시 적용 예시 ──────────────────────────────────
+       * <script src="../assistant-loader.js"><\/script>
+       * <script>
+       *   (function () {
+       *     const _prevOnload = window.onload;          // 웹스퀘어 init 보존
+       *     window.onload = async function () {
+       *       if (typeof _prevOnload === 'function') await _prevOnload(); // 내부시스템 먼저 실행
+       *       loadAssistant({ loginId: gcm.gv_USER_ID, ... });           // 이후 어시스턴트 로드
+       *     };
+       *   })();
+       * <\/script>
+       * ────────────────────────────────────────────────────────────
+       */
+      // window.ASSISTANT_AREA_KEYS = {
+      //   id : 'menuId',
+      //   name : 'menuName'
+      // }
+
+      loadAssistant({
+        // ══════════════════════════════════════════════════════════════════════
+        // 1. 기본 설정
+        // ══════════════════════════════════════════════════════════════════════
+
+        // 어시스턴트 패널이 마운트될 DOM 요소 ID
+        mountId: "assistant-mount",
+
+        // 로그인 사용자 ID — IndexedDB DB명 식별자로 사용됨 (미입력 시 공용 모드)
+        loginId: "test_user_01",
+
+        // 특정부서 차단로직 
+        uprDeptCd : '111000',
+
+        // UI 언어 설정 ("ko-kr" | "en-us")
+        locale: "ko-kr",
+
+        // 초기 테마 / 다크모드 / 업무영역 컬러모드 설정
+        // → 콜백 없이 첫 렌더 전에 적용되므로 flash 없음
+        initialTheme:         localStorage.getItem('selectedTheme') || 'classic',
+        initialDarkMode:      localStorage.getItem('selectedMode') === 'dark',
+        initialAreaColorMode: localStorage.getItem('selectedIsTask') === true,
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 2. 리소스 경로
+        // ══════════════════════════════════════════════════════════════════════
+
+        // 어시스턴트 HTML 조각 파일 경로
+        htmlPath: "../assistant/assistant-fragment.html",
+
+        // 어시스턴트 메인 CSS 경로
+        cssPath: "../assistant/assistant.css",
+
+        // 추가 CSS 목록 (Quill 에디터 등)
+        cssPaths: [
+          "../quill/quill.bubble.css",
+          "../quill/quill-better-table.css",  
+        ],
+
+        // 어시스턴트 메인 JS 경로
+        jsPath: "../assistant/assistant.js",
+
+        // 추가 JS 목록 (jsPath 로드 전에 순서대로 주입됨)
+        scriptPaths: [
+          "../quill/quill.min.js",
+          "../quill/quill-better-table.min.js",
+          "../quill/quill-markdown-shortcuts.js",
+          "../purify/purify.min.js",
+        ],
+
+        // SharedWorker 경로 (미입력 시 jsPath 기준 자동 추론)
+        workerPath: "../assistant/assistant-worker.js",
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 3. 사용자 정보 (암호화 저장) HTTPS 환경에서만 제공
+        // loginId + getUserInfo 둘 다 있을 때만 AES-256-GCM 암호화 후 IndexedDB에 저장됨
+        // ══════════════════════════════════════════════════════════════════════
+        getUserInfo: {
+          userId:     "test_user_01",
+          userEmpNo:  "2017806",
+          userNm:     "홍길동",
+          userEnglNm: "Hong Gildong",
+        },
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 4. sticky-layer 컨텍스트 감지 설정
+        // false 로 지정하면 옵저버 자체를 비활성화합니다.
+        // ══════════════════════════════════════════════════════════════════════
+        stickyLayerSelectors: {
+          // ── 폴백 방식 (클래스명 기반 탐색) ────────────────────────────────
+          // 현재 활성 화면 컨테이너를 감싸는 클래스명 (MutationObserver 감시 대상)
+          windowContainerClass: "w2windowContainer_selectedNameLayer",
+          // 화면 ID를 담고 있는 hidden 요소의 클래스명
+          pgIdClass: "pg-id",
+          // pgEl.parentElement 기준 이동 뎁스 (0=기본, +n=더 내려감, -n=더 올라감)
+          targetDepth: 0,
+          // windowContainerClass 발견 후 이동 뎁스 (0=발견된 요소 그대로, +n=firstElementChild 내려감, -n=parentElement 올라감)
+          // 앵커 자체의 DOM 위치를 조정할 필요가 있을 때 사용
+          anchorDepth: 0,
+
+          // ── [IoC] 주입 방식 (클래스명 탐색 대체) ──────────────────────────
+          // [신규] 포스트잇 타겟 컨테이너를 직접 반환하는 함수
+          // 주입 시 windowContainerClass/pgIdClass/targetDepth/anchorDepth 탐색 로직은 실행되지 않음
+          // resolveStickyTarget: (menuId) => document.querySelector(`#screen-${menuId}`),
+
+          // [신규] MutationObserver 기준 요소를 직접 반환하는 함수
+          // 주입 시 windowContainerClass 기반 탐색 대신 이 함수 결과를 감시 대상으로 사용
+          // getObserverAnchor: () => document.getElementById("sys-content"),
+
+          // ── 컨텍스트 감지 함수 (공통) ──────────────────────────────────────
+          // 현재 활성 화면의 menuId를 반환하는 함수 (화면 전환 감지 + 초기화에 사용)
+          getMenuId: () => window.getMenuId?.(),
+          // menuId로부터 areaId를 파생하는 함수
+          getAreaId: (menuId) => window.getAreaId?.(menuId),
+          // 현재 locale을 반환하는 함수 (언어 변경 자동 감지용, 선택)
+          // getLocale: () => window.gcm?.gv_LANG_CD,
+        },
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 5. 라이프사이클 훅
+        // 등록하지 않은 훅은 조용히 무시됩니다.
+        // (선택) 어시스턴트 내부 이벤트에 대한 콜백 함수들을 등록할 수 있습니다.
+        // 주석해제 후 사용가능
+        // ══════════════════════════════════════════════════════════════════════
+        hooks: {
+          // 내부 함수 호출 전후로 실행되는 훅들 (예: 화면 전환, 데이터 변경 등)
+          // onBeforeScreenChange: (context) => { ... },
+        },
+      }).then(() => { 
+        showAllAssistantHiddenUI();
+        console.log("[Assistant] 어시스턴트 로드 완료");
+      });
+
+      
+
+      // Worker 연결 완료 시 초기 화면 및 컨텍스트 등록
+      window.addEventListener("assistant:mounted", () => {
+        // 초기 selected 화면을 브리지에 등록 (페이지 로드 시 자동 포커스)
+        const initPanel = document.querySelector(".screen-panel.selected");
+        if (initPanel) {
+          const areaId = initPanel.dataset.areaId;
+          const menuId = initPanel.dataset.screenId;
+          if (areaId && window.assistantBridge?.setArea)
+            window.assistantBridge.setArea(areaId);
+          if (menuId && window.assistantBridge?.setMenu)
+            window.assistantBridge.setMenu(menuId);
+        }
+      });
+
+      const _origBootstrap = window.bootstrapAssistant;
+      window.bootstrapAssistant = async function (cfg) {
+        await _origBootstrap?.(cfg);
+      };
+
+      function deleteDatabase(dbName) {
+        indexedDB.deleteDatabase(dbName);
+      };
+    </script>
+
+    <!-- ══════════════════════════════════════════
+       PoC 5.3 — RPA 매크로 모듈 (./)
+       데모는 4개 원본 모듈을 직접 로드한다 (디버깅·sourcemap 친화).
+       메일 반입용 합본은 별도 ./bundle.txt — 콘솔 paste 전용.
+    ══════════════════════════════════════════ -->
+    <script src="./solomon-adapter.js"></script>
+    <script src="./rpa-decorator.js"></script>
+    <script src="./macro-recorder.js"></script>
+    <script src="./assistant-bridge.js"></script>
+    <script>
+      // ═════════════════════════════════════════════════════════════
+      // 솔로몬 환경 호환 stub
+      //   macro-recorder는 재생 시 window.$p.comp(rpaId).setValue() 를
+      //   우선 호출하고, 그 경로가 없으면 input 이벤트 dispatch로 자동 폴백합니다.
+      //   데모 환경엔 컴포넌트 트리가 없으므로 null을 반환하는 stub을 두어
+      //   실 환경과 동일한 코드 경로(setValue 시도 → 폴백)가 시연되도록 합니다.
+      // ═════════════════════════════════════════════════════════════
+      window.$p = window.$p || { comp: function () { return null; } };
+
+      // ═════════════════════════════════════════════════════════════
+      // 데모 자동 보강 (Auto-Decorate)
+      //
+      // 데모 시뮬 화면은 실 솔로몬 환경의 시그니처(data-title TD wrapping,
+      // mf_Frames_..._edtXxx 형태의 id suffix 등)를 풍부하게 박지 않습니다.
+      // 그래서 식별 단서가 부족한 위젯이 폴백 8(위치 기반)에 잡히고,
+      // 화면 다시 그릴 때 인덱스가 흔들려 같은 input이 여러 rpaId로
+      // 중복 잡히는 현상이 발생합니다.
+      //
+      // 이 함수는 init 직전에 화면 위젯에 placeholder/aria-label/name/
+      // button 텍스트/select first option 등에서 라벨을 추출해
+      //   1) data-title="$$라벨"  → 폴백 1 매칭
+      //   2) 부모 <td>에도 동일 data-title → 실 환경 td 패턴 흉내
+      //   3) 의미 있는 id suffix(없을 때만) → 폴백 2 매칭
+      // 을 동적으로 부여합니다. HTML 구조는 변경하지 않습니다.
+      // ═════════════════════════════════════════════════════════════
+      function autoDecorateForDemo() {
+        const NEEDS_PREFIX = {
+          input: "edt",
+          select: "cbo",
+          button: "btn",
+          textarea: "txt",
+        };
+        let decorated = 0;
+
+        document
+          .querySelectorAll("input, select, textarea, button")
+          .forEach((el) => {
+            // 어시스턴트/매크로 토글 영역은 제외 (재귀 캡처 방지)
+            if (el.closest("#assistant-mount")) return;
+            if (el.closest(".solomon-rpa-toggle")) return;
+            if (el.closest("[data-rpa-skip]")) return;
+
+            // 1) 라벨 추출 우선순위: placeholder → aria-label → name →
+            //    button 텍스트 → select first option
+            let label = null;
+            if (!label && el.placeholder) label = el.placeholder.trim();
+            if (!label && el.getAttribute("aria-label"))
+              label = el.getAttribute("aria-label").trim();
+            if (!label && el.name) label = el.name.trim();
+            if (!label && el.tagName === "BUTTON") {
+              label = (el.textContent || "")
+                .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "") // 이모지 제거
+                .replace(/\s+/g, " ")
+                .trim();
+            }
+            if (!label && el.tagName === "SELECT" && el.options[0]) {
+              label = el.options[0].text.trim();
+            }
+            if (!label) return; // 단서 없는 위젯은 폴백 8(위치)에 맡김
+
+            // 2) data-title 부여 (자기 자신) — 폴백 1 매칭
+            if (!el.getAttribute("data-title")) {
+              el.setAttribute("data-title", "$$" + label);
+              decorated++;
+            }
+
+            // 3) 부모 <td>에도 동일 라벨 — 실 환경 td 패턴 흉내
+            const td = el.closest("td");
+            if (td && !td.getAttribute("data-title")) {
+              td.setAttribute("data-title", "$$" + label);
+            }
+
+            // 4) 의미 있는 id suffix 부여 (없을 때만) — 폴백 2 보조 매칭
+            if (!el.id) {
+              const screen =
+                el.closest(".screen-panel")?.dataset.screenId || "demo";
+              const tag = el.tagName.toLowerCase();
+              const prefix = NEEDS_PREFIX[tag] || tag;
+              const safeLabel = label
+                .replace(/[^a-zA-Z0-9가-힣]/g, "_")
+                .replace(/_+/g, "_")
+                .replace(/^_|_$/g, "");
+              el.id =
+                "mf_demo_main_wframe_div" +
+                screen.replace(/-/g, "") +
+                "_" +
+                prefix +
+                safeLabel;
+            }
+          });
+        return decorated;
+      }
+
+      // 어시스턴트 마운트가 비동기이므로 1초 후 명시 활성화.
+      // assistant-bridge.js 의 init() 는 MutationObserver 도 시작하므로
+      // 이후 어시스턴트 펼침/접힘에 자동 추종.
+      setTimeout(() => {
+        try {
+          SolomonAdapter.resetStats();
+          const auto = autoDecorateForDemo(); // ← 어댑터 호출 직전에 보강
+          const decoratedCount = RpaDecorator.decorate();
+          RpaDecorator.startObserving(document.body);
+          AssistantBridge.init();
+          console.log("[rpa-macro/demo] 활성화", {
+            mountedHost: AssistantBridge.getMountedHost(),
+            autoDecorated: auto,
+            decoratedCount,
+            adapterStats: SolomonAdapter.getStats(),
+          });
+
+          // 화면 전환(LNB 클릭) 후에도 새 화면의 위젯이 데코 안 된 상태라면
+          // 다시 보강 + 어댑터 재가동. 이미 보강된 위젯은 멱등 처리(스킵).
+          document
+            .getElementById("sys-lnb")
+            ?.addEventListener("click", function () {
+              setTimeout(() => {
+                autoDecorateForDemo();
+                RpaDecorator.decorate();
+              }, 50);
+            });
+        } catch (err) {
+          console.error("[rpa-macro/demo] 활성화 실패:", err);
+        }
+      }, 1000);
+    </script>
+  </body>
+</html>
