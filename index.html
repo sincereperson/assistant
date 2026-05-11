@@ -2329,5 +2329,107 @@
         indexedDB.deleteDatabase(dbName);
       };
     </script>
+
+    <!-- ══════════════════════════════════════════
+       RPA 매크로 현버전 적용 스냅샷
+       - assistant_demo.html: 현재 안정 버전 확인용
+       - 향후 RPA 추가/실험: vendor/rpa-macro/demo.html 에서 관리
+    ══════════════════════════════════════════ -->
+    <script src="vendor/rpa-macro/solomon-adapter.js"></script>
+    <script src="vendor/rpa-macro/rpa-decorator.js"></script>
+    <script src="vendor/rpa-macro/macro-recorder.js"></script>
+    <script src="vendor/rpa-macro/assistant-bridge.js"></script>
+    <script>
+      window.$p = window.$p || { comp: function () { return null; } };
+
+      function autoDecorateForDemo() {
+        const NEEDS_PREFIX = {
+          input: "edt",
+          select: "cbo",
+          button: "btn",
+          textarea: "txt",
+        };
+        let decorated = 0;
+
+        document
+          .querySelectorAll("input, select, textarea, button")
+          .forEach((el) => {
+            if (el.closest("#assistant-mount")) return;
+            if (el.closest(".solomon-rpa-toggle")) return;
+            if (el.closest("[data-rpa-skip]")) return;
+
+            let label = null;
+            if (!label && el.placeholder) label = el.placeholder.trim();
+            if (!label && el.getAttribute("aria-label"))
+              label = el.getAttribute("aria-label").trim();
+            if (!label && el.name) label = el.name.trim();
+            if (!label && el.tagName === "BUTTON") {
+              label = (el.textContent || "")
+                .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "")
+                .replace(/\s+/g, " ")
+                .trim();
+            }
+            if (!label && el.tagName === "SELECT" && el.options[0]) {
+              label = el.options[0].text.trim();
+            }
+            if (!label) return;
+
+            if (!el.getAttribute("data-title")) {
+              el.setAttribute("data-title", "$$" + label);
+              decorated++;
+            }
+
+            const td = el.closest("td");
+            if (td && !td.getAttribute("data-title")) {
+              td.setAttribute("data-title", "$$" + label);
+            }
+
+            if (!el.id) {
+              const screen =
+                el.closest(".screen-panel")?.dataset.screenId || "demo";
+              const tag = el.tagName.toLowerCase();
+              const prefix = NEEDS_PREFIX[tag] || tag;
+              const safeLabel = label
+                .replace(/[^a-zA-Z0-9가-힣]/g, "_")
+                .replace(/_+/g, "_")
+                .replace(/^_|_$/g, "");
+              el.id =
+                "mf_demo_main_wframe_div" +
+                screen.replace(/-/g, "") +
+                "_" +
+                prefix +
+                safeLabel;
+            }
+          });
+        return decorated;
+      }
+
+      setTimeout(() => {
+        try {
+          SolomonAdapter.resetStats();
+          const auto = autoDecorateForDemo();
+          const decoratedCount = RpaDecorator.decorate();
+          RpaDecorator.startObserving(document.body);
+          AssistantBridge.init();
+          console.log("[rpa-macro/assistant-demo] 활성화", {
+            mountedHost: AssistantBridge.getMountedHost(),
+            autoDecorated: auto,
+            decoratedCount,
+            adapterStats: SolomonAdapter.getStats(),
+          });
+
+          document
+            .getElementById("sys-lnb")
+            ?.addEventListener("click", function () {
+              setTimeout(() => {
+                autoDecorateForDemo();
+                RpaDecorator.decorate();
+              }, 50);
+            });
+        } catch (err) {
+          console.error("[rpa-macro/assistant-demo] 활성화 실패:", err);
+        }
+      }, 1000);
+    </script>
   </body>
 </html>
