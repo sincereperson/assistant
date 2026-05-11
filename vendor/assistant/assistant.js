@@ -7488,11 +7488,21 @@ function renderDashboardTab() {
     </div>
   `;
 
+  const rpaMacroSection = `
+    <div class="imsmassi-dashboard-section imsmassi-dashboard-rpa-section" data-rpa-skip>
+      <div class="imsmassi-dashboard-section-header">
+        <span>${t("dashboard.sectionRpaMacro")}</span>
+      </div>
+      <div id="rpa-macro-dashboard-slot" class="imsmassi-dashboard-rpa-slot"></div>
+    </div>
+  `;
+
   return `
     <div>
       ${backupBannerHtml}
       ${storageWarningHtml}
       ${unreadNotifsSection}
+      ${rpaMacroSection}
       <div id="imsmassi-dashboard-today" class="imsmassi-dashboard-section">
         <div class="imsmassi-dashboard-section-header">
           <span>${t("dashboard.sectionToday")}</span> 

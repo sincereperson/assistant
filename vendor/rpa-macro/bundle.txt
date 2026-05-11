@@ -4,7 +4,7 @@
 // 사용:
 //   1) 솔로몬 화면(또는 어시스턴트 떠있는 페이지)에서 F12 콘솔 열기
 //   2) 이 파일 전체를 콘솔에 paste → Enter
-//   3) 화면 우하단(또는 어시스턴트 패널 안)에 매크로 토글 박스 등장
+//   3) 대시보드 안(또는 단독 데모에서는 화면 우하단)에 매크로 토글 박스 등장
 //   4) [● 녹화] → 작업 → [■ 종료] → [▶ 재생]
 //
 // 구성: solomon-adapter → rpa-decorator → macro-recorder → assistant-bridge
@@ -17,7 +17,6 @@
 //   3. 재생 후 blur dispatch — onkillfocus 핸들러 트리거
 //   4. 어시스턴트/매크로 토글 영역 제외 — 재귀 캡처 방지
 // ─────────────────────────────────────────────────────────────────
-
 // ===== solomon-adapter.js =====
 // solomon-adapter.js — 솔로몬 환경 어댑터 (다단 폴백 rpaId 생성기)
 //
@@ -341,6 +340,7 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+
 // ===== rpa-decorator.js =====
 // rpa-decorator.js — 식별자 주입기
 //
@@ -506,6 +506,7 @@
   if (typeof window !== 'undefined') window.RpaDecorator = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
+
 
 // ===== macro-recorder.js =====
 // macro-recorder.js — 매크로 녹화·재생 엔진
@@ -1106,16 +1107,17 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = MacroRecorder;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+
 // ===== assistant-bridge.js =====
-// assistant-bridge.js — 어시스턴트 패널에 매크로 토글 + 라이브러리 UI 주입
+// assistant-bridge.js — 어시스턴트 대시보드에 매크로 토글 + 라이브러리 UI 주입
 //
-// 무엇: 어시스턴트가 떠 있을 때 그 패널 안에 [● 녹화]/[■ 종료]/[▶ 재생] 버튼과
-//       *매크로 라이브러리 목록*을 DOM 주입한다. 어시스턴트 메인 코드는 *수정하지 않는다*.
+// 무엇: 어시스턴트 대시보드 안에 [● 녹화]/[■ 종료]/[▶ 재생] 버튼과
+//       *매크로 라이브러리 목록*을 DOM 주입한다.
 // 왜:   사용자가 매크로를 어시스턴트에서 시작·종료·관리할 수 있게.
 //       단 어시스턴트 빌드 사이클과 분리(코드 수정 X).
 // 어떻게:
-//   1) DOMReady 후 어시스턴트 패널이 있으면 그 안에 컨트롤 박스 끼워넣기,
-//      없으면 페이지 우하단 floating
+//   1) DOMReady 후 어시스턴트 대시보드 슬롯이 있으면 그 안에 컨트롤 박스 끼워넣기,
+//      어시스턴트가 없는 단독 데모 환경에서는 페이지 우하단 floating
 //   2) 녹화 종료 시 events 를 *자체 localStorage 키*(rpa-macros)에 매크로 1건으로 저장
 //      — 어시스턴트의 클립보드/메모/템플릿 탭은 건드리지 않는다
 //   3) 컨트롤 박스 하단에 매크로 목록 렌더링, 각 항목에 [▶ 재생][✕ 삭제] 버튼
@@ -1135,7 +1137,7 @@
   let recorder = null;
   let lastEvents = [];
   let uiRoot = null;
-  let mountedHost = 'floating';          // 'floating' | 'assistant'
+  let mountedHost = 'detached';          // 'detached' | 'floating' | 'dashboard'
 
   function getRecorder() {
     if (!recorder) {
@@ -1246,6 +1248,11 @@
         bottom: 16px;
         right: 16px;
         width: 280px;
+      }
+      #rpa-macro-toggle.in-dashboard {
+        width: 100%;
+        box-sizing: border-box;
+        box-shadow: none;
       }
       #rpa-macro-toggle .rmt-row { display: flex; gap: 4px; margin-bottom: 6px; }
       #rpa-macro-toggle .rmt-btn {
@@ -1456,40 +1463,38 @@
   // ─────────────────────────────────────────────
   // 마운트
   // ─────────────────────────────────────────────
-  // 어시스턴트 패널의 *적절한 자리* 후보 (우선순위 순).
-  // 첫 매칭에 prepend. 실제 어시스턴트(imsmassi-* 클래스)에선
-  // .imsmassi-assistant-content (메모/대시보드/설정 콘텐츠 영역) 안 최상단이
-  // 가장 자연스럽다.
-  const PANEL_SELECTORS = [
-    '.imsmassi-assistant-content',   // ← 1순위: 콘텐츠 영역 안
-    '.imsmassi-floating-panel',      // 2순위: 펼친 패널 자체
-    '#imsmassi-panel-outer',         // 3순위: 패널 외부 래퍼
-    '[data-assistant-panel]',        // 4순위: 호스트가 직접 표시
-    '#assistant-mount',              // 5순위: 마운트 컨테이너 (어시스턴트 root와 형제 위치)
-    '.imsmassi-panel',
+  const DASHBOARD_SELECTORS = [
+    '#rpa-macro-dashboard-slot',
+    '[data-rpa-dashboard-slot]',
   ];
 
-  function findAssistantPanel() {
-    for (const sel of PANEL_SELECTORS) {
+  function findDashboardSlot() {
+    for (const sel of DASHBOARD_SELECTORS) {
       const el = document.querySelector(sel);
       if (el) return el;
     }
     return null;
   }
 
-  function tryMountToAssistant() {
-    const panel = findAssistantPanel();
+  function hasAssistantShell() {
+    return !!document.querySelector('#assistant-root, #assistant-mount, .imsmassi-assistant-content');
+  }
+
+  function tryMountToDashboard() {
+    const panel = findDashboardSlot();
     if (!panel) return false;
     const ui = buildUi();
     ui.classList.remove('floating');
-    if (panel.firstChild) panel.insertBefore(ui, panel.firstChild);
-    else panel.appendChild(ui);
-    mountedHost = 'assistant';
+    ui.classList.add('in-dashboard');
+    panel.replaceChildren(ui);
+    mountedHost = 'dashboard';
+    renderLibrary();
     return true;
   }
 
   function mountFloating() {
     const ui = buildUi();
+    ui.classList.remove('in-dashboard');
     ui.classList.add('floating');
     document.body.appendChild(ui);
     mountedHost = 'floating';
@@ -1509,44 +1514,50 @@
     const alreadyMounted = uiRoot && document.body.contains(uiRoot);
 
     if (alreadyMounted && !force) {
-      // 어시스턴트 패널이 새로 등장했는데 우리는 floating에 머물러 있다면
+      // 대시보드 슬롯이 새로 등장했는데 우리는 floating에 머물러 있다면
       // *암묵적 재마운트* 시도(시각적 위치 자동 따라감).
-      if (mountedHost === 'floating' && findAssistantPanel()) {
+      if (mountedHost === 'floating' && findDashboardSlot()) {
         detachUi();
-        if (!tryMountToAssistant()) mountFloating();
+        if (!tryMountToDashboard()) mountFloating();
       }
       return;
     }
 
     if (alreadyMounted && force) detachUi();
-    if (!tryMountToAssistant()) mountFloating();
+    if (!tryMountToDashboard()) {
+      if (hasAssistantShell()) {
+        mountedHost = 'detached';
+        return;
+      }
+      mountFloating();
+    }
     setBtnState({ recordEnabled: true, stopEnabled: false, playLastEnabled: false });
     setStatus('대기 중');
     renderLibrary();
   }
 
-  // 어시스턴트 패널이 *나중에 등장하거나 사라지면* 자동으로 재마운트한다.
-  // (사용자가 어시스턴트를 펼쳤다 접었다 할 때 자연스럽게 따라감)
+  // 대시보드 슬롯이 *나중에 등장하거나 사라지면* 자동으로 재마운트한다.
+  // (사용자가 대시보드 탭으로 이동하거나 다른 탭으로 이동할 때 자연스럽게 따라감)
   let observer = null;
   function startPanelObserver() {
     if (observer) return;
     observer = new MutationObserver(() => {
-      const panel = findAssistantPanel();
+      const panel = findDashboardSlot();
       const inAssistant = uiRoot && panel && panel.contains(uiRoot);
-      const shouldBeAssistant = !!panel;
+      const shouldBeDashboard = !!panel;
 
-      if (shouldBeAssistant && mountedHost !== 'assistant') {
-        // 어시스턴트 펼쳐졌는데 우리는 floating → 어시스턴트 안으로 이동
+      if (shouldBeDashboard && mountedHost !== 'dashboard') {
+        // 대시보드가 렌더링되면 대시보드 안으로 이동
         detachUi();
-        if (!tryMountToAssistant()) mountFloating();
-      } else if (!shouldBeAssistant && mountedHost === 'assistant') {
-        // 어시스턴트 접혀서 패널 사라짐 → floating으로 이동
+        tryMountToDashboard();
+      } else if (!shouldBeDashboard && mountedHost === 'dashboard') {
+        // 대시보드가 사라지면 어시스턴트 내부에서는 노출하지 않음
         detachUi();
-        mountFloating();
-      } else if (shouldBeAssistant && !inAssistant && mountedHost === 'assistant') {
-        // assistant 모드인데 패널 밖에 떨어진 경우(어시스턴트 재렌더링)
+        mountedHost = hasAssistantShell() ? 'detached' : mountedHost;
+      } else if (shouldBeDashboard && !inAssistant && mountedHost === 'dashboard') {
+        // dashboard 모드인데 슬롯 밖에 떨어진 경우(대시보드 재렌더링)
         detachUi();
-        tryMountToAssistant();
+        tryMountToDashboard();
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
@@ -1593,6 +1604,7 @@
   };
   if (typeof window !== 'undefined') window.AssistantBridge = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
+
 
 // ─────────────────────────────────────────────────────────────────
 // 자동 init — paste 직후 즉시 활성화
