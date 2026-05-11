@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>어시스턴트 데모 페이지</title>
+    <title>어시스턴트 Worker 아키텍처 테스트</title>
 
     <!-- =====================================================
   🔴 [배포시 제거] 테스트 전용 스타일
@@ -11,220 +11,45 @@
        아래 <style> 블록 전체를 제거하세요.
   ===================================================== -->
     <style>
-      :root {
-        --host-primary: #006db3;
-        --host-primary-dark: #005a96;
-        --host-primary-light: #e8f4f8;
-        --host-surface: #fff;
-        --host-surface-soft: #f6f9fb;
-        --host-page-bg: #eef4f7;
-        --host-border: #d7e3e8;
-        --host-text: #263b45;
-        --host-muted: #637d88;
-      }
-
       body {
         margin: 0;
-        background: var(--host-page-bg);
-        color: var(--host-text);
-        font-family: "Malgun Gothic", "Apple SD Gothic Neo", Arial, sans-serif;
-      }
-      body.demo-dark {
-        --host-surface: #1f2933;
-        --host-surface-soft: #17212b;
-        --host-page-bg: #111820;
-        --host-border: #334657;
-        --host-text: #e8eef3;
-        --host-muted: #b8c7d1;
-        --host-field-bg: #121b24;
-        --host-field-border: #3c5062;
-        --host-table-header: #223140;
-        --host-table-row-alt: #182431;
       }
 
       /* ── 헤더 ── */
       .sys-header {
-        min-height: 68px;
-        background: linear-gradient(135deg, var(--host-primary) 0%, var(--host-primary-dark) 100%);
+        height: 48px;
+        background: #2c3e50;
         color: #fff;
         display: flex;
         align-items: center;
-        justify-content: space-between;
         padding: 0 20px;
         gap: 16px;
-        font-size: 16px;
-        font-weight: 700;
+        font-size: 14px;
+        font-weight: 600;
         position: sticky;
         top: 0;
         z-index: 100;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
       }
-      .sys-title {
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
-        min-width: 210px;
-      }
-      .sys-title span {
-        opacity: 0.86;
+      .sys-header span {
+        opacity: 0.6;
         font-size: 11px;
         font-weight: 400;
-      }
-
-      .sys-feature-console {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 12px;
-        flex: 1;
-      }
-      .feature-group {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 10px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 8px;
-        background: rgba(255, 255, 255, 0.1);
-      }
-      .feature-group-label {
-        font-size: 11px;
-        font-weight: 700;
-        opacity: 0.9;
-        white-space: nowrap;
-      }
-      .feature-copy {
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
-        min-width: 220px;
-        color: #fff;
-      }
-      .feature-copy strong {
-        font-size: 12px;
-      }
-      .feature-copy span {
-        font-size: 11px;
-        opacity: 0.82;
-        font-weight: 400;
-      }
-      .feature-actions,
-      .theme-quick-actions,
-      .mode-quick-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        justify-content: flex-end;
-      }
-      .feature-actions button,
-      .theme-quick-actions button,
-      .mode-quick-actions button {
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        background: rgba(255, 255, 255, 0.14);
-        color: #fff;
-        border-radius: 4px;
-        padding: 6px 9px;
-        font-size: 12px;
-        cursor: pointer;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-      }
-      .feature-actions button:hover,
-      .theme-quick-actions button:hover,
-      .mode-quick-actions button:hover,
-      .theme-quick-actions button.is-active {
-        background: #fff;
-        border-color: #fff;
-        color: var(--host-primary-dark);
-      }
-      .mode-quick-actions button.is-active {
-        background: #fff;
-        border-color: #fff;
-        color: var(--host-primary-dark);
-      }
-      .feature-actions .feature-primary {
-        background: #fff;
-        border-color: #fff;
-        color: var(--host-primary-dark);
-        font-weight: 700;
-      }
-      body.demo-dark .feature-copy,
-      body.demo-dark .feature-group-label {
-        color: #edf5fb;
-      }
-      body.demo-dark .feature-copy span {
-        color: #aebfcb;
-        opacity: 1;
-      }
-      body.demo-dark .feature-group {
-        border-color: rgba(255, 255, 255, 0.14);
-        background: rgba(255, 255, 255, 0.06);
-      }
-      body.demo-dark .feature-actions button,
-      body.demo-dark .theme-quick-actions button,
-      body.demo-dark .mode-quick-actions button {
-        background: rgba(255, 255, 255, 0.08);
-        border-color: rgba(255, 255, 255, 0.18);
-        color: #dce9f1;
-      }
-      body.demo-dark .feature-actions button:hover,
-      body.demo-dark .theme-quick-actions button:hover,
-      body.demo-dark .mode-quick-actions button:hover {
-        background: rgba(255, 255, 255, 0.16);
-        border-color: rgba(255, 255, 255, 0.32);
-        color: #fff;
-      }
-      body.demo-dark .theme-quick-actions button.is-active,
-      body.demo-dark .mode-quick-actions button.is-active,
-      body.demo-dark .feature-actions .feature-primary {
-        background: #dce9f1;
-        border-color: #dce9f1;
-        color: #13202a;
-      }
-      body[data-demo-theme="lightbeige"] .sys-header,
-      body[data-demo-theme="lightbeige"] .feature-copy {
-        color: #4f3d28;
-      }
-      body[data-demo-theme="lightbeige"] .feature-copy span {
-        opacity: 0.78;
-      }
-      body[data-demo-theme="lightbeige"] .feature-actions button,
-      body[data-demo-theme="lightbeige"] .theme-quick-actions button,
-      body[data-demo-theme="lightbeige"] .mode-quick-actions button {
-        border-color: rgba(79, 61, 40, 0.28);
-        background: rgba(255, 255, 255, 0.58);
-        color: #4f3d28;
-      }
-      body[data-demo-theme="lightbeige"] .feature-group {
-        border-color: rgba(79, 61, 40, 0.18);
-        background: rgba(255, 255, 255, 0.36);
-      }
-      body[data-demo-theme="lightbeige"] .feature-actions button:hover,
-      body[data-demo-theme="lightbeige"] .theme-quick-actions button:hover,
-      body[data-demo-theme="lightbeige"] .mode-quick-actions button:hover,
-      body[data-demo-theme="lightbeige"] .theme-quick-actions button.is-active,
-      body[data-demo-theme="lightbeige"] .mode-quick-actions button.is-active,
-      body[data-demo-theme="lightbeige"] .feature-actions .feature-primary {
-        background: #4f3d28;
-        border-color: #4f3d28;
-        color: #fff;
       }
 
       /* ── GNB ── */
       .sys-gnb {
         height: 44px;
-        background: var(--host-surface);
+        background: #34495e;
         display: flex;
         align-items: stretch;
         padding: 0 12px;
         gap: 2px;
-        border-bottom: 1px solid var(--host-border);
-        box-shadow: 0 1px 3px rgba(46, 90, 106, 0.08);
       }
       .gnb-tab {
         display: flex;
         align-items: center;
         padding: 0 18px;
-        color: var(--host-muted);
+        color: rgba(255, 255, 255, 0.65);
         font-size: 13px;
         cursor: pointer;
         border-bottom: 3px solid transparent;
@@ -232,64 +57,43 @@
         user-select: none;
       }
       .gnb-tab:hover {
-        color: var(--host-primary-dark);
-        background: var(--host-primary-light);
+        color: #fff;
+        background: rgba(255, 255, 255, 0.08);
       }
       /* ▼ setupContextObserver가 감시하는 클래스 */
       .gnb-tab.w2group.active {
-        color: var(--host-primary-dark);
-        border-bottom-color: var(--host-primary);
-        background: linear-gradient(180deg, var(--host-surface) 0%, var(--host-primary-light) 100%);
-        font-weight: 700;
-      }
-      body.demo-dark .gnb-tab:hover {
         color: #fff;
-        background: rgba(255, 255, 255, 0.08);
-      }
-      body.demo-dark .gnb-tab.w2group.active {
-        color: #fff;
-        border-bottom-color: var(--host-primary);
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%);
-      }
-      body.demo-dark .lnb-item:hover {
-        color: #fff;
-        background: rgba(255, 255, 255, 0.07);
-      }
-      body.demo-dark .lnb-item.active {
-        color: #fff;
-        background: rgba(255, 255, 255, 0.08);
+        border-bottom-color: #3498db;
+        background: rgba(52, 152, 219, 0.2);
       }
 
       /* ── LNB + 본문 ── */
       .sys-body {
         display: flex;
-        height: calc(100vh - 112px);
+        height: calc(100vh - 92px);
       }
       .sys-lnb {
         width: 180px;
-        background: var(--host-surface-soft);
+        background: #2c3e50;
         padding: 12px 0;
         flex-shrink: 0;
         overflow-y: auto;
-        border-right: 1px solid var(--host-border);
       }
       .lnb-item {
         padding: 9px 20px;
-        color: var(--host-muted);
+        color: rgba(255, 255, 255, 0.6);
         font-size: 12px;
         cursor: pointer;
         transition: all 0.12s;
         user-select: none;
       }
       .lnb-item:hover {
-        color: var(--host-primary-dark);
-        background: var(--host-primary-light);
+        color: #fff;
+        background: rgba(255, 255, 255, 0.08);
       }
       .lnb-item.active {
-        color: var(--host-primary-dark);
-        background: var(--host-surface);
-        border-left: 4px solid var(--host-primary);
-        padding-left: 16px;
+        color: #3498db;
+        background: rgba(52, 152, 219, 0.12);
         font-weight: 600;
       }
 
@@ -297,27 +101,25 @@
       .sys-content {
         flex: 1;
         overflow: auto;
-        padding: 18px 20px 28px;
-        background: var(--host-page-bg);
+        padding: 20px;
       }
 
       /* ── 각 화면 컨테이너 ── */
       .screen-panel {
         display: none; /* 비활성 화면은 숨김 */
-        background: var(--host-surface);
-        border-radius: 4px;
-        border: 1px solid var(--host-border);
+        background: #fff;
+        border-radius: 8px;
+        border: 2px solid #e0e4e9;
         min-height: 300px;
         padding: 16px;
         position: relative;
         transition: border-color 0.15s;
-        box-shadow: 0 2px 8px rgba(46, 90, 106, 0.08);
       }
       /* ▼ setupStickyLayerObserver가 감시하는 클래스 */
       .screen-panel.selected {
         display: block; /* 활성 화면만 표시 */
-        border-color: var(--host-primary);
-        box-shadow: 0 0 0 3px rgba(74, 144, 164, 0.12), 0 4px 14px rgba(46, 90, 106, 0.12);
+        border-color: #3498db;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
       }
       .screen-label {
         font-size: 11px;
@@ -330,147 +132,12 @@
       .screen-title {
         font-size: 16px;
         font-weight: 700;
-        color: var(--host-primary-dark);
+        color: #2c3e50;
         margin-bottom: 12px;
       }
       .screen-hint {
         font-size: 12px;
         color: #95a5a6;
-      }
-      .rpa-practice-panel {
-        margin-top: 14px;
-        padding: 12px;
-        border: 1px solid var(--host-border);
-        border-radius: 6px;
-        background: var(--host-surface-soft);
-      }
-      .rpa-practice-grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(130px, 1fr));
-        gap: 8px;
-      }
-      .rpa-practice-grid label,
-      .rpa-practice-textarea label {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        font-size: 11px;
-        color: var(--host-muted);
-      }
-      .rpa-practice-grid input,
-      .rpa-practice-grid select,
-      .rpa-practice-textarea textarea {
-        border: 1px solid #d8e0e5;
-        border-radius: 4px;
-        padding: 6px 8px;
-        font-size: 12px;
-        background: var(--host-surface);
-        color: var(--host-text);
-      }
-      .rpa-practice-textarea {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        margin-top: 8px;
-      }
-      .rpa-event-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-top: 10px;
-      }
-      .rpa-event-actions button {
-        border: none;
-        border-radius: 4px;
-        padding: 6px 10px;
-        background: var(--host-primary);
-        color: #fff;
-        font-size: 12px;
-        cursor: pointer;
-      }
-      .rpa-event-actions button:hover {
-        background: var(--host-primary-dark);
-      }
-      .rpa-event-log {
-        margin-top: 8px;
-        padding: 7px 9px;
-        border-radius: 4px;
-        background: var(--host-surface);
-        color: var(--host-muted);
-        font-size: 11px;
-        min-height: 16px;
-      }
-      body.demo-dark .screen-panel input,
-      body.demo-dark .screen-panel select,
-      body.demo-dark .screen-panel textarea {
-        background: var(--host-field-bg) !important;
-        border-color: var(--host-field-border) !important;
-        color: var(--host-text) !important;
-        color-scheme: dark;
-      }
-      body.demo-dark .screen-panel input::placeholder,
-      body.demo-dark .screen-panel textarea::placeholder {
-        color: #7f94a6;
-      }
-      body.demo-dark .screen-panel button:not(.feature-primary) {
-        filter: saturate(0.9) brightness(0.9);
-      }
-      body.demo-dark .rpa-practice-panel {
-        background: #172330;
-        border-color: var(--host-field-border);
-      }
-      body.demo-dark .rpa-event-actions button {
-        background: #253749;
-        border: 1px solid #405365;
-        color: #eaf3f9;
-        filter: none;
-      }
-      body.demo-dark .rpa-event-actions button:hover {
-        background: #31485c;
-        border-color: #5b7183;
-        color: #fff;
-      }
-      body.demo-dark .rpa-event-actions button:active {
-        background: #1d2c3a;
-      }
-      body.demo-dark .screen-panel table {
-        background: var(--host-surface) !important;
-        color: var(--host-text);
-      }
-      body.demo-dark .screen-panel thead tr,
-      body.demo-dark .screen-panel tr[style*="background: #f"],
-      body.demo-dark .screen-panel tr[style*="background:#f"] {
-        background: var(--host-table-header) !important;
-      }
-      body.demo-dark .screen-panel tbody tr:nth-child(even),
-      body.demo-dark .screen-panel tr[style*="background: #fafafa"] {
-        background: var(--host-table-row-alt) !important;
-      }
-      body.demo-dark .screen-panel th,
-      body.demo-dark .screen-panel td {
-        border-color: var(--host-border) !important;
-        color: var(--host-text);
-      }
-      body.demo-dark .screen-panel th {
-        background: var(--host-table-header) !important;
-        color: #d8e7f1;
-      }
-      body.demo-dark .screen-label {
-        color: #9fb2c2;
-      }
-      body.demo-dark .screen-panel [style*="background:#fff3cd"],
-      body.demo-dark .screen-panel [style*="background: #fff3cd"] {
-        background: #332915 !important;
-        border-color: #7a5b18 !important;
-        color: #f4d58a !important;
-      }
-      body.demo-dark .screen-panel code {
-        background: rgba(255, 255, 255, 0.1) !important;
-        color: #f4d58a !important;
-      }
-      body.demo-dark .rpa-event-log {
-        background: var(--host-field-bg);
-        border: 1px solid var(--host-field-border);
       }
 
       /* ── 어시스턴트 마운트 ── */
@@ -491,41 +158,11 @@
 
     <!-- 헤더 -->
     <div class="sys-header">
-      <div class="sys-title">
-        Demo SYSTEM
-        <span>어시스턴트 테마 연동 데모 — GNB·화면 전환 컨텍스트 감지</span>
-      </div>
-      <div class="sys-feature-console" data-rpa-skip>
-        <div class="feature-copy">
-          <strong>어시스턴트 전체 기능 시연</strong>
-          <span>메모·스티키·그리드·대시보드·RPA·설정/테마를 헤더에서 바로 실행</span>
-        </div>
-        <div class="feature-group">
-          <span class="feature-group-label">기능</span>
-          <div class="feature-actions" aria-label="어시스턴트 기능 바로가기">
-            <button class="feature-primary" onclick="demoAssistantOpen('memo')">메모/스티키</button>
-            <button onclick="demoAssistantPushGrid()">그리드 복사 시뮬</button>
-            <button onclick="demoAssistantOpen('dashboard')">대시보드/RPA</button>
-            <button onclick="demoAssistantOpen('settings')">설정/테마</button>
-          </div>
-        </div>
-        <div class="feature-group">
-          <span class="feature-group-label">테마</span>
-          <div class="theme-quick-actions" aria-label="테마와 다크모드 빠른 변경">
-            <button type="button" data-demo-theme="classic" onclick="demoAssistantSetTheme('classic')">클래식</button>
-            <button type="button" data-demo-theme="earthbrown" onclick="demoAssistantSetTheme('earthbrown')">브라운</button>
-            <button type="button" data-demo-theme="oceangreen" onclick="demoAssistantSetTheme('oceangreen')">그린</button>
-            <button type="button" data-demo-theme="lightbeige" onclick="demoAssistantSetTheme('lightbeige')">베이지</button>
-          </div>
-        </div>
-        <div class="feature-group">
-          <span class="feature-group-label">모드</span>
-          <div class="mode-quick-actions" aria-label="라이트와 다크 모드 빠른 변경">
-            <button type="button" data-demo-mode="light" onclick="demoAssistantSetDarkMode(false)">라이트</button>
-            <button type="button" data-demo-mode="dark" onclick="demoAssistantSetDarkMode(true)">다크</button>
-          </div>
-        </div>
-      </div>
+      SOLOMON SYSTEM
+      <span
+        >Worker 아키텍처 테스트 페이지 — GNB·화면 전환으로 컨텍스트 감지
+        확인</span
+      >
     </div>
 
     <!-- GNB: .w2group.active → setupContextObserver가 감지 -->
@@ -794,31 +431,6 @@
               </tr>
             </tbody>
           </table>
-          <div class="rpa-practice-panel">
-            <div class="screen-label">RPA-DEMO · 입력/이벤트 시연</div>
-            <div class="rpa-practice-grid">
-              <label data-title="$$RPA 증권번호">증권번호<input id="uw001-rpa-policy-no" type="text" placeholder="UW-2025-00999" data-title="$$RPA 증권번호" /></label>
-              <label data-title="$$RPA 계약자명">계약자명<input id="uw001-rpa-customer" type="text" placeholder="㈜샘플기업" data-title="$$RPA 계약자명" /></label>
-              <label data-title="$$RPA 담당자">담당자<input id="uw001-rpa-manager" type="text" placeholder="김언더" data-title="$$RPA 담당자" /></label>
-              <label data-title="$$RPA 보험료">보험료<input id="uw001-rpa-premium" type="number" placeholder="12500000" data-title="$$RPA 보험료" /></label>
-              <label data-title="$$RPA 상품유형">상품유형<select id="uw001-rpa-product" data-title="$$RPA 상품유형"><option>재산종합보험</option><option>화재보험</option><option>배상책임보험</option><option>해상보험</option></select></label>
-              <label data-title="$$RPA 심사상태">심사상태<select id="uw001-rpa-status" data-title="$$RPA 심사상태"><option>접수</option><option>검토중</option><option>보완요청</option><option>승인</option></select></label>
-              <label data-title="$$RPA 접수일">접수일<input id="uw001-rpa-received-date" type="date" data-title="$$RPA 접수일" /></label>
-              <label data-title="$$RPA 긴급여부">긴급여부<select id="uw001-rpa-priority" data-title="$$RPA 긴급여부"><option>일반</option><option>긴급</option><option>보류</option></select></label>
-            </div>
-            <div class="rpa-practice-textarea">
-              <label data-title="$$RPA 심사의견">심사의견<textarea id="uw001-rpa-review-note" rows="3" placeholder="위험요소, 보완서류, 승인조건을 입력" data-title="$$RPA 심사의견"></textarea></label>
-              <label data-title="$$RPA 비고">비고<textarea id="uw001-rpa-remark" rows="3" placeholder="RPA 시연 중 확인할 비고를 입력" data-title="$$RPA 비고"></textarea></label>
-            </div>
-            <div class="rpa-event-actions">
-              <button type="button" onclick="demoRpaFillUw001()">샘플값 입력</button>
-              <button type="button" onclick="demoRpaValidateUw001()">필수값 검증</button>
-              <button type="button" onclick="demoRpaAppendUw001Note()">의견 추가</button>
-              <button type="button" onclick="demoRpaDispatchUw001Events()">change 이벤트 발생</button>
-              <button type="button" onclick="demoRpaClearUw001()">입력값 초기화</button>
-            </div>
-            <div id="uw001-rpa-event-log" class="rpa-event-log">RPA 테스트 이벤트 대기 중</div>
-          </div>
         </div>
 
         <!-- ══ UW-002 언더라이팅 등록 ══ -->
@@ -2549,143 +2161,12 @@
 
       // sticky-layer 위치를 주기적으로 반영
       setInterval(() => {}, 0); // placeholder
-
-      function demoSetRpaValue(elementId, value) {
-        const element = document.getElementById(elementId);
-        if (!element) return;
-        element.value = value;
-        element.dispatchEvent(new Event("input", { bubbles: true }));
-        element.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-
-      function demoLogRpaEvent(message) {
-        const log = document.getElementById("uw001-rpa-event-log");
-        const time = new Date().toLocaleTimeString("ko-KR", { hour12: false });
-        const text = `[${time}] ${message}`;
-        if (log) log.textContent = text;
-      }
-
-      function demoRpaFillUw001() {
-        demoSetRpaValue("uw001-rpa-policy-no", "UW-2025-00999");
-        demoSetRpaValue("uw001-rpa-customer", "㈜솔로몬테스트");
-        demoSetRpaValue("uw001-rpa-manager", "김언더");
-        demoSetRpaValue("uw001-rpa-premium", "12500000");
-        demoSetRpaValue("uw001-rpa-product", "재산종합보험");
-        demoSetRpaValue("uw001-rpa-status", "검토중");
-        demoSetRpaValue("uw001-rpa-received-date", "2026-05-11");
-        demoSetRpaValue("uw001-rpa-priority", "긴급");
-        demoSetRpaValue("uw001-rpa-review-note", "RPA 샘플 입력: 고액 계약으로 추가 서류 확인 필요");
-        demoLogRpaEvent("샘플값 입력 완료");
-      }
-
-      function demoRpaValidateUw001() {
-        const requiredIds = ["uw001-rpa-policy-no", "uw001-rpa-customer", "uw001-rpa-premium"];
-        const missing = requiredIds.filter((id) => !document.getElementById(id)?.value);
-        demoLogRpaEvent(missing.length ? `필수값 누락: ${missing.join(", ")}` : "필수값 검증 통과");
-      }
-
-      function demoRpaAppendUw001Note() {
-        const note = document.getElementById("uw001-rpa-review-note");
-        if (!note) return;
-        note.value = `${note.value ? `${note.value}\n` : ""}- 자동 이벤트 버튼으로 심사의견 추가`;
-        note.dispatchEvent(new Event("input", { bubbles: true }));
-        note.dispatchEvent(new Event("change", { bubbles: true }));
-        demoLogRpaEvent("심사의견 텍스트 추가");
-      }
-
-      function demoRpaDispatchUw001Events() {
-        ["uw001-rpa-policy-no", "uw001-rpa-customer", "uw001-rpa-product", "uw001-rpa-status", "uw001-rpa-review-note"].forEach((id) => {
-          const element = document.getElementById(id);
-          element?.dispatchEvent(new Event("change", { bubbles: true }));
-        });
-        demoLogRpaEvent("주요 필드 change 이벤트 수동 발생");
-      }
-
-      function demoRpaClearUw001() {
-        ["uw001-rpa-policy-no", "uw001-rpa-customer", "uw001-rpa-manager", "uw001-rpa-premium", "uw001-rpa-received-date", "uw001-rpa-review-note", "uw001-rpa-remark"].forEach((id) => demoSetRpaValue(id, ""));
-        demoSetRpaValue("uw001-rpa-product", "재산종합보험");
-        demoSetRpaValue("uw001-rpa-status", "접수");
-        demoSetRpaValue("uw001-rpa-priority", "일반");
-        demoLogRpaEvent("입력값 초기화 완료");
-      }
-
-      function demoAssistantOpen(tabId) {
-        window.assistantBridge?.open?.();
-        if (tabId) {
-          setTimeout(() => window.assistantBridge?.setActiveTab?.(tabId), 80);
-        }
-      }
-
-      function demoAssistantPushGrid() {
-        window.assistantBridge?.pushGridData?.({
-          rows: [
-            ["계약번호", "계약자", "상품", "보험료"],
-            ["UW-2025-00123", "㈜한국물류", "재산종합보험", "12,450,000"],
-            ["CT-2025-0441", "이준호", "일반계약", "1,200,000"],
-          ],
-        });
-        demoAssistantOpen("memo");
-      }
-
-      const DEMO_ASSISTANT_THEMES = {
-        classic: { primary: "#006DB3", primaryLight: "#E8F4F8", primaryDark: "#005A96" },
-        earthbrown: { primary: "#C9BEAA", primaryLight: "#F8F3EC", primaryDark: "#8B7355" },
-        oceangreen: { primary: "#1ABC9C", primaryLight: "#E8F8F5", primaryDark: "#0E7C68" },
-        lightbeige: { primary: "#D7B98E", primaryLight: "#FAF3EB", primaryDark: "#8A6D45" },
-      };
-
-      function demoNormalizeThemeKey(themeKey) {
-        const normalized = String(themeKey || "classic").toLowerCase();
-        return DEMO_ASSISTANT_THEMES[normalized] ? normalized : "classic";
-      }
-
-      function demoApplyHostTheme(themeKey, isDarkMode, theme) {
-        const normalizedThemeKey = demoNormalizeThemeKey(themeKey);
-        const colors = theme || DEMO_ASSISTANT_THEMES[normalizedThemeKey] || DEMO_ASSISTANT_THEMES.classic;
-        document.documentElement.style.setProperty("--host-primary", colors.primary);
-        document.documentElement.style.setProperty("--host-primary-light", colors.primaryLight);
-        document.documentElement.style.setProperty("--host-primary-dark", colors.primaryDark);
-        document.body.dataset.demoTheme = normalizedThemeKey;
-        document.body.classList.toggle("demo-dark", !!isDarkMode);
-        document.querySelectorAll("[data-demo-theme]").forEach((button) => {
-          button.classList.toggle("is-active", button.dataset.demoTheme === normalizedThemeKey);
-        });
-        document.querySelectorAll("[data-demo-mode]").forEach((button) => {
-          button.classList.toggle("is-active", button.dataset.demoMode === (isDarkMode ? "dark" : "light"));
-        });
-      }
-
-      function demoAssistantSetTheme(themeKey) {
-        const normalizedThemeKey = demoNormalizeThemeKey(themeKey);
-        localStorage.setItem("selectedTheme", normalizedThemeKey);
-        demoApplyHostTheme(normalizedThemeKey, localStorage.getItem("selectedMode") === "dark");
-        window.assistantBridge?.setTheme?.(normalizedThemeKey);
-      }
-
-      function demoAssistantSetDarkMode(isDarkMode) {
-        localStorage.setItem("selectedMode", isDarkMode ? "dark" : "light");
-        demoApplyHostTheme(demoNormalizeThemeKey(localStorage.getItem("selectedTheme")), isDarkMode);
-        window.assistantBridge?.setDarkMode?.(isDarkMode);
-      }
-
-      demoApplyHostTheme(
-        demoNormalizeThemeKey(localStorage.getItem("selectedTheme")),
-        localStorage.getItem("selectedMode") === "dark",
-      );
-
-      window.addEventListener("assistant:themechange", function (event) {
-        const detail = event.detail || {};
-        const normalizedThemeKey = demoNormalizeThemeKey(detail.themeKey);
-        localStorage.setItem("selectedTheme", normalizedThemeKey);
-        localStorage.setItem("selectedMode", detail.isDarkMode ? "dark" : "light");
-        demoApplyHostTheme(normalizedThemeKey, !!detail.isDarkMode, detail.theme);
-      });
     </script>
 
     <!-- ══════════════════════════════════════════
        어시스턴트 로더
   ════════════════════════════════════════════ -->
-    <script src="../assistant-loader.js"></script>
+    <script src="vendor/assistant-loader.js"></script>
     <script>
       /**
        * 웹스퀘어 내부시스템은 window.onload = init; 패턴으로 초기화됩니다.
@@ -2693,7 +2174,7 @@
        * 기존 onload를 교체하지 않고 아래처럼 체이닝합니다.
        *
        * ── 실제 배포 시 적용 예시 ──────────────────────────────────
-       * <script src="../assistant-loader.js"><\/script>
+       * <script src="vendor/assistant-loader.js"><\/script>
        * <script>
        *   (function () {
        *     const _prevOnload = window.onload;          // 웹스퀘어 init 보존
@@ -2729,7 +2210,7 @@
 
         // 초기 테마 / 다크모드 / 업무영역 컬러모드 설정
         // → 콜백 없이 첫 렌더 전에 적용되므로 flash 없음
-        initialTheme:         demoNormalizeThemeKey(localStorage.getItem('selectedTheme')),
+        initialTheme:         localStorage.getItem('selectedTheme') || 'classic',
         initialDarkMode:      localStorage.getItem('selectedMode') === 'dark',
         initialAreaColorMode: localStorage.getItem('selectedIsTask') === true,
 
@@ -2738,30 +2219,30 @@
         // ══════════════════════════════════════════════════════════════════════
 
         // 어시스턴트 HTML 조각 파일 경로
-        htmlPath: "../assistant/assistant-fragment.html",
+        htmlPath: "vendor/assistant/assistant-fragment.html",
 
         // 어시스턴트 메인 CSS 경로
-        cssPath: "../assistant/assistant.css",
+        cssPath: "vendor/assistant/assistant.css",
 
         // 추가 CSS 목록 (Quill 에디터 등)
         cssPaths: [
-          "../quill/quill.bubble.css",
-          "../quill/quill-better-table.css",  
+          "vendor/quill/quill.bubble.css",
+          "vendor/quill/quill-better-table.css",  
         ],
 
         // 어시스턴트 메인 JS 경로
-        jsPath: "../assistant/assistant.js",
+        jsPath: "vendor/assistant/assistant.js",
 
         // 추가 JS 목록 (jsPath 로드 전에 순서대로 주입됨)
         scriptPaths: [
-          "../quill/quill.min.js",
-          "../quill/quill-better-table.min.js",
-          "../quill/quill-markdown-shortcuts.js",
-          "../purify/purify.min.js",
+          "vendor/quill/quill.min.js",
+          "vendor/quill/quill-better-table.min.js",
+          "vendor/quill/quill-markdown-shortcuts.js",
+          "vendor/purify/purify.min.js",
         ],
 
         // SharedWorker 경로 (미입력 시 jsPath 기준 자동 추론)
-        workerPath: "../assistant/assistant-worker.js",
+        workerPath: "vendor/assistant/assistant-worker.js",
 
         // ══════════════════════════════════════════════════════════════════════
         // 3. 사용자 정보 (암호화 저장) HTTPS 환경에서만 제공
@@ -2847,142 +2328,6 @@
       function deleteDatabase(dbName) {
         indexedDB.deleteDatabase(dbName);
       };
-    </script>
-
-    <!-- ══════════════════════════════════════════
-       PoC 5.3 — RPA 매크로 모듈 (./)
-       데모는 4개 원본 모듈을 직접 로드한다 (디버깅·sourcemap 친화).
-       메일 반입용 합본은 별도 ./bundle.txt — 콘솔 paste 전용.
-    ══════════════════════════════════════════ -->
-    <script src="./solomon-adapter.js"></script>
-    <script src="./rpa-decorator.js"></script>
-    <script src="./macro-recorder.js"></script>
-    <script src="./assistant-bridge.js"></script>
-    <script>
-      // ═════════════════════════════════════════════════════════════
-      // 솔로몬 환경 호환 stub
-      //   macro-recorder는 재생 시 window.$p.comp(rpaId).setValue() 를
-      //   우선 호출하고, 그 경로가 없으면 input 이벤트 dispatch로 자동 폴백합니다.
-      //   데모 환경엔 컴포넌트 트리가 없으므로 null을 반환하는 stub을 두어
-      //   실 환경과 동일한 코드 경로(setValue 시도 → 폴백)가 시연되도록 합니다.
-      // ═════════════════════════════════════════════════════════════
-      window.$p = window.$p || { comp: function () { return null; } };
-
-      // ═════════════════════════════════════════════════════════════
-      // 데모 자동 보강 (Auto-Decorate)
-      //
-      // 데모 시뮬 화면은 실 솔로몬 환경의 시그니처(data-title TD wrapping,
-      // mf_Frames_..._edtXxx 형태의 id suffix 등)를 풍부하게 박지 않습니다.
-      // 그래서 식별 단서가 부족한 위젯이 폴백 8(위치 기반)에 잡히고,
-      // 화면 다시 그릴 때 인덱스가 흔들려 같은 input이 여러 rpaId로
-      // 중복 잡히는 현상이 발생합니다.
-      //
-      // 이 함수는 init 직전에 화면 위젯에 placeholder/aria-label/name/
-      // button 텍스트/select first option 등에서 라벨을 추출해
-      //   1) data-title="$$라벨"  → 폴백 1 매칭
-      //   2) 부모 <td>에도 동일 data-title → 실 환경 td 패턴 흉내
-      //   3) 의미 있는 id suffix(없을 때만) → 폴백 2 매칭
-      // 을 동적으로 부여합니다. HTML 구조는 변경하지 않습니다.
-      // ═════════════════════════════════════════════════════════════
-      function autoDecorateForDemo() {
-        const NEEDS_PREFIX = {
-          input: "edt",
-          select: "cbo",
-          button: "btn",
-          textarea: "txt",
-        };
-        let decorated = 0;
-
-        document
-          .querySelectorAll("input, select, textarea, button")
-          .forEach((el) => {
-            // 어시스턴트/매크로 토글 영역은 제외 (재귀 캡처 방지)
-            if (el.closest("#assistant-mount")) return;
-            if (el.closest(".solomon-rpa-toggle")) return;
-            if (el.closest("[data-rpa-skip]")) return;
-
-            // 1) 라벨 추출 우선순위: placeholder → aria-label → name →
-            //    button 텍스트 → select first option
-            let label = null;
-            if (!label && el.placeholder) label = el.placeholder.trim();
-            if (!label && el.getAttribute("aria-label"))
-              label = el.getAttribute("aria-label").trim();
-            if (!label && el.name) label = el.name.trim();
-            if (!label && el.tagName === "BUTTON") {
-              label = (el.textContent || "")
-                .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "") // 이모지 제거
-                .replace(/\s+/g, " ")
-                .trim();
-            }
-            if (!label && el.tagName === "SELECT" && el.options[0]) {
-              label = el.options[0].text.trim();
-            }
-            if (!label) return; // 단서 없는 위젯은 폴백 8(위치)에 맡김
-
-            // 2) data-title 부여 (자기 자신) — 폴백 1 매칭
-            if (!el.getAttribute("data-title")) {
-              el.setAttribute("data-title", "$$" + label);
-              decorated++;
-            }
-
-            // 3) 부모 <td>에도 동일 라벨 — 실 환경 td 패턴 흉내
-            const td = el.closest("td");
-            if (td && !td.getAttribute("data-title")) {
-              td.setAttribute("data-title", "$$" + label);
-            }
-
-            // 4) 의미 있는 id suffix 부여 (없을 때만) — 폴백 2 보조 매칭
-            if (!el.id) {
-              const screen =
-                el.closest(".screen-panel")?.dataset.screenId || "demo";
-              const tag = el.tagName.toLowerCase();
-              const prefix = NEEDS_PREFIX[tag] || tag;
-              const safeLabel = label
-                .replace(/[^a-zA-Z0-9가-힣]/g, "_")
-                .replace(/_+/g, "_")
-                .replace(/^_|_$/g, "");
-              el.id =
-                "mf_demo_main_wframe_div" +
-                screen.replace(/-/g, "") +
-                "_" +
-                prefix +
-                safeLabel;
-            }
-          });
-        return decorated;
-      }
-
-      // 어시스턴트 마운트가 비동기이므로 1초 후 명시 활성화.
-      // assistant-bridge.js 의 init() 는 MutationObserver 도 시작하므로
-      // 이후 어시스턴트 펼침/접힘에 자동 추종.
-      setTimeout(() => {
-        try {
-          SolomonAdapter.resetStats();
-          const auto = autoDecorateForDemo(); // ← 어댑터 호출 직전에 보강
-          const decoratedCount = RpaDecorator.decorate();
-          RpaDecorator.startObserving(document.body);
-          AssistantBridge.init();
-          console.log("[rpa-macro/demo] 활성화", {
-            mountedHost: AssistantBridge.getMountedHost(),
-            autoDecorated: auto,
-            decoratedCount,
-            adapterStats: SolomonAdapter.getStats(),
-          });
-
-          // 화면 전환(LNB 클릭) 후에도 새 화면의 위젯이 데코 안 된 상태라면
-          // 다시 보강 + 어댑터 재가동. 이미 보강된 위젯은 멱등 처리(스킵).
-          document
-            .getElementById("sys-lnb")
-            ?.addEventListener("click", function () {
-              setTimeout(() => {
-                autoDecorateForDemo();
-                RpaDecorator.decorate();
-              }, 50);
-            });
-        } catch (err) {
-          console.error("[rpa-macro/demo] 활성화 실패:", err);
-        }
-      }, 1000);
     </script>
   </body>
 </html>

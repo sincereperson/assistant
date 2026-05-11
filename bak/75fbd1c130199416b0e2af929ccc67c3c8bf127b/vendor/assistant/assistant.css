@@ -1264,15 +1264,13 @@
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  transition: border-color 0.2s, box-shadow 0.2s;
 }
 #assistant-root .imsmassi-memo-quill-wrapper .ql-container {
   border: none;
   background: var(--memo-bg);
-  min-height: 58px;
+  min-height: 140px;
   overflow: hidden;
   border-radius: 12px;
-  transition: min-height 0.18s ease;
 }
 #assistant-root.imsmassi-dark-mode .imsmassi-memo-quill-wrapper {
   border-color: var(--blue-gray-700);
@@ -1281,29 +1279,17 @@
   color: var(--memo-text);
   line-height: 1.6;
   padding: 12px;
-  min-height: 58px;
+  min-height: 140px;
   overflow: hidden;
   box-sizing: border-box;
-  transition: min-height 0.18s ease;
 }
 #assistant-root .imsmassi-memo-quill-wrapper.imsmassi-focused {
   border: 1px solid var(--imsmassi-primary);
 }
-#assistant-root .imsmassi-memo-quill-wrapper.imsmassi-focused .ql-container,
-#assistant-root .imsmassi-memo-quill-wrapper:focus-within .ql-container,
-#assistant-root .imsmassi-memo-quill-wrapper.imsmassi-focused .ql-editor,
-#assistant-root .imsmassi-memo-quill-wrapper:focus-within .ql-editor {
-  min-height: 140px;
-}
 #assistant-root .imsmassi-memo-editor {
-  min-height: 58px;
+  min-height: 140px;
   max-height: 280px;
   overflow-y: auto;
-  transition: min-height 0.18s ease;
-}
-#assistant-root .imsmassi-memo-quill-wrapper.imsmassi-focused .imsmassi-memo-editor,
-#assistant-root .imsmassi-memo-quill-wrapper:focus-within .imsmassi-memo-editor {
-  min-height: 140px;
 }
 #assistant-root .imsmassi-memo-quill-wrapper .ql-editor.ql-blank::before {
   color: var(--blue-gray-500);
@@ -1899,7 +1885,7 @@
 /* 메모 탭 상세 스타일 (scoped) */
 #assistant-root .imsmassi-memo-textarea {
   width: 100%;
-  min-height: 58px;
+  min-height: 140px;
   max-height: 300px;
   padding: 12px 40px 30px 12px;
   border: 2px solid;
@@ -1908,13 +1894,9 @@
   white-space: pre-wrap;
   word-break: break-word;
   outline: none;
-  transition: border-color 0.2s, min-height 0.18s ease;
+  transition: border-color 0.2s;
   cursor: text;
   overflow-y: auto;
-}
-#assistant-root .imsmassi-memo-textarea.imsmassi-focused,
-#assistant-root .imsmassi-memo-textarea:focus {
-  min-height: 140px;
 }
 #assistant-root .imsmassi-memo-capacity {
   position: absolute;

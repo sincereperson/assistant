@@ -1308,6 +1308,72 @@
       #rpa-macro-toggle .rmt-lib-empty {
         color: #aaa; text-align: center; padding: 8px 0;
       }
+      body.demo-dark #rpa-macro-toggle,
+      .imsmassi-dark-mode #rpa-macro-toggle {
+        background: #18232e;
+        border-color: #334657;
+        color: #e8eef3;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.28);
+      }
+      body.demo-dark #rpa-macro-toggle .rmt-btn,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-btn,
+      body.demo-dark #rpa-macro-toggle .rmt-mini,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-mini,
+      body.demo-dark #rpa-macro-toggle .rmt-lib button,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-lib button {
+        background: #223140;
+        border-color: #405365;
+        color: #dce9f1;
+      }
+      body.demo-dark #rpa-macro-toggle .rmt-btn:not(:disabled):hover,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-btn:not(:disabled):hover,
+      body.demo-dark #rpa-macro-toggle .rmt-mini:hover,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-mini:hover,
+      body.demo-dark #rpa-macro-toggle .rmt-lib button:hover,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-lib button:hover {
+        background: #2d4052;
+        border-color: #5b7183;
+        color: #fff;
+      }
+      body.demo-dark #rpa-macro-toggle .rmt-status,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-status {
+        background: #121b24;
+        color: #aebfcb;
+      }
+      body.demo-dark #rpa-macro-toggle .rmt-lib-wrap,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-lib-wrap {
+        border-top-color: #334657;
+      }
+      body.demo-dark #rpa-macro-toggle .rmt-lib-header,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-lib-header,
+      body.demo-dark #rpa-macro-toggle .rmt-lib .rmt-lib-meta,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-lib .rmt-lib-meta,
+      body.demo-dark #rpa-macro-toggle .rmt-lib-empty,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-lib-empty {
+        color: #8fa3b3;
+      }
+      body.demo-dark #rpa-macro-toggle .rmt-lib li,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-lib li {
+        border-bottom-color: #334657;
+      }
+      body.demo-dark #rpa-macro-toggle .rmt-lib .rmt-lib-name,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-lib .rmt-lib-name,
+      body.demo-dark #rpa-macro-toggle .rmt-stop,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-stop {
+        color: #dce9f1;
+      }
+      body.demo-dark #rpa-macro-toggle .rmt-rec,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-rec,
+      body.demo-dark #rpa-macro-toggle .rmt-lib .rmt-lib-del,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-lib .rmt-lib-del {
+        color: #ff8a80;
+      }
+      body.demo-dark #rpa-macro-toggle .rmt-play,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-play,
+      body.demo-dark #rpa-macro-toggle .rmt-lib .rmt-lib-play,
+      .imsmassi-dark-mode #rpa-macro-toggle .rmt-lib .rmt-lib-play {
+        color: #7ee2a8;
+      }
     `;
     document.head.appendChild(style);
 
